@@ -1,0 +1,201 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { saveNote, getNotes } from "@/lib/notes-service"
+import { formatDistanceToNow } from "date-fns"
+import { Loader2, BookMarkedIcon as Markdown } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase-client"
+import { useRouter } from "next/navigation"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import ReactMarkdown from "react-markdown"
+import type { Note } from "@/types/notes"
+
+interface NotesSectionProps {
+  articleId: string
+  articleTitle?: string
+}
+
+export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
+  const [notes, setNotes] = useState<Note[]>([])
+  const [newNote, setNewNote] = useState("")
+  const [isMarkdown, setIsMarkdown] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  // Check if user is authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please log in to add notes.",
+        })
+      }
+    }
+
+    checkAuth()
+  }, [toast])
+
+  // Load existing notes for this article
+  const loadNotes = async () => {
+    try {
+      setInitialLoading(true)
+      const articleNotes = await getNotes(articleId)
+      console.log(`Loaded ${articleNotes.length} notes for article ${articleId}`)
+      setNotes(articleNotes)
+    } catch (error) {
+      console.error("Failed to load notes:", error)
+      toast({
+        variant: "destructive",
+        title: "Error loading notes",
+        description: "We couldn't load your notes. Please try again later.",
+      })
+    } finally {
+      setInitialLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (articleId) {
+      loadNotes()
+    }
+  }, [articleId])
+
+  const handleSaveNote = async () => {
+    if (!newNote.trim()) return
+
+    // Check if user is authenticated
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please log in to add notes.",
+      })
+      router.push("/auth/login")
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      console.log(`Saving note for article ${articleId}:`, newNote)
+      const savedNote = await saveNote(articleId, newNote, articleTitle, isMarkdown)
+
+      if (!savedNote) {
+        throw new Error("Failed to save note")
+      }
+
+      // Optimistically update the UI
+      setNotes([savedNote, ...notes])
+      setNewNote("")
+
+      toast({
+        title: "Note saved",
+        description: "Your note has been saved successfully.",
+      })
+    } catch (error) {
+      console.error("Failed to save note:", error)
+      toast({
+        variant: "destructive",
+        title: "Failed to save note",
+        description: "There was an error saving your note. Please try again.",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">Your Notes</h2>
+      <p className="text-muted-foreground">Add personal notes and thoughts about this article</p>
+
+      <div className="grid gap-4">
+        <Textarea
+          placeholder="Add your notes here..."
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          className="min-h-[120px]"
+        />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Switch id="markdown-toggle" checked={isMarkdown} onCheckedChange={setIsMarkdown} />
+            <Label htmlFor="markdown-toggle" className="flex items-center">
+              <Markdown className="h-4 w-4 mr-1" />
+              Markdown
+            </Label>
+          </div>
+          <Button onClick={handleSaveNote} disabled={loading || !newNote.trim()}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Note"
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <Separator className="my-6" />
+
+      <div className="space-y-4">
+        {initialLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : notes.length === 0 ? (
+          <p className="text-center text-muted-foreground py-4">No notes yet. Add your first note above.</p>
+        ) : (
+          notes.map((note) => (
+            <Card key={note.id}>
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="flex justify-between">
+                  <span>{formatDistanceToNow(new Date(note.createdAt))} ago</span>
+                  {note.isMarkdown && (
+                    <Badge variant="outline" className="text-xs">
+                      <Markdown className="h-3 w-3 mr-1" />
+                      Markdown
+                    </Badge>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                {note.isMarkdown ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{note.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p>{note.content}</p>
+                )}
+
+                {note.tags && note.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {note.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
