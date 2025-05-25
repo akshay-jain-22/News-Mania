@@ -49,7 +49,8 @@ interface FactCheckResult {
   searchQueries: string[]
 }
 
-const GOOGLE_FACT_CHECK_API_KEY = "AIzaSyCb04teN4cFD1RTidUeJB5M6jM4jdOAUXU"
+// Use environment variable for API key
+const GOOGLE_FACT_CHECK_API_KEY = process.env.google_fact_check_api || process.env.GOOGLE_FACT_CHECK_API
 const FACT_CHECK_API_BASE_URL = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
 
 // Rating mappings for different fact-checking organizations
@@ -136,6 +137,11 @@ const SOURCE_RELIABILITY: Record<string, number> = {
 
 export async function searchFactChecks(query: string, maxResults = 10): Promise<GoogleFactCheckResponse> {
   try {
+    if (!GOOGLE_FACT_CHECK_API_KEY) {
+      console.error("Google Fact Check API key not found in environment variables")
+      throw new Error("API key not configured")
+    }
+
     const url = new URL(FACT_CHECK_API_BASE_URL)
     url.searchParams.append("key", GOOGLE_FACT_CHECK_API_KEY)
     url.searchParams.append("query", query)
@@ -152,8 +158,9 @@ export async function searchFactChecks(query: string, maxResults = 10): Promise<
     })
 
     if (!response.ok) {
-      console.error(`Fact Check API error: ${response.status} ${response.statusText}`)
-      throw new Error(`Fact Check API error: ${response.status}`)
+      const errorText = await response.text()
+      console.error(`Fact Check API error: ${response.status} ${response.statusText}`, errorText)
+      throw new Error(`Fact Check API error: ${response.status} - ${errorText}`)
     }
 
     const data = await response.json()

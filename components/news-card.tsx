@@ -118,6 +118,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
   const [contextDialogOpen, setContextDialogOpen] = useState(false)
   const [newsContext, setNewsContext] = useState("")
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
+  const [factCheckDialogOpen, setFactCheckDialogOpen] = useState(false)
   const { toast } = useToast()
 
   // Get a placeholder image if article doesn't have one
@@ -134,7 +135,10 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
     setIsFactChecking(true)
 
     try {
+      console.log("Starting fact check for article:", article.title)
       const result = await factCheckArticle(article.id)
+
+      console.log("Fact check result:", result)
 
       // Update the article with fact check results
       setArticle({
@@ -142,17 +146,22 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
         isFactChecked: result.isFactChecked,
         credibilityScore: result.credibilityScore,
         factCheckResult: result.factCheckResult,
+        claimsAnalyzed: result.claimsAnalyzed,
       })
+
+      // Show detailed results in dialog
+      setFactCheckDialogOpen(true)
 
       toast({
         title: "Fact check complete",
-        description: "View the detailed analysis in the article page.",
+        description: `Credibility score: ${result.credibilityScore}%. Click to view detailed analysis.`,
       })
     } catch (error) {
+      console.error("Fact check error:", error)
       toast({
         variant: "destructive",
         title: "Fact check failed",
-        description: "There was an error analyzing this article.",
+        description: "There was an error analyzing this article. Please try again.",
       })
     } finally {
       setIsFactChecking(false)
@@ -232,15 +241,27 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
       return (
         <div
           className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-          title="Low credibility"
+          title={`Low credibility (${Math.round(article.credibilityScore)}%)`}
         >
           <AlertTriangle className="h-4 w-4" />
         </div>
       )
     } else if (article.credibilityScore >= 70) {
       return (
-        <div className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1" title="High credibility">
+        <div
+          className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1"
+          title={`High credibility (${Math.round(article.credibilityScore)}%)`}
+        >
           <CheckCircle className="h-4 w-4" />
+        </div>
+      )
+    } else {
+      return (
+        <div
+          className="absolute top-2 right-2 bg-yellow-600 text-white rounded-full p-1"
+          title={`Mixed credibility (${Math.round(article.credibilityScore)}%)`}
+        >
+          <HelpCircle className="h-4 w-4" />
         </div>
       )
     }
@@ -312,10 +333,20 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
             </Link>
           </CardTitle>
           <CardDescription className="line-clamp-2">{article.description}</CardDescription>
+
+          {/* Show credibility badge if fact-checked */}
+          {article.isFactChecked && <div className="mt-2">{getCredibilityBadge()}</div>}
         </CardHeader>
 
         <CardContent className="p-4 pt-0 flex-grow">
           <p className="text-sm text-muted-foreground line-clamp-3">{article.content}</p>
+
+          {/* Show fact check result summary if available */}
+          {article.isFactChecked && article.factCheckResult && (
+            <div className="mt-3 p-2 bg-muted/50 rounded-md border">
+              <p className="text-xs text-muted-foreground line-clamp-2">{article.factCheckResult}</p>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="p-4 pt-0">
@@ -372,18 +403,20 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                 <BookmarkPlus className="h-4 w-4" />
                 <span className="sr-only">Save</span>
               </Button>
-              {!article.isFactChecked && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleFactCheck}
-                  disabled={isFactChecking}
-                  title="Run AI-powered fact check analysis on this article"
-                >
-                  <Shield className={`h-4 w-4 ${isFactChecking ? "animate-pulse" : ""}`} />
-                  <span className="sr-only">Fact check</span>
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleFactCheck}
+                disabled={isFactChecking}
+                title={
+                  article.isFactChecked
+                    ? "View fact check details"
+                    : "Run AI-powered fact check analysis on this article"
+                }
+              >
+                {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                <span className="sr-only">Fact check</span>
+              </Button>
               {article.url && article.url !== "#" && (
                 <Button variant="ghost" size="icon" asChild title="Open original article">
                   <a href={article.url} target="_blank" rel="noopener noreferrer">
@@ -396,6 +429,97 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Fact Check Results Dialog */}
+      <Dialog open={factCheckDialogOpen} onOpenChange={setFactCheckDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Fact Check Analysis</DialogTitle>
+            <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Credibility Score */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Credibility Score</span>
+                <span className="font-bold text-lg">
+                  {article.credibilityScore ? Math.round(article.credibilityScore) : "N/A"}%
+                </span>
+              </div>
+              {article.credibilityScore && (
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      article.credibilityScore >= 70
+                        ? "bg-green-600"
+                        : article.credibilityScore >= 30
+                          ? "bg-yellow-600"
+                          : "bg-red-600"
+                    }`}
+                    style={{ width: `${article.credibilityScore}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {article.factCheckResult && (
+              <div className="space-y-2">
+                <span className="font-medium">Summary</span>
+                <p className="text-sm text-muted-foreground">{article.factCheckResult}</p>
+              </div>
+            )}
+
+            {/* Claims Analyzed */}
+            {article.claimsAnalyzed && article.claimsAnalyzed.length > 0 && (
+              <div className="space-y-2">
+                <span className="font-medium">Claims Analyzed</span>
+                <div className="space-y-2">
+                  {article.claimsAnalyzed.map((claim, index) => (
+                    <div key={index} className="p-3 border rounded-md">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{claim.claim}</span>
+                        <Badge
+                          variant={
+                            claim.verdict === "true"
+                              ? "default"
+                              : claim.verdict === "false"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
+                          {claim.verdict}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{claim.explanation}</p>
+                      {claim.sources && claim.sources.length > 0 && (
+                        <div className="mt-2">
+                          {claim.sources.map((source, sourceIndex) => (
+                            <a
+                              key={sourceIndex}
+                              href={source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline mr-2"
+                            >
+                              Source {sourceIndex + 1}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setFactCheckDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

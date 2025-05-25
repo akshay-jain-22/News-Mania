@@ -6,7 +6,7 @@ export interface NewsSource {
 export interface NewsArticle {
   id: string
   source: NewsSource
-  author: string | null
+  author: string
   title: string
   description: string
   url: string
@@ -16,12 +16,6 @@ export interface NewsArticle {
   credibilityScore?: number
   isFactChecked?: boolean
   factCheckResult?: string | null
-}
-
-export interface FactCheckResult {
-  isFactChecked: boolean
-  credibilityScore: number
-  factCheckResult: string | null
   claimsAnalyzed?: FactCheckClaim[]
 }
 
@@ -32,12 +26,25 @@ export interface FactCheckClaim {
   sources?: string[]
 }
 
+export interface FactCheckResult {
+  isFactChecked: boolean
+  credibilityScore: number
+  factCheckResult: string
+  claimsAnalyzed?: FactCheckClaim[]
+}
+
 export interface UserPreferences {
-  preferredTopics: string[]
-  preferredSources: string[]
-  excludedSources: string[]
-  language: string
-  region: string
-  darkMode: boolean
-  notificationsEnabled: boolean
+  categories: string[]
+  sources: string[]
+  autoRefresh: boolean
+  refreshInterval: number
+  theme: "light" | "dark" | "system"
+}
+
+export interface TopicData {
+  name: string
+  description: string
+  icon: string
+  color: string
+  articles?: NewsArticle[]
 }
