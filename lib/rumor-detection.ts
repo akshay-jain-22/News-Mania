@@ -1,73 +1,8 @@
 import type { FactCheckResult, FactCheckClaim, NewsArticle } from "@/types/news"
+import { analyzeArticleCredibility as googleAnalyzeArticleCredibility } from "./google-fact-check-api"
 
-// This is a mock implementation of a rumor detection service
-// In a real application, you would use an AI service or fact-checking API
-
-// Sample credibility indicators
-const credibilityIndicators = [
-  {
-    pattern: /\b(breaking|exclusive|shocking)\b/i,
-    impact: -5,
-    reason: "Sensationalist language",
-  },
-  {
-    pattern: /\b(allegedly|reportedly|sources say|anonymous source)\b/i,
-    impact: -3,
-    reason: "Unverified sources",
-  },
-  {
-    pattern: /\b(study shows|research indicates|according to experts|data reveals)\b/i,
-    impact: 5,
-    reason: "Reference to research or experts",
-  },
-  {
-    pattern: /\b(all|every|always|never|no one|everyone)\b/i,
-    impact: -4,
-    reason: "Absolute language",
-  },
-  {
-    pattern: /\b(may|might|could|suggests|appears|seems)\b/i,
-    impact: 3,
-    reason: "Nuanced language",
-  },
-  {
-    pattern: /\b(conspiracy|coverup|they don't want you to know|secret plan)\b/i,
-    impact: -8,
-    reason: "Conspiracy theory language",
-  },
-  {
-    pattern: /\b(miracle|cure|revolutionary|breakthrough|game-changer)\b/i,
-    impact: -6,
-    reason: "Exaggerated claims",
-  },
-]
-
-// Updated source trust scores with more detailed ratings
-const sourceTrustScores: Record<string, number> = {
-  Reuters: 92,
-  "Associated Press": 91,
-  "BBC News": 88,
-  "The New York Times": 82,
-  "The Washington Post": 81,
-  "The Guardian": 80,
-  NPR: 83,
-  CNN: 72,
-  "The Wall Street Journal": 84,
-  Bloomberg: 83,
-  "The Economist": 87,
-  "Al Jazeera": 76,
-  "USA Today": 70,
-  "Fox News": 58,
-  "Buzzfeed News": 65,
-  "Daily Mail": 40,
-  "The Sun": 35,
-  "National Enquirer": 20,
-  InfoWars: 10,
-  Newsmania: 75, // Our own source
-  "Unknown Source": 45, // Default for unknown sources
-}
-
-export async function analyzeArticleCredibility(article: NewsArticle): Promise<FactCheckResult> {
+// Keep the existing mock implementation as fallback
+async function mockAnalyzeArticleCredibility(article: NewsArticle): Promise<FactCheckResult> {
   // Simulate API delay for realism
   await new Promise((resolve) => setTimeout(resolve, 1500))
 
@@ -77,6 +12,30 @@ export async function analyzeArticleCredibility(article: NewsArticle): Promise<F
 
   // 1. Check source credibility
   const sourceName = article.source.name
+  const sourceTrustScores: Record<string, number> = {
+    Reuters: 92,
+    "Associated Press": 91,
+    "BBC News": 88,
+    "The New York Times": 82,
+    "The Washington Post": 81,
+    "The Guardian": 80,
+    NPR: 83,
+    CNN: 72,
+    "The Wall Street Journal": 84,
+    Bloomberg: 83,
+    "The Economist": 87,
+    "Al Jazeera": 76,
+    "USA Today": 70,
+    "Fox News": 58,
+    "Buzzfeed News": 65,
+    "Daily Mail": 40,
+    "The Sun": 35,
+    "National Enquirer": 20,
+    InfoWars: 10,
+    Newsmania: 75,
+    "Unknown Source": 45,
+  }
+
   if (sourceTrustScores[sourceName]) {
     const sourceImpact = (sourceTrustScores[sourceName] - 50) / 5
     credibilityScore += sourceImpact
@@ -92,13 +51,48 @@ export async function analyzeArticleCredibility(article: NewsArticle): Promise<F
   // 2. Analyze content for credibility indicators
   const contentToAnalyze = `${article.title} ${article.description} ${article.content}`.toLowerCase()
 
-  let foundIndicators = 0
+  const credibilityIndicators = [
+    {
+      pattern: /\b(breaking|exclusive|shocking)\b/i,
+      impact: -5,
+      reason: "Sensationalist language",
+    },
+    {
+      pattern: /\b(allegedly|reportedly|sources say|anonymous source)\b/i,
+      impact: -3,
+      reason: "Unverified sources",
+    },
+    {
+      pattern: /\b(study shows|research indicates|according to experts|data reveals)\b/i,
+      impact: 5,
+      reason: "Reference to research or experts",
+    },
+    {
+      pattern: /\b(all|every|always|never|no one|everyone)\b/i,
+      impact: -4,
+      reason: "Absolute language",
+    },
+    {
+      pattern: /\b(may|might|could|suggests|appears|seems)\b/i,
+      impact: 3,
+      reason: "Nuanced language",
+    },
+    {
+      pattern: /\b(conspiracy|coverup|they don't want you to know|secret plan)\b/i,
+      impact: -8,
+      reason: "Conspiracy theory language",
+    },
+    {
+      pattern: /\b(miracle|cure|revolutionary|breakthrough|game-changer)\b/i,
+      impact: -6,
+      reason: "Exaggerated claims",
+    },
+  ]
+
   credibilityIndicators.forEach((indicator) => {
     if (indicator.pattern.test(contentToAnalyze)) {
       credibilityScore += indicator.impact
-      foundIndicators++
 
-      // Add as a claim if the impact is significant
       if (Math.abs(indicator.impact) >= 5) {
         claimsAnalyzed.push({
           claim: `Language analysis: ${indicator.reason}`,
@@ -110,90 +104,6 @@ export async function analyzeArticleCredibility(article: NewsArticle): Promise<F
       }
     }
   })
-
-  // 3. Check for balanced reporting (more sophisticated simulation)
-  // Use title and content length as a proxy for depth
-  const contentLength = article.content.length
-  const hasDetailedContent = contentLength > 500
-  const hasMultiplePerspectives =
-    contentToAnalyze.includes("however") ||
-    contentToAnalyze.includes("on the other hand") ||
-    contentToAnalyze.includes("critics say") ||
-    (contentToAnalyze.includes("according to") && contentToAnalyze.includes("while"))
-
-  if (hasMultiplePerspectives) {
-    credibilityScore += 15
-    claimsAnalyzed.push({
-      claim: "Multiple perspectives",
-      verdict: "true",
-      explanation: "The article presents multiple perspectives on the topic, showing balanced reporting.",
-    })
-  } else if (hasDetailedContent) {
-    credibilityScore += 5
-    claimsAnalyzed.push({
-      claim: "Detailed reporting",
-      verdict: "partially true",
-      explanation: "The article provides detailed information but may not present all perspectives on the topic.",
-    })
-  } else {
-    credibilityScore -= 10
-    claimsAnalyzed.push({
-      claim: "Limited perspective",
-      verdict: "partially true",
-      explanation: "The article presents a limited perspective and lacks depth on the topic.",
-    })
-  }
-
-  // 4. Check for citation of sources (more sophisticated simulation)
-  const citesSources =
-    contentToAnalyze.includes("according to") ||
-    contentToAnalyze.includes("said") ||
-    contentToAnalyze.includes("reported") ||
-    contentToAnalyze.includes("study") ||
-    contentToAnalyze.includes("research") ||
-    contentToAnalyze.includes("survey")
-
-  const citesMultipleSources =
-    (contentToAnalyze.match(/according to|said|reported|study|research|survey/g) || []).length > 2
-
-  if (citesMultipleSources) {
-    credibilityScore += 15
-    claimsAnalyzed.push({
-      claim: "Multiple sources cited",
-      verdict: "true",
-      explanation: "The article cites multiple specific sources for its claims, enhancing credibility.",
-    })
-  } else if (citesSources) {
-    credibilityScore += 8
-    claimsAnalyzed.push({
-      claim: "Cites sources",
-      verdict: "true",
-      explanation: "The article cites specific sources for its claims.",
-    })
-  } else {
-    credibilityScore -= 12
-    claimsAnalyzed.push({
-      claim: "Lack of sources",
-      verdict: "false",
-      explanation: "The article makes claims without citing specific sources, reducing credibility.",
-    })
-  }
-
-  // 5. Check for clickbait title
-  const hasClickbaitTitle =
-    /you won't believe|shocking|mind-blowing|amazing|incredible|unbelievable|secret|trick|hack|this is why|here's why|the truth about|what they don't want you to know/i.test(
-      article.title,
-    )
-
-  if (hasClickbaitTitle) {
-    credibilityScore -= 15
-    claimsAnalyzed.push({
-      claim: "Clickbait title",
-      verdict: "false",
-      explanation:
-        "The article uses sensationalist language in its title, which is often associated with less credible content.",
-    })
-  }
 
   // Ensure score is between 0 and 100
   credibilityScore = Math.max(0, Math.min(100, credibilityScore))
@@ -226,16 +136,75 @@ export async function analyzeArticleCredibility(article: NewsArticle): Promise<F
   }
 }
 
+export async function analyzeArticleCredibility(article: NewsArticle): Promise<FactCheckResult> {
+  try {
+    console.log("Starting Google Fact Check API analysis for:", article.title)
+
+    // Use Google Fact Check API
+    const result = await googleAnalyzeArticleCredibility(article.title, article.content, article.description)
+
+    // Convert to our expected format
+    const claimsAnalyzed: FactCheckClaim[] = result.details.ratings.map((rating) => ({
+      claim: rating.title,
+      verdict:
+        rating.rating.toLowerCase().includes("true") || rating.rating.toLowerCase().includes("correct")
+          ? "true"
+          : rating.rating.toLowerCase().includes("false") || rating.rating.toLowerCase().includes("incorrect")
+            ? "false"
+            : "partially true",
+      explanation: `Fact-checked by ${rating.source}: ${rating.rating}`,
+      sources: [rating.url],
+    }))
+
+    return {
+      isFactChecked: true,
+      credibilityScore: result.credibilityScore,
+      factCheckResult: result.summary,
+      claimsAnalyzed,
+    }
+  } catch (error) {
+    console.error("Google Fact Check API failed, falling back to mock analysis:", error)
+
+    // Fallback to mock implementation
+    return await mockAnalyzeArticleCredibility(article)
+  }
+}
+
 export async function checkFactClaimAgainstDatabase(claim: string): Promise<{
   verdict: "true" | "false" | "partially true" | "unverified"
   explanation: string
   sources?: string[]
 }> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 800))
+  try {
+    // Use Google Fact Check API for individual claims
+    const result = await googleAnalyzeArticleCredibility(claim, claim)
 
-  // In a real application, this would query a fact-checking database
-  // For demo purposes, we'll return random results
+    if (result.details.ratings.length > 0) {
+      const topRating = result.details.ratings[0]
+      const rating = topRating.rating.toLowerCase()
+
+      let verdict: "true" | "false" | "partially true" | "unverified" = "unverified"
+
+      if (rating.includes("true") || rating.includes("correct")) {
+        verdict = "true"
+      } else if (rating.includes("false") || rating.includes("incorrect")) {
+        verdict = "false"
+      } else if (rating.includes("partly") || rating.includes("misleading")) {
+        verdict = "partially true"
+      }
+
+      return {
+        verdict,
+        explanation: `${topRating.source} rated this claim as "${topRating.rating}": ${topRating.title}`,
+        sources: [topRating.url],
+      }
+    }
+  } catch (error) {
+    console.error("Error checking claim against Google Fact Check API:", error)
+  }
+
+  // Fallback to mock response
+  await new Promise((resolve) => setTimeout(resolve, 800))
 
   const verdicts: Array<"true" | "false" | "partially true" | "unverified"> = [
     "true",
