@@ -1,6 +1,5 @@
 import type { NewsArticle } from "@/types/news"
 import type { FactCheckResult } from "@/types/news"
-import { analyzeArticleCredibility } from "./rumor-detection"
 
 // Use the provided NewsAPI key
 const API_KEY = "2d28c89f4476422887cf8adbe7bb1e0b"
@@ -112,7 +111,7 @@ export async function fetchNews({
       urlToImage: article.urlToImage || null, // Use null if no image is available
       publishedAt: article.publishedAt || new Date().toISOString(),
       content: article.content || "No content available",
-      credibilityScore: Math.floor(Math.random() * 100), // This would be replaced with real credibility scoring
+      credibilityScore: undefined, // Will be set by fact checking
       isFactChecked: false,
       factCheckResult: null,
     }))
@@ -175,8 +174,24 @@ export async function factCheckArticle(articleId: string): Promise<FactCheckResu
 
     console.log("Starting fact check for article:", article.title)
 
-    // Use the new Google Fact Check API analysis
-    const result = await analyzeArticleCredibility(article)
+    // Call our new fact-check API endpoint
+    const response = await fetch("/api/fact-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: article.title,
+        content: article.content,
+        description: article.description,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Fact check API error: ${response.status}`)
+    }
+
+    const result = await response.json()
 
     console.log("Fact check completed with score:", result.credibilityScore)
 
@@ -270,7 +285,7 @@ export async function fetchArticleById(id: string): Promise<NewsArticle | null> 
             urlToImage: apiArticle.urlToImage || null,
             publishedAt: apiArticle.publishedAt || new Date().toISOString(),
             content: apiArticle.content || "No content available",
-            credibilityScore: Math.floor(Math.random() * 100),
+            credibilityScore: undefined,
             isFactChecked: false,
             factCheckResult: null,
           }
@@ -467,25 +482,6 @@ function createConsistentArticle(id: string, category: string, index: number, se
   const titleIndex = seed % categoryTitles[category]?.length || 0
   const contentIndex = (seed * 31) % categoryContent[category]?.length || 0
 
-  // Generate a consistent credibility score based on the seed
-  const credibilityScore = 30 + (seed % 70) // Range from 30 to 99
-
-  // Determine if the article is fact-checked based on the seed
-  const isFactChecked = seed % 3 === 0
-
-  // Generate a consistent fact check result based on the credibility score
-  let factCheckResult = null
-  if (isFactChecked) {
-    if (credibilityScore > 70) {
-      factCheckResult = "This article appears to be mostly accurate based on our verification process."
-    } else if (credibilityScore > 40) {
-      factCheckResult =
-        "This article contains some accurate information but may lack proper context or include minor inaccuracies."
-    } else {
-      factCheckResult = "This article contains potentially misleading information or unverified claims."
-    }
-  }
-
   return {
     id,
     source: { id: null, name: categoryTitles[category] ? "Newsmania" : "Unknown Source" },
@@ -497,9 +493,9 @@ function createConsistentArticle(id: string, category: string, index: number, se
     publishedAt: new Date(Date.now() - (seed % 7) * 86400000).toISOString(), // Consistent date based on seed
     content:
       categoryContent[category]?.[contentIndex] || `Content for this ${category} article is currently unavailable.`,
-    credibilityScore,
-    isFactChecked,
-    factCheckResult,
+    credibilityScore: undefined,
+    isFactChecked: false,
+    factCheckResult: null,
   }
 }
 
@@ -654,25 +650,6 @@ function generateMockArticles(): Record<string, NewsArticle[]> {
           content = `This comprehensive article covers the most significant recent events in ${category}, providing context and analysis from leading experts in the field. Readers will gain valuable insights into current trends and future projections.`
       }
 
-      // Generate a consistent credibility score based on the seed
-      const credibilityScore = 50 + (seed % 50)
-
-      // Determine if the article is fact-checked based on the seed
-      const isFactChecked = seed % 3 !== 0
-
-      // Generate a consistent fact check result based on the credibility score
-      let factCheckResult = null
-      if (isFactChecked) {
-        if (credibilityScore > 70) {
-          factCheckResult = "This article appears to be mostly accurate based on our verification process."
-        } else if (credibilityScore > 40) {
-          factCheckResult =
-            "This article contains some accurate information but may lack proper context or include minor inaccuracies."
-        } else {
-          factCheckResult = "This article contains potentially misleading information or unverified claims."
-        }
-      }
-
       result[category].push({
         id,
         source: { id: null, name: "Newsmania" },
@@ -683,9 +660,9 @@ function generateMockArticles(): Record<string, NewsArticle[]> {
         urlToImage: getCategoryImageByID(id, seed),
         publishedAt: new Date(Date.now() - i * 3600000).toISOString(), // Stagger publication times
         content,
-        credibilityScore,
-        isFactChecked,
-        factCheckResult,
+        credibilityScore: undefined,
+        isFactChecked: false,
+        factCheckResult: null,
       })
     }
   })
