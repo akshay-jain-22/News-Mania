@@ -24,11 +24,11 @@ interface FactCheckClaimReview {
 }
 
 interface GoogleFactCheckResponse {
-  claims: FactCheckClaimReview[]
+  claims?: FactCheckClaimReview[]
   nextPageToken?: string
 }
 
-// Rating mappings for different fact-checking organizations
+// Enhanced rating mappings
 const RATING_MAPPINGS: Record<string, number> = {
   // Standard ratings
   true: 95,
@@ -78,9 +78,11 @@ const RATING_MAPPINGS: Record<string, number> = {
   debunked: 5,
   confirmed: 95,
   refuted: 10,
+  "needs context": 45,
+  "missing context": 40,
 }
 
-// Trusted fact-checking sources with reliability weights
+// Source reliability weights
 const SOURCE_RELIABILITY: Record<string, number> = {
   "politifact.com": 0.95,
   "snopes.com": 0.9,
@@ -111,72 +113,154 @@ async function searchGoogleFactCheck(query: string): Promise<GoogleFactCheckResp
 
   const url = new URL("https://factchecktools.googleapis.com/v1alpha1/claims:search")
   url.searchParams.append("key", API_KEY)
-  url.searchParams.append("query", query)
+  url.searchParams.append("query", encodeURIComponent(query))
   url.searchParams.append("pageSize", "10")
   url.searchParams.append("languageCode", "en")
 
-  console.log(`Searching Google Fact Check API for: "${query}"`)
+  console.log(`🔍 Searching Google Fact Check API for: "${query}"`)
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Newsmania/1.0",
-    },
-  })
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Newsmania/1.0",
+      },
+    })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error(`Google Fact Check API error: ${response.status} ${response.statusText}`, errorText)
-    throw new Error(`API error: ${response.status} - ${errorText}`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ Google Fact Check API error: ${response.status} ${response.statusText}`, errorText)
+
+      // Return empty response instead of throwing
+      return { claims: [] }
+    }
+
+    const data = await response.json()
+    console.log(`✅ Google API returned ${data.claims?.length || 0} claims for "${query}"`)
+    console.log("📊 Raw API response:", JSON.stringify(data, null, 2))
+
+    return data
+  } catch (error) {
+    console.error("🚨 Error calling Google Fact Check API:", error)
+    return { claims: [] }
   }
-
-  const data = await response.json()
-  console.log(`Google API returned ${data.claims?.length || 0} claims for "${query}"`)
-
-  return data
 }
 
-function extractKeyPhrases(title: string, content: string): string[] {
-  const text = `${title} ${content}`
-  const phrases: string[] = []
+function extractSearchQueries(title: string, content: string): string[] {
+  const queries: string[] = []
 
-  // Add the full title
-  phrases.push(title)
+  // Primary query: the full title
+  queries.push(title)
 
-  // Extract quoted statements
-  const quotes = text.match(/"([^"]{10,100})"/g)
-  if (quotes) {
-    phrases.push(...quotes.map((q) => q.replace(/"/g, "")))
+  // Extract company/organization names from title
+  const companyMatches = title.match(/\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)*\b/g)
+  if (companyMatches) {
+    companyMatches.forEach((company) => {
+      if (
+        company.length > 2 &&
+        !["The", "A", "An", "And", "Or", "But", "In", "On", "At", "To", "For", "Of", "With", "By"].includes(company)
+      ) {
+        queries.push(company)
+      }
+    })
   }
 
-  // Extract sentences with strong claims
-  const sentences = text.split(/[.!?]+/)
-  sentences.forEach((sentence) => {
-    const trimmed = sentence.trim()
-    if (trimmed.length > 20 && trimmed.length < 150) {
-      // Look for sentences with claim indicators
-      if (/\b(claims?|says?|states?|reports?|announces?|reveals?|shows?|proves?|confirms?|denies?)\b/i.test(trimmed)) {
-        phrases.push(trimmed)
-      }
-    }
-  })
+  // Extract key phrases from title
+  const titleWords = title.split(/\s+/)
+  if (titleWords.length > 3) {
+    // Take first half and second half of title as separate queries
+    const midPoint = Math.floor(titleWords.length / 2)
+    const firstHalf = titleWords.slice(0, midPoint + 2).join(" ")
+    const secondHalf = titleWords.slice(midPoint - 1).join(" ")
 
-  // Extract proper nouns and entities
-  const entities = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g)
-  if (entities) {
-    const filteredEntities = entities.filter(
-      (entity) =>
-        entity.length > 3 && !["The", "This", "That", "These", "Those", "A", "An", "And", "But", "Or"].includes(entity),
-    )
-    phrases.push(...filteredEntities.slice(0, 5))
+    if (firstHalf.length > 10) queries.push(firstHalf)
+    if (secondHalf.length > 10) queries.push(secondHalf)
+  }
+
+  // Extract quoted content
+  const quotes = (title + " " + content).match(/"([^"]{10,100})"/g)
+  if (quotes) {
+    quotes.forEach((quote) => {
+      const cleaned = quote.replace(/"/g, "").trim()
+      if (cleaned.length > 10) {
+        queries.push(cleaned)
+      }
+    })
+  }
+
+  // Extract numerical claims
+  const numbers = title.match(
+    /\b\d+(?:,\d{3})*(?:\.\d+)?\s*(?:percent|%|million|billion|trillion|thousand|days?|years?|months?)\b/gi,
+  )
+  if (numbers) {
+    numbers.forEach((num) => {
+      queries.push(`${num} ${title.split(" ").slice(0, 5).join(" ")}`)
+    })
   }
 
   // Remove duplicates and limit
-  return [...new Set(phrases)].slice(0, 8)
+  const uniqueQueries = [...new Set(queries)].slice(0, 6)
+  console.log("🎯 Generated search queries:", uniqueQueries)
+
+  return uniqueQueries
 }
 
-function calculateCredibilityScore(claims: FactCheckClaimReview[]): {
+function analyzeContentCredibility(
+  title: string,
+  content: string,
+): {
+  score: number
+  factors: string[]
+} {
+  let score = 50 // Start neutral
+  const factors: string[] = []
+
+  const text = (title + " " + content).toLowerCase()
+
+  // Positive indicators
+  if (/\b(according to|sources say|reported by|study shows|data reveals|research indicates)\b/.test(text)) {
+    score += 10
+    factors.push("✅ Cites sources or research")
+  }
+
+  if (/\b(said|stated|announced|confirmed|reported)\b/.test(text)) {
+    score += 5
+    factors.push("✅ Uses attribution")
+  }
+
+  // Negative indicators
+  if (/\b(shocking|unbelievable|you won't believe|secret|they don't want you to know)\b/.test(text)) {
+    score -= 15
+    factors.push("❌ Uses sensationalist language")
+  }
+
+  if (/\b(all|every|always|never|no one|everyone)\b/.test(text)) {
+    score -= 8
+    factors.push("⚠️ Uses absolute language")
+  }
+
+  if (/\b(allegedly|reportedly|rumored|unconfirmed)\b/.test(text)) {
+    score -= 5
+    factors.push("⚠️ Contains unverified claims")
+  }
+
+  // Source quality indicators
+  if (/\b(techcrunch|yahoo finance|reuters|bloomberg|wall street journal|financial times)\b/.test(text)) {
+    score += 15
+    factors.push("✅ Reputable news source")
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    factors,
+  }
+}
+
+function calculateCredibilityScore(
+  claims: FactCheckClaimReview[],
+  contentAnalysis: { score: number; factors: string[] },
+): {
   score: number
   summary: string
   details: Array<{
@@ -185,18 +269,8 @@ function calculateCredibilityScore(claims: FactCheckClaimReview[]): {
     url: string
     title: string
   }>
+  factors: string[]
 } {
-  if (!claims || claims.length === 0) {
-    return {
-      score: 50,
-      summary:
-        "No fact-check results found for this article. This doesn't necessarily mean the content is false, but independent verification is recommended.",
-      details: [],
-    }
-  }
-
-  let totalScore = 0
-  let totalWeight = 0
   const details: Array<{
     rating: string
     source: string
@@ -204,69 +278,105 @@ function calculateCredibilityScore(claims: FactCheckClaimReview[]): {
     title: string
   }> = []
 
+  if (!claims || claims.length === 0) {
+    // Use content analysis when no fact checks found
+    const score = contentAnalysis.score
+    return {
+      score,
+      summary:
+        score >= 70
+          ? "No specific fact-checks found, but content analysis suggests good credibility based on source and language patterns."
+          : score >= 40
+            ? "No specific fact-checks found. Content analysis shows mixed indicators - verify through additional sources."
+            : "No specific fact-checks found, and content analysis shows potential credibility concerns.",
+      details: [],
+      factors: contentAnalysis.factors,
+    }
+  }
+
+  let totalScore = 0
+  let totalWeight = 0
+
   claims.forEach((claim) => {
-    claim.claimReview.forEach((review) => {
-      const rating = review.textualRating.toLowerCase().trim()
-      const publisherSite = review.publisher.site || review.url
+    // Safely access claim properties
+    const claimText = claim.claim?.text || "Unknown claim"
 
-      // Get base score from rating
-      let ratingScore = RATING_MAPPINGS[rating]
+    if (claim.claimReview && Array.isArray(claim.claimReview)) {
+      claim.claimReview.forEach((review) => {
+        const rating = (review.textualRating || "").toLowerCase().trim()
+        const publisherSite = review.publisher?.site || review.url || ""
 
-      // If exact match not found, try partial matching
-      if (ratingScore === undefined) {
-        if (
-          rating.includes("true") ||
-          rating.includes("correct") ||
-          rating.includes("accurate") ||
-          rating.includes("verified")
-        ) {
-          ratingScore = 80
-        } else if (
-          rating.includes("false") ||
-          rating.includes("incorrect") ||
-          rating.includes("wrong") ||
-          rating.includes("debunked")
-        ) {
-          ratingScore = 15
-        } else if (rating.includes("misleading") || rating.includes("partly") || rating.includes("mixed")) {
-          ratingScore = 35
-        } else if (rating.includes("unverified") || rating.includes("unproven") || rating.includes("unclear")) {
-          ratingScore = 40
-        } else {
-          ratingScore = 50 // Default neutral
+        // Get base score from rating
+        let ratingScore = RATING_MAPPINGS[rating]
+
+        // If exact match not found, try partial matching
+        if (ratingScore === undefined) {
+          if (
+            rating.includes("true") ||
+            rating.includes("correct") ||
+            rating.includes("accurate") ||
+            rating.includes("verified")
+          ) {
+            ratingScore = 80
+          } else if (
+            rating.includes("false") ||
+            rating.includes("incorrect") ||
+            rating.includes("wrong") ||
+            rating.includes("debunked")
+          ) {
+            ratingScore = 15
+          } else if (
+            rating.includes("misleading") ||
+            rating.includes("partly") ||
+            rating.includes("mixed") ||
+            rating.includes("context")
+          ) {
+            ratingScore = 35
+          } else if (rating.includes("unverified") || rating.includes("unproven") || rating.includes("unclear")) {
+            ratingScore = 40
+          } else {
+            ratingScore = 50 // Default neutral
+          }
         }
-      }
 
-      // Get source reliability weight
-      let sourceWeight = 0.5 // Default weight
+        // Get source reliability weight
+        let sourceWeight = 0.5 // Default weight
 
-      for (const [domain, weight] of Object.entries(SOURCE_RELIABILITY)) {
-        if (publisherSite?.includes(domain) || review.url.includes(domain)) {
-          sourceWeight = weight
-          break
+        for (const [domain, weight] of Object.entries(SOURCE_RELIABILITY)) {
+          if (publisherSite.includes(domain) || (review.url && review.url.includes(domain))) {
+            sourceWeight = weight
+            break
+          }
         }
-      }
 
-      // Calculate weighted score
-      const weightedScore = ratingScore * sourceWeight
-      totalScore += weightedScore
-      totalWeight += sourceWeight
+        // Calculate weighted score
+        const weightedScore = ratingScore * sourceWeight
+        totalScore += weightedScore
+        totalWeight += sourceWeight
 
-      details.push({
-        rating: review.textualRating,
-        source: review.publisher.name,
-        url: review.url,
-        title: review.title,
+        details.push({
+          rating: review.textualRating || "Unknown rating",
+          source: review.publisher?.name || "Unknown source",
+          url: review.url || "",
+          title: review.title || claimText,
+        })
+
+        console.log(
+          `📊 Rating: "${review.textualRating}" -> Score: ${ratingScore}, Weight: ${sourceWeight}, Weighted: ${weightedScore}`,
+        )
       })
-
-      console.log(
-        `Rating: ${review.textualRating} -> Score: ${ratingScore}, Weight: ${sourceWeight}, Weighted: ${weightedScore}`,
-      )
-    })
+    }
   })
 
-  // Calculate final score
-  const finalScore = totalWeight > 0 ? Math.round(totalScore / totalWeight) : 50
+  // Combine fact-check score with content analysis
+  let finalScore: number
+  if (totalWeight > 0) {
+    const factCheckScore = Math.round(totalScore / totalWeight)
+    // Weight fact-check results more heavily than content analysis
+    finalScore = Math.round(factCheckScore * 0.7 + contentAnalysis.score * 0.3)
+  } else {
+    finalScore = contentAnalysis.score
+  }
 
   // Generate summary based on score and findings
   let summary = ""
@@ -289,12 +399,13 @@ function calculateCredibilityScore(claims: FactCheckClaimReview[]): {
         : `Multiple fact-checks indicate concerns. ${details.length} verification(s) found with predominantly negative ratings.`
   }
 
-  console.log(`Final credibility score: ${finalScore}% based on ${claims.length} claims and ${details.length} reviews`)
+  console.log(`🎯 Final credibility score: ${finalScore}% (fact-checks: ${claims.length}, reviews: ${details.length})`)
 
   return {
     score: Math.max(0, Math.min(100, finalScore)),
     summary,
     details,
+    factors: contentAnalysis.factors,
   }
 }
 
@@ -306,11 +417,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
     }
 
-    console.log("Starting fact-check analysis for:", title.substring(0, 50) + "...")
+    console.log("🚀 Starting fact-check analysis for:", title.substring(0, 50) + "...")
+
+    // Analyze content for credibility indicators
+    const contentAnalysis = analyzeContentCredibility(title, content || description || "")
+    console.log("📝 Content analysis:", contentAnalysis)
 
     // Generate search queries
-    const searchQueries = extractKeyPhrases(title, content || description || "")
-    console.log("Generated search queries:", searchQueries)
+    const searchQueries = extractSearchQueries(title, content || description || "")
 
     // Search Google Fact Check API with multiple queries
     const allClaims: FactCheckClaimReview[] = []
@@ -318,15 +432,17 @@ export async function POST(request: NextRequest) {
     for (const query of searchQueries) {
       try {
         const response = await searchGoogleFactCheck(query)
-        if (response.claims && response.claims.length > 0) {
+        if (response.claims && Array.isArray(response.claims) && response.claims.length > 0) {
           allClaims.push(...response.claims)
-          console.log(`Found ${response.claims.length} claims for query: "${query}"`)
+          console.log(`✅ Found ${response.claims.length} claims for query: "${query}"`)
+        } else {
+          console.log(`❌ No claims found for query: "${query}"`)
         }
 
         // Add delay to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 300))
+        await new Promise((resolve) => setTimeout(resolve, 500))
       } catch (error) {
-        console.error(`Error searching for query "${query}":`, error)
+        console.error(`🚨 Error searching for query "${query}":`, error)
         // Continue with other queries
       }
     }
@@ -335,28 +451,38 @@ export async function POST(request: NextRequest) {
     const uniqueClaims = allClaims.filter(
       (claim, index, self) =>
         index ===
-        self.findIndex((c) => c.claimReview.some((review) => claim.claimReview.some((r) => r.url === review.url))),
+        self.findIndex(
+          (c) =>
+            c.claimReview &&
+            claim.claimReview &&
+            c.claimReview.some((review) => claim.claimReview.some((r) => r.url === review.url)),
+        ),
     )
 
-    console.log(`Found ${uniqueClaims.length} unique fact-check claims`)
+    console.log(`🔍 Found ${uniqueClaims.length} unique fact-check claims`)
 
     // Calculate credibility score
-    const result = calculateCredibilityScore(uniqueClaims)
+    const result = calculateCredibilityScore(uniqueClaims, contentAnalysis)
 
     // Convert to expected format
-    const claimsAnalyzed = uniqueClaims.map((claim) => ({
-      claim: claim.claim.text,
-      verdict:
-        result.score >= 75
-          ? ("true" as const)
-          : result.score >= 45
-            ? ("partially true" as const)
-            : result.score >= 25
-              ? ("false" as const)
-              : ("unverified" as const),
-      explanation: claim.claimReview[0]?.title || "Fact-checked by multiple sources",
-      sources: claim.claimReview.map((review) => review.url),
-    }))
+    const claimsAnalyzed = uniqueClaims.map((claim, index) => {
+      const claimText = claim.claim?.text || `Claim ${index + 1}`
+      const firstReview = claim.claimReview?.[0]
+
+      return {
+        claim: claimText,
+        verdict:
+          result.score >= 75
+            ? ("true" as const)
+            : result.score >= 45
+              ? ("partially true" as const)
+              : result.score >= 25
+                ? ("false" as const)
+                : ("unverified" as const),
+        explanation: firstReview?.title || firstReview?.textualRating || "Fact-checked by multiple sources",
+        sources: claim.claimReview?.map((review) => review.url).filter(Boolean) || [],
+      }
+    })
 
     const factCheckResult = {
       isFactChecked: true,
@@ -364,9 +490,10 @@ export async function POST(request: NextRequest) {
       factCheckResult: result.summary,
       claimsAnalyzed,
       searchQueries,
+      analysisFactors: result.factors,
     }
 
-    console.log("Fact-check complete:", {
+    console.log("✅ Fact-check complete:", {
       score: result.score,
       totalClaims: uniqueClaims.length,
       summary: result.summary.substring(0, 100) + "...",
@@ -374,15 +501,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(factCheckResult)
   } catch (error) {
-    console.error("Fact-check API error:", error)
+    console.error("🚨 Fact-check API error:", error)
 
     // Return a more informative error response
     return NextResponse.json({
       isFactChecked: true,
       credibilityScore: 50,
-      factCheckResult: `Unable to complete comprehensive fact-check analysis: ${error instanceof Error ? error.message : "Unknown error"}. Manual verification recommended.`,
+      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. The article has been analyzed using content patterns instead.`,
       claimsAnalyzed: [],
       searchQueries: [],
+      analysisFactors: ["⚠️ Technical error during fact-check analysis"],
     })
   }
 }

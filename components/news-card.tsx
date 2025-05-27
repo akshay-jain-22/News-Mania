@@ -135,10 +135,10 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
     setIsFactChecking(true)
 
     try {
-      console.log("Starting fact check for article:", article.title)
+      console.log("🚀 Starting fact check for article:", article.title)
       const result = await factCheckArticle(article.id)
 
-      console.log("Fact check result:", result)
+      console.log("✅ Fact check result:", result)
 
       // Update the article with fact check results
       setArticle({
@@ -147,17 +147,24 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
         credibilityScore: result.credibilityScore,
         factCheckResult: result.factCheckResult,
         claimsAnalyzed: result.claimsAnalyzed,
+        analysisFactors: result.analysisFactors,
       })
 
       // Show detailed results in dialog
       setFactCheckDialogOpen(true)
 
+      // Show appropriate toast based on score
+      const score = result.credibilityScore
+      const toastVariant = score >= 70 ? "default" : score >= 40 ? "default" : "destructive"
+      const scoreEmoji = score >= 70 ? "✅" : score >= 40 ? "⚠️" : "❌"
+
       toast({
-        title: "Fact check complete",
-        description: `Credibility score: ${result.credibilityScore}%. Click to view detailed analysis.`,
+        title: `${scoreEmoji} Fact check complete`,
+        description: `Credibility score: ${score}%. Click the shield icon to view detailed analysis.`,
+        variant: toastVariant,
       })
     } catch (error) {
-      console.error("Fact check error:", error)
+      console.error("🚨 Fact check error:", error)
       toast({
         variant: "destructive",
         title: "Fact check failed",
@@ -432,7 +439,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
 
       {/* Fact Check Results Dialog */}
       <Dialog open={factCheckDialogOpen} onOpenChange={setFactCheckDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Fact Check Analysis</DialogTitle>
             <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
@@ -468,6 +475,20 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
               <div className="space-y-2">
                 <span className="font-medium">Summary</span>
                 <p className="text-sm text-muted-foreground">{article.factCheckResult}</p>
+              </div>
+            )}
+
+            {/* Analysis Factors */}
+            {article.analysisFactors && article.analysisFactors.length > 0 && (
+              <div className="space-y-2">
+                <span className="font-medium">Analysis Factors</span>
+                <div className="space-y-1">
+                  {article.analysisFactors.map((factor, index) => (
+                    <div key={index} className="text-sm p-2 bg-muted/30 rounded">
+                      {factor}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -17,6 +17,7 @@ export interface NewsArticle {
   isFactChecked?: boolean
   factCheckResult?: string | null
   claimsAnalyzed?: FactCheckClaim[]
+  analysisFactors?: string[]
 }
 
 export interface FactCheckClaim {
@@ -31,6 +32,7 @@ export interface FactCheckResult {
   credibilityScore: number
   factCheckResult: string
   claimsAnalyzed?: FactCheckClaim[]
+  analysisFactors?: string[]
 }
 
 export interface UserPreferences {
