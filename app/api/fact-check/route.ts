@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { analyzeArticleWithGrok } from "@/lib/grok-fact-check"
 
 interface FactCheckClaim {
   text: string
@@ -417,86 +418,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
     }
 
-    console.log("🚀 Starting fact-check analysis for:", title.substring(0, 50) + "...")
+    console.log("🚀 Starting Grok-powered fact-check analysis for:", title.substring(0, 50) + "...")
 
-    // Analyze content for credibility indicators
-    const contentAnalysis = analyzeContentCredibility(title, content || description || "")
-    console.log("📝 Content analysis:", contentAnalysis)
+    // Use Grok to analyze the article
+    const grokResult = await analyzeArticleWithGrok(title, content || "", description || "")
 
-    // Generate search queries
-    const searchQueries = extractSearchQueries(title, content || description || "")
-
-    // Search Google Fact Check API with multiple queries
-    const allClaims: FactCheckClaimReview[] = []
-
-    for (const query of searchQueries) {
-      try {
-        const response = await searchGoogleFactCheck(query)
-        if (response.claims && Array.isArray(response.claims) && response.claims.length > 0) {
-          allClaims.push(...response.claims)
-          console.log(`✅ Found ${response.claims.length} claims for query: "${query}"`)
-        } else {
-          console.log(`❌ No claims found for query: "${query}"`)
-        }
-
-        // Add delay to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      } catch (error) {
-        console.error(`🚨 Error searching for query "${query}":`, error)
-        // Continue with other queries
-      }
-    }
-
-    // Remove duplicate claims based on URL
-    const uniqueClaims = allClaims.filter(
-      (claim, index, self) =>
-        index ===
-        self.findIndex(
-          (c) =>
-            c.claimReview &&
-            claim.claimReview &&
-            c.claimReview.some((review) => claim.claimReview.some((r) => r.url === review.url)),
-        ),
-    )
-
-    console.log(`🔍 Found ${uniqueClaims.length} unique fact-check claims`)
-
-    // Calculate credibility score
-    const result = calculateCredibilityScore(uniqueClaims, contentAnalysis)
-
-    // Convert to expected format
-    const claimsAnalyzed = uniqueClaims.map((claim, index) => {
-      const claimText = claim.claim?.text || `Claim ${index + 1}`
-      const firstReview = claim.claimReview?.[0]
-
-      return {
-        claim: claimText,
-        verdict:
-          result.score >= 75
-            ? ("true" as const)
-            : result.score >= 45
-              ? ("partially true" as const)
-              : result.score >= 25
-                ? ("false" as const)
-                : ("unverified" as const),
-        explanation: firstReview?.title || firstReview?.textualRating || "Fact-checked by multiple sources",
-        sources: claim.claimReview?.map((review) => review.url).filter(Boolean) || [],
-      }
-    })
+    // Convert to our expected format
+    const claimsAnalyzed = grokResult.claimsAnalyzed.map((claim) => ({
+      claim: claim.claim,
+      verdict: claim.verdict,
+      explanation: claim.explanation,
+      sources: [], // Grok doesn't provide specific source URLs
+    }))
 
     const factCheckResult = {
       isFactChecked: true,
-      credibilityScore: result.score,
-      factCheckResult: result.summary,
+      credibilityScore: grokResult.credibilityScore,
+      factCheckResult: grokResult.summary,
       claimsAnalyzed,
-      searchQueries,
-      analysisFactors: result.factors,
+      analysisFactors: grokResult.analysisFactors,
+      analyzedBy: "Grok AI by xAI",
     }
 
-    console.log("✅ Fact-check complete:", {
-      score: result.score,
-      totalClaims: uniqueClaims.length,
-      summary: result.summary.substring(0, 100) + "...",
+    console.log("✅ Grok fact-check complete:", {
+      score: grokResult.credibilityScore,
+      summary: grokResult.summary.substring(0, 100) + "...",
+      factorsCount: grokResult.analysisFactors.length,
+      claimsCount: grokResult.claimsAnalyzed.length,
     })
 
     return NextResponse.json(factCheckResult)
@@ -507,10 +455,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       isFactChecked: true,
       credibilityScore: 50,
-      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. The article has been analyzed using content patterns instead.`,
+      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. Please try again or verify manually.`,
       claimsAnalyzed: [],
-      searchQueries: [],
-      analysisFactors: ["⚠️ Technical error during fact-check analysis"],
+      analysisFactors: ["❌ Technical error during analysis"],
+      analyzedBy: "Fallback System",
     })
   }
 }

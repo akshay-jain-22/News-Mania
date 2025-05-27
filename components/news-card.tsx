@@ -417,8 +417,8 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                 disabled={isFactChecking}
                 title={
                   article.isFactChecked
-                    ? "View fact check details"
-                    : "Run AI-powered fact check analysis on this article"
+                    ? "View Grok AI fact check details"
+                    : "Run Grok AI fact check analysis on this article"
                 }
               >
                 {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
@@ -443,6 +443,11 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
           <DialogHeader>
             <DialogTitle>Fact Check Analysis</DialogTitle>
             <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" className="text-xs">
+                🤖 Powered by Grok AI
+              </Badge>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">

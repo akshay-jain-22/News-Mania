@@ -18,6 +18,7 @@ export interface NewsArticle {
   factCheckResult?: string | null
   claimsAnalyzed?: FactCheckClaim[]
   analysisFactors?: string[]
+  analyzedBy?: string
 }
 
 export interface FactCheckClaim {
@@ -33,6 +34,7 @@ export interface FactCheckResult {
   factCheckResult: string
   claimsAnalyzed?: FactCheckClaim[]
   analysisFactors?: string[]
+  analyzedBy?: string
 }
 
 export interface UserPreferences {
