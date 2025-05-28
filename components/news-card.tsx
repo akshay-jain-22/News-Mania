@@ -136,9 +136,22 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
 
     try {
       console.log("🚀 Starting fact check for article:", article.title)
+      console.log("📝 Article details:", {
+        id: article.id,
+        source: article.source.name,
+        contentLength: article.content?.length || 0,
+        descriptionLength: article.description?.length || 0,
+      })
+
       const result = await factCheckArticle(article.id)
 
-      console.log("✅ Fact check result:", result)
+      console.log("✅ Fact check result received:", {
+        score: result.credibilityScore,
+        isFactChecked: result.isFactChecked,
+        analyzedBy: result.analyzedBy,
+        factorsCount: result.analysisFactors?.length || 0,
+        claimsCount: result.claimsAnalyzed?.length || 0,
+      })
 
       // Update the article with fact check results
       setArticle({
@@ -160,15 +173,21 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
 
       toast({
         title: `${scoreEmoji} Fact check complete`,
-        description: `Credibility score: ${score}%. Click the shield icon to view detailed analysis.`,
+        description: `Credibility score: ${score}%. Analysis by ${result.analyzedBy || "Grok AI"}.`,
         variant: toastVariant,
       })
     } catch (error) {
       console.error("🚨 Fact check error:", error)
+      console.error("🚨 Error details:", {
+        name: error instanceof Error ? error.name : "Unknown",
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : "No stack trace",
+      })
+
       toast({
         variant: "destructive",
         title: "Fact check failed",
-        description: "There was an error analyzing this article. Please try again.",
+        description: "There was an error analyzing this article. Please try again or check the connection test.",
       })
     } finally {
       setIsFactChecking(false)

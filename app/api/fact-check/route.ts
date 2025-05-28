@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { analyzeArticleWithGrok } from "@/lib/grok-fact-check"
+import { analyzeArticleWithGrok, testGrokConnection } from "@/lib/grok-fact-check"
 
 interface FactCheckClaim {
   text: string
@@ -420,6 +420,25 @@ export async function POST(request: NextRequest) {
 
     console.log("🚀 Starting Grok-powered fact-check analysis for:", title.substring(0, 50) + "...")
 
+    // Test Grok connection first
+    console.log("🧪 Testing Grok connection...")
+    const connectionTest = await testGrokConnection()
+
+    if (!connectionTest) {
+      console.error("❌ Grok connection failed, using fallback analysis")
+      return NextResponse.json({
+        isFactChecked: true,
+        credibilityScore: 50,
+        factCheckResult:
+          "Unable to connect to Grok AI for analysis. Please check your API configuration and try again.",
+        claimsAnalyzed: [],
+        analysisFactors: ["❌ Grok AI connection failed", "⚠️ Fallback analysis not available"],
+        analyzedBy: "Connection Test Failed",
+      })
+    }
+
+    console.log("✅ Grok connection successful, proceeding with analysis...")
+
     // Use Grok to analyze the article
     const grokResult = await analyzeArticleWithGrok(title, content || "", description || "")
 
@@ -455,10 +474,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       isFactChecked: true,
       credibilityScore: 50,
-      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. Please try again or verify manually.`,
+      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. This may be due to API connectivity issues or rate limiting.`,
       claimsAnalyzed: [],
-      analysisFactors: ["❌ Technical error during analysis"],
-      analyzedBy: "Fallback System",
+      analysisFactors: [
+        "❌ Technical error during analysis",
+        `⚠️ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ],
+      analyzedBy: "Error Handler",
     })
+  }
+}
+
+// Add a test endpoint to check Grok connectivity
+export async function GET() {
+  try {
+    const connectionTest = await testGrokConnection()
+
+    return NextResponse.json({
+      status: connectionTest ? "connected" : "disconnected",
+      message: connectionTest
+        ? "Grok AI connection is working properly"
+        : "Grok AI connection failed - check API configuration",
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        status: "error",
+        message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    )
   }
 }
