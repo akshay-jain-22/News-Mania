@@ -4,13 +4,14 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle, AlertTriangle, Wifi } from "lucide-react"
+import { Loader2, CheckCircle, AlertTriangle, Wifi, Key, Server } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface ConnectionStatus {
   status: "connected" | "disconnected" | "error"
   message: string
   timestamp: string
+  hasApiKey?: boolean
 }
 
 export function GrokConnectionTest() {
@@ -49,6 +50,7 @@ export function GrokConnectionTest() {
         status: "error" as const,
         message: `Network error: ${error instanceof Error ? error.message : "Unknown error"}`,
         timestamp: new Date().toISOString(),
+        hasApiKey: false,
       }
 
       setConnectionStatus(errorResult)
@@ -70,6 +72,7 @@ export function GrokConnectionTest() {
       case "connected":
         return <CheckCircle className="h-4 w-4 text-green-600" />
       case "disconnected":
+        return <Server className="h-4 w-4 text-yellow-600" />
       case "error":
         return <AlertTriangle className="h-4 w-4 text-red-600" />
       default:
@@ -88,12 +91,26 @@ export function GrokConnectionTest() {
           </Badge>
         )
       case "disconnected":
-        return <Badge variant="destructive">Disconnected</Badge>
+        return <Badge variant="secondary">Disconnected</Badge>
       case "error":
         return <Badge variant="destructive">Error</Badge>
       default:
         return <Badge variant="outline">Unknown</Badge>
     }
+  }
+
+  const getApiKeyStatus = () => {
+    if (connectionStatus?.hasApiKey === undefined) return null
+
+    return (
+      <div className="flex items-center gap-2">
+        <Key className="h-3 w-3" />
+        <span className="text-sm">API Key:</span>
+        <Badge variant={connectionStatus.hasApiKey ? "default" : "destructive"} className="text-xs">
+          {connectionStatus.hasApiKey ? "Found" : "Missing"}
+        </Badge>
+      </div>
+    )
   }
 
   return (
@@ -118,11 +135,13 @@ export function GrokConnectionTest() {
         </Button>
 
         {connectionStatus && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Status:</span>
               {getStatusBadge()}
             </div>
+
+            {getApiKeyStatus()}
 
             <div className="text-sm text-muted-foreground">
               <strong>Message:</strong> {connectionStatus.message}
@@ -131,6 +150,18 @@ export function GrokConnectionTest() {
             <div className="text-xs text-muted-foreground">
               <strong>Tested at:</strong> {new Date(connectionStatus.timestamp).toLocaleString()}
             </div>
+
+            {connectionStatus.status !== "connected" && (
+              <div className="p-3 bg-muted/50 rounded-md text-xs">
+                <strong>Troubleshooting:</strong>
+                <ul className="mt-1 space-y-1 list-disc list-inside">
+                  <li>Ensure XAI_API_KEY is set in environment variables</li>
+                  <li>Check if your API key is valid and has credits</li>
+                  <li>Verify network connectivity</li>
+                  <li>Try again in a few minutes (rate limiting)</li>
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

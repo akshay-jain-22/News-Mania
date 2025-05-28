@@ -18,9 +18,19 @@ export async function analyzeArticleWithGrok(
   description?: string,
 ): Promise<GrokFactCheckResult> {
   try {
-    console.log("🤖 Starting Grok fact-check analysis for:", title.substring(0, 50) + "...")
+    console.log("🤖 Starting Grok fact-check analysis...")
+    console.log("📝 Article title:", title)
+    console.log("📝 Content length:", content?.length || 0)
 
-    // Prepare the article content for analysis
+    // Check if we have the API key
+    if (!process.env.XAI_API_KEY) {
+      console.error("❌ XAI_API_KEY not found in environment variables")
+      throw new Error("XAI_API_KEY not configured")
+    }
+
+    console.log("✅ XAI_API_KEY found, proceeding with analysis...")
+
+    // Prepare the article content
     const articleText = `
 TITLE: ${title}
 
@@ -29,210 +39,229 @@ DESCRIPTION: ${description || "No description available"}
 CONTENT: ${content || "No content available"}
     `.trim()
 
-    console.log("📝 Article text length:", articleText.length)
-    console.log("📝 First 200 chars:", articleText.substring(0, 200) + "...")
+    // Use the exact prompt format you specified
+    const prompt = `You are a credibility analysis AI. Given the following news article, analyze it for factual accuracy, source reliability, bias, and tone. Then return:
 
-    const prompt = `You are an expert fact-checker and media analyst with extensive knowledge of current events, media bias, and misinformation patterns. Analyze the following news article for credibility and accuracy.
+1. A **Credibility Score** from 0 to 100% (where 100% = highly credible).
+2. A short **Summary** of the article (2-3 lines).
+3. A brief explanation of why you gave that credibility score.
 
-ARTICLE TO ANALYZE:
+Use only the information available in the article and general public knowledge (no hallucination).
+
+News Article:
+"""
 ${articleText}
+"""
 
-INSTRUCTIONS:
-1. Carefully read and analyze the entire article
-2. Consider the source, language, claims, and overall credibility
-3. Provide a credibility score from 0-100 based on these criteria:
-   - 90-100: Highly credible, well-sourced, factually accurate
-   - 70-89: Generally credible with minor issues
-   - 50-69: Mixed credibility, some concerns
-   - 30-49: Low credibility, significant issues
-   - 0-29: Very low credibility, false or misleading
+Please respond in this exact format:
+Credibility Score: [number]%
 
-4. Identify specific analysis factors that influenced your score
-5. Extract and analyze key claims from the article
+Summary: [2-3 line summary]
 
-RESPOND WITH VALID JSON IN THIS EXACT FORMAT:
-{
-  "credibilityScore": 75,
-  "summary": "Your 2-3 sentence analysis summary here",
-  "analysisFactors": [
-    "✅ Positive factor example",
-    "⚠️ Neutral/concerning factor example", 
-    "❌ Negative factor example"
-  ],
-  "claimsAnalyzed": [
-    {
-      "claim": "Specific claim from the article",
-      "verdict": "true",
-      "explanation": "Brief explanation of why this claim is true/false/etc"
-    }
-  ]
-}
+Explanation: [brief explanation of the credibility score]`
 
-IMPORTANT: Respond ONLY with the JSON object, no other text before or after.`
-
-    console.log("🚀 Sending request to Grok...")
+    console.log("🚀 Sending request to Grok AI...")
 
     const result = await generateText({
       model: xai("grok-beta"),
       prompt,
-      temperature: 0.2, // Lower temperature for more consistent analysis
-      maxTokens: 2000, // Ensure enough tokens for complete response
+      temperature: 0.3,
+      maxTokens: 1000,
     })
 
-    console.log("✅ Received response from Grok")
-    console.log("📄 Raw Grok response:", result.text)
+    console.log("✅ Received response from Grok AI")
+    console.log("📄 Raw response:", result.text)
 
-    // Clean and parse the JSON response
-    let parsedResult: GrokFactCheckResult
-    try {
-      // Remove any markdown formatting and extra whitespace
-      let cleanedResponse = result.text
-        .replace(/```json\s*/g, "")
-        .replace(/```\s*/g, "")
-        .replace(/^\s*[\r\n]+/gm, "")
-        .trim()
+    // Parse the response
+    const parsedResult = parseGrokResponse(result.text, title)
 
-      // Find the JSON object in the response
-      const jsonStart = cleanedResponse.indexOf("{")
-      const jsonEnd = cleanedResponse.lastIndexOf("}") + 1
-
-      if (jsonStart !== -1 && jsonEnd > jsonStart) {
-        cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd)
-      }
-
-      console.log("🧹 Cleaned response:", cleanedResponse)
-
-      parsedResult = JSON.parse(cleanedResponse)
-      console.log("✅ Successfully parsed JSON:", parsedResult)
-    } catch (parseError) {
-      console.error("❌ Failed to parse Grok response as JSON:", parseError)
-      console.log("🔍 Attempting to extract information manually...")
-
-      // Try to extract information manually if JSON parsing fails
-      return extractInformationManually(result.text, title, content)
-    }
-
-    // Validate and sanitize the parsed result
-    if (!parsedResult || typeof parsedResult !== "object") {
-      console.error("❌ Invalid response structure from Grok")
-      return createFallbackAnalysis(title, content, "Invalid response structure")
-    }
-
-    // Ensure credibility score is valid
-    if (typeof parsedResult.credibilityScore !== "number" || isNaN(parsedResult.credibilityScore)) {
-      console.error("❌ Invalid credibility score:", parsedResult.credibilityScore)
-      parsedResult.credibilityScore = 50
-    }
-
-    // Clamp credibility score to valid range
-    parsedResult.credibilityScore = Math.max(0, Math.min(100, Math.round(parsedResult.credibilityScore)))
-
-    // Ensure summary exists
-    if (!parsedResult.summary || typeof parsedResult.summary !== "string") {
-      parsedResult.summary = `Analysis completed with ${parsedResult.credibilityScore}% credibility score.`
-    }
-
-    // Ensure analysis factors exist and are valid
-    if (!Array.isArray(parsedResult.analysisFactors)) {
-      parsedResult.analysisFactors = ["🤖 Analysis completed by Grok AI"]
-    }
-
-    // Ensure claims analyzed exist and are valid
-    if (!Array.isArray(parsedResult.claimsAnalyzed) || parsedResult.claimsAnalyzed.length === 0) {
-      parsedResult.claimsAnalyzed = [
-        {
-          claim: "Overall article assessment",
-          verdict:
-            parsedResult.credibilityScore >= 70
-              ? "true"
-              : parsedResult.credibilityScore >= 40
-                ? "partially true"
-                : "unverified",
-          explanation: "General credibility assessment based on content analysis",
-        },
-      ]
-    }
-
-    console.log("🎯 Final Grok analysis result:", {
+    console.log("🎯 Parsed result:", {
       score: parsedResult.credibilityScore,
-      factorsCount: parsedResult.analysisFactors.length,
-      claimsCount: parsedResult.claimsAnalyzed.length,
       summary: parsedResult.summary.substring(0, 100) + "...",
+      factorsCount: parsedResult.analysisFactors.length,
     })
 
     return parsedResult
   } catch (error) {
-    console.error("🚨 Error in Grok fact-check analysis:", error)
+    console.error("🚨 Error in Grok analysis:", error)
     console.error("🚨 Error details:", {
       name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : "No stack trace",
+      stack: error instanceof Error ? error.stack?.substring(0, 500) : "No stack trace",
     })
 
-    // Return a more informative fallback analysis
-    return createFallbackAnalysis(
-      title,
-      content,
-      `Grok API Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-    )
+    // Return a meaningful fallback
+    throw error // Re-throw to be handled by the API route
   }
 }
 
-function extractInformationManually(responseText: string, title: string, content: string): GrokFactCheckResult {
-  console.log("🔧 Attempting manual information extraction...")
+function parseGrokResponse(responseText: string, title: string): GrokFactCheckResult {
+  console.log("🔍 Parsing Grok response...")
 
-  let score = 50
-  const factors: string[] = []
-  const claims: Array<{
-    claim: string
-    verdict: "true" | "false" | "partially true" | "unverified"
-    explanation: string
-  }> = []
+  try {
+    // Extract credibility score
+    const scoreMatch = responseText.match(/Credibility Score:\s*(\d+)%?/i)
+    let credibilityScore = 50 // Default
 
-  // Try to extract score from response
-  const scoreMatch = responseText.match(/(?:score|credibility).*?(\d+)/i)
-  if (scoreMatch) {
-    const extractedScore = Number.parseInt(scoreMatch[1])
-    if (!isNaN(extractedScore) && extractedScore >= 0 && extractedScore <= 100) {
-      score = extractedScore
+    if (scoreMatch) {
+      credibilityScore = Number.parseInt(scoreMatch[1])
+      if (isNaN(credibilityScore) || credibilityScore < 0 || credibilityScore > 100) {
+        credibilityScore = 50
+      }
+    }
+
+    // Extract summary
+    const summaryMatch = responseText.match(/Summary:\s*(.+?)(?=\n\n|\nExplanation:|$)/is)
+    let summary = `Analysis of "${title}" completed with ${credibilityScore}% credibility score.`
+
+    if (summaryMatch) {
+      summary = summaryMatch[1].trim().replace(/\n/g, " ")
+    }
+
+    // Extract explanation
+    const explanationMatch = responseText.match(/Explanation:\s*(.+?)$/is)
+    let explanation = "Analysis completed based on content evaluation."
+
+    if (explanationMatch) {
+      explanation = explanationMatch[1].trim().replace(/\n/g, " ")
+    }
+
+    // Generate analysis factors based on the score and explanation
+    const analysisFactors = generateAnalysisFactors(credibilityScore, explanation, responseText)
+
+    // Generate claims based on the analysis
+    const claimsAnalyzed = generateClaimsAnalyzed(credibilityScore, explanation, title)
+
+    return {
+      credibilityScore,
+      summary,
+      analysisFactors,
+      claimsAnalyzed,
+    }
+  } catch (error) {
+    console.error("❌ Error parsing Grok response:", error)
+
+    // Return a basic parsed result
+    return {
+      credibilityScore: 50,
+      summary: `Analysis of "${title}" completed. Manual review recommended.`,
+      analysisFactors: ["🤖 Grok AI analysis completed", "⚠️ Response parsing had issues"],
+      claimsAnalyzed: [
+        {
+          claim: "Overall article assessment",
+          verdict: "partially true",
+          explanation: "Analysis completed with standard evaluation",
+        },
+      ],
     }
   }
+}
 
-  // Look for positive/negative indicators in the response
-  if (responseText.toLowerCase().includes("credible") || responseText.toLowerCase().includes("reliable")) {
-    factors.push("✅ Grok identified credible elements")
-  }
-  if (responseText.toLowerCase().includes("concern") || responseText.toLowerCase().includes("issue")) {
-    factors.push("⚠️ Grok identified potential concerns")
-  }
-  if (responseText.toLowerCase().includes("false") || responseText.toLowerCase().includes("misleading")) {
-    factors.push("❌ Grok identified misleading elements")
+function generateAnalysisFactors(score: number, explanation: string, fullResponse: string): string[] {
+  const factors: string[] = []
+
+  // Add factors based on score
+  if (score >= 80) {
+    factors.push("✅ High credibility score achieved")
+  } else if (score >= 60) {
+    factors.push("⚠️ Moderate credibility score")
+  } else if (score >= 40) {
+    factors.push("⚠️ Mixed credibility indicators")
+  } else {
+    factors.push("❌ Low credibility score")
   }
 
-  // Add a default factor if none found
+  // Add factors based on explanation content
+  const explanationLower = explanation.toLowerCase()
+
+  if (explanationLower.includes("reliable") || explanationLower.includes("credible")) {
+    factors.push("✅ Grok identified reliable elements")
+  }
+
+  if (explanationLower.includes("bias") || explanationLower.includes("biased")) {
+    factors.push("⚠️ Potential bias detected")
+  }
+
+  if (explanationLower.includes("source") || explanationLower.includes("attribution")) {
+    factors.push("✅ Source attribution evaluated")
+  }
+
+  if (explanationLower.includes("concern") || explanationLower.includes("issue")) {
+    factors.push("⚠️ Credibility concerns identified")
+  }
+
+  if (explanationLower.includes("false") || explanationLower.includes("misleading")) {
+    factors.push("❌ Misleading content detected")
+  }
+
+  if (explanationLower.includes("tone") || explanationLower.includes("language")) {
+    factors.push("📝 Language and tone analyzed")
+  }
+
+  // Ensure we have at least one factor
   if (factors.length === 0) {
-    factors.push("🤖 Manual extraction from Grok response")
+    factors.push("🤖 Comprehensive analysis by Grok AI")
   }
 
-  // Create a basic claim
-  claims.push({
-    claim: "Article content evaluation",
-    verdict: score >= 70 ? "true" : score >= 40 ? "partially true" : "unverified",
-    explanation: "Assessment based on manual extraction from Grok analysis",
-  })
+  // Add Grok attribution
+  factors.push("🤖 Analysis powered by Grok AI")
 
-  return {
-    credibilityScore: score,
-    summary: `Manual extraction indicates ${score >= 70 ? "good" : score >= 40 ? "mixed" : "low"} credibility based on Grok's analysis.`,
-    analysisFactors: factors,
-    claimsAnalyzed: claims,
+  return factors
+}
+
+function generateClaimsAnalyzed(
+  score: number,
+  explanation: string,
+  title: string,
+): Array<{
+  claim: string
+  verdict: "true" | "false" | "partially true" | "unverified"
+  explanation: string
+}> {
+  const verdict: "true" | "false" | "partially true" | "unverified" =
+    score >= 75 ? "true" : score >= 45 ? "partially true" : score >= 25 ? "unverified" : "false"
+
+  return [
+    {
+      claim: `Main article claim: ${title}`,
+      verdict,
+      explanation: explanation.substring(0, 200) + (explanation.length > 200 ? "..." : ""),
+    },
+  ]
+}
+
+// Simple connection test
+export async function testGrokConnection(): Promise<boolean> {
+  try {
+    console.log("🧪 Testing Grok AI connection...")
+
+    if (!process.env.XAI_API_KEY) {
+      console.error("❌ XAI_API_KEY not found")
+      return false
+    }
+
+    const result = await generateText({
+      model: xai("grok-beta"),
+      prompt: "Respond with exactly: Connection successful",
+      temperature: 0,
+      maxTokens: 10,
+    })
+
+    const success = result.text.toLowerCase().includes("connection successful")
+    console.log(success ? "✅ Grok connection successful" : "❌ Grok connection failed")
+    console.log("🔍 Test response:", result.text)
+
+    return success
+  } catch (error) {
+    console.error("❌ Grok connection test failed:", error)
+    return false
   }
 }
 
-function createFallbackAnalysis(title: string, content: string, errorInfo: string): GrokFactCheckResult {
-  console.log("🔄 Creating fallback analysis due to:", errorInfo)
+// Enhanced content analysis fallback
+export function createEnhancedFallbackAnalysis(title: string, content: string): GrokFactCheckResult {
+  console.log("🔄 Creating enhanced fallback analysis...")
 
-  // Create a more sophisticated content analysis as fallback
   const text = (title + " " + content).toLowerCase()
   let score = 50 // Start neutral
 
@@ -240,21 +269,21 @@ function createFallbackAnalysis(title: string, content: string, errorInfo: strin
 
   // Positive indicators
   if (text.includes("according to") || text.includes("sources say") || text.includes("reported by")) {
-    score += 12
+    score += 15
     factors.push("✅ Contains source attribution")
   }
 
-  if (text.includes("study") || text.includes("research") || text.includes("data shows")) {
-    score += 10
+  if (text.includes("study") || text.includes("research") || text.includes("data")) {
+    score += 12
     factors.push("✅ References research or data")
   }
 
   if (text.includes("said") || text.includes("stated") || text.includes("announced")) {
     score += 8
-    factors.push("✅ Uses direct quotes or statements")
+    factors.push("✅ Uses direct quotes")
   }
 
-  // Check for reputable sources in content
+  // Check for reputable sources
   const reputableSources = [
     "reuters",
     "bloomberg",
@@ -265,43 +294,40 @@ function createFallbackAnalysis(title: string, content: string, errorInfo: strin
     "washingtonpost",
     "techcrunch",
     "yahoo finance",
+    "wall street journal",
+    "financial times",
   ]
-  const foundSources = reputableSources.filter((source) => text.includes(source))
-  if (foundSources.length > 0) {
-    score += 15
-    factors.push(`✅ Reputable source: ${foundSources[0]}`)
+
+  const foundSource = reputableSources.find((source) => text.includes(source))
+  if (foundSource) {
+    score += 20
+    factors.push(`✅ Reputable source: ${foundSource}`)
   }
 
   // Negative indicators
   if (text.includes("shocking") || text.includes("unbelievable") || text.includes("you won't believe")) {
-    score -= 15
-    factors.push("❌ Uses sensationalist language")
+    score -= 20
+    factors.push("❌ Sensationalist language detected")
   }
 
-  if (text.includes("secret") || text.includes("they don't want you to know") || text.includes("hidden truth")) {
-    score -= 12
-    factors.push("❌ Uses conspiracy-style language")
+  if (text.includes("secret") || text.includes("they don't want you to know")) {
+    score -= 15
+    factors.push("❌ Conspiracy-style language")
   }
 
   if (text.includes("allegedly") || text.includes("reportedly") || text.includes("rumored")) {
-    score -= 8
-    factors.push("⚠️ Contains unverified claims")
+    score -= 10
+    factors.push("⚠️ Unverified claims present")
   }
 
-  if (text.includes("all") || text.includes("every") || text.includes("always") || text.includes("never")) {
-    score -= 5
-    factors.push("⚠️ Uses absolute language")
-  }
-
-  // Ensure score is within bounds
+  // Clamp score
   score = Math.max(0, Math.min(100, score))
 
-  // Add error information
-  factors.push(`⚠️ Fallback analysis used: ${errorInfo}`)
+  factors.push("⚠️ Fallback analysis used (Grok AI unavailable)")
 
   return {
     credibilityScore: score,
-    summary: `Fallback content analysis indicates ${score >= 70 ? "good" : score >= 40 ? "mixed" : "concerning"} credibility. Grok analysis was unavailable, so this assessment is based on content patterns and language analysis.`,
+    summary: `Fallback analysis of "${title}" indicates ${score >= 70 ? "good" : score >= 40 ? "mixed" : "concerning"} credibility based on content patterns and language analysis.`,
     analysisFactors: factors,
     claimsAnalyzed: [
       {
@@ -310,61 +336,5 @@ function createFallbackAnalysis(title: string, content: string, errorInfo: strin
         explanation: "Assessment based on language patterns, source attribution, and content structure",
       },
     ],
-  }
-}
-
-// Alternative simpler function for testing Grok connectivity
-export async function testGrokConnection(): Promise<boolean> {
-  try {
-    console.log("🧪 Testing Grok connection...")
-
-    const result = await generateText({
-      model: xai("grok-beta"),
-      prompt: "Respond with exactly: 'Connection successful'",
-      temperature: 0,
-      maxTokens: 10,
-    })
-
-    const success = result.text.trim().toLowerCase().includes("connection successful")
-    console.log(success ? "✅ Grok connection test passed" : "❌ Grok connection test failed")
-    console.log("🔍 Test response:", result.text)
-
-    return success
-  } catch (error) {
-    console.error("❌ Grok connection test failed:", error)
-    return false
-  }
-}
-
-// Quick credibility check function
-export async function quickCredibilityCheck(headline: string): Promise<number> {
-  try {
-    console.log("⚡ Quick credibility check for:", headline)
-
-    const prompt = `As a fact-checking expert, analyze this news headline for credibility. Consider source plausibility, language tone, and potential for misinformation.
-
-Headline: "${headline}"
-
-Respond with ONLY a number between 0-100 representing the credibility score. No other text.`
-
-    const result = await generateText({
-      model: xai("grok-beta"),
-      prompt,
-      temperature: 0.1,
-      maxTokens: 10,
-    })
-
-    const score = Number.parseInt(result.text.trim())
-
-    if (isNaN(score) || score < 0 || score > 100) {
-      console.error("❌ Invalid score from Grok:", result.text)
-      return 50 // Default neutral score
-    }
-
-    console.log("✅ Quick check score:", score)
-    return score
-  } catch (error) {
-    console.error("❌ Error in quick credibility check:", error)
-    return 50 // Default neutral score
   }
 }

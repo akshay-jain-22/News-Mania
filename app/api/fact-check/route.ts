@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { analyzeArticleWithGrok, testGrokConnection } from "@/lib/grok-fact-check"
+import { analyzeArticleWithGrok, testGrokConnection, createEnhancedFallbackAnalysis } from "@/lib/grok-fact-check"
 
 interface FactCheckClaim {
   text: string
@@ -418,26 +418,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
     }
 
-    console.log("🚀 Starting Grok-powered fact-check analysis for:", title.substring(0, 50) + "...")
+    console.log("🚀 Starting fact-check analysis for:", title.substring(0, 50) + "...")
 
-    // Test Grok connection first
-    console.log("🧪 Testing Grok connection...")
-    const connectionTest = await testGrokConnection()
+    // First, test the connection
+    console.log("🧪 Testing Grok AI connection...")
+    const connectionWorking = await testGrokConnection()
 
-    if (!connectionTest) {
-      console.error("❌ Grok connection failed, using fallback analysis")
-      return NextResponse.json({
+    if (!connectionWorking) {
+      console.log("❌ Grok AI connection failed, using enhanced fallback...")
+
+      // Use enhanced fallback analysis
+      const fallbackResult = createEnhancedFallbackAnalysis(title, content || description || "")
+
+      const factCheckResult = {
         isFactChecked: true,
-        credibilityScore: 50,
-        factCheckResult:
-          "Unable to connect to Grok AI for analysis. Please check your API configuration and try again.",
-        claimsAnalyzed: [],
-        analysisFactors: ["❌ Grok AI connection failed", "⚠️ Fallback analysis not available"],
-        analyzedBy: "Connection Test Failed",
-      })
+        credibilityScore: fallbackResult.credibilityScore,
+        factCheckResult: fallbackResult.summary,
+        claimsAnalyzed: fallbackResult.claimsAnalyzed.map((claim) => ({
+          claim: claim.claim,
+          verdict: claim.verdict,
+          explanation: claim.explanation,
+          sources: [],
+        })),
+        analysisFactors: fallbackResult.analysisFactors,
+        analyzedBy: "Enhanced Fallback Analysis",
+      }
+
+      return NextResponse.json(factCheckResult)
     }
 
-    console.log("✅ Grok connection successful, proceeding with analysis...")
+    console.log("✅ Grok AI connection successful, proceeding with analysis...")
 
     // Use Grok to analyze the article
     const grokResult = await analyzeArticleWithGrok(title, content || "", description || "")
@@ -470,32 +480,72 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("🚨 Fact-check API error:", error)
 
-    // Return a more informative error response
-    return NextResponse.json({
+    // Extract title from request for fallback
+    let title = "Unknown Article"
+    let content = ""
+
+    try {
+      const body = await request.json()
+      title = body.title || title
+      content = body.content || body.description || ""
+    } catch {
+      // Ignore JSON parsing errors for fallback
+    }
+
+    // Use enhanced fallback analysis even on errors
+    const fallbackResult = createEnhancedFallbackAnalysis(title, content)
+
+    const factCheckResult = {
       isFactChecked: true,
-      credibilityScore: 50,
-      factCheckResult: `Fact-check analysis encountered an error: ${error instanceof Error ? error.message : "Unknown error"}. This may be due to API connectivity issues or rate limiting.`,
-      claimsAnalyzed: [],
+      credibilityScore: fallbackResult.credibilityScore,
+      factCheckResult: `${fallbackResult.summary} Note: Grok AI analysis failed due to: ${error instanceof Error ? error.message : "Unknown error"}`,
+      claimsAnalyzed: fallbackResult.claimsAnalyzed.map((claim) => ({
+        claim: claim.claim,
+        verdict: claim.verdict,
+        explanation: claim.explanation,
+        sources: [],
+      })),
       analysisFactors: [
-        "❌ Technical error during analysis",
-        `⚠️ Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        ...fallbackResult.analysisFactors,
+        `❌ Grok AI error: ${error instanceof Error ? error.message : "Unknown error"}`,
       ],
-      analyzedBy: "Error Handler",
-    })
+      analyzedBy: "Error Fallback Analysis",
+    }
+
+    return NextResponse.json(factCheckResult)
   }
 }
 
-// Add a test endpoint to check Grok connectivity
+// Test endpoint
 export async function GET() {
   try {
+    console.log("🧪 Running connection test...")
+
+    // Check environment variable
+    if (!process.env.XAI_API_KEY) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "XAI_API_KEY environment variable not found. Please configure your API key.",
+          timestamp: new Date().toISOString(),
+          hasApiKey: false,
+        },
+        { status: 500 },
+      )
+    }
+
+    console.log("✅ XAI_API_KEY found")
+
+    // Test connection
     const connectionTest = await testGrokConnection()
 
     return NextResponse.json({
       status: connectionTest ? "connected" : "disconnected",
       message: connectionTest
         ? "Grok AI connection is working properly"
-        : "Grok AI connection failed - check API configuration",
+        : "Grok AI connection failed - API may be down or rate limited",
       timestamp: new Date().toISOString(),
+      hasApiKey: true,
     })
   } catch (error) {
     return NextResponse.json(
@@ -503,6 +553,7 @@ export async function GET() {
         status: "error",
         message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         timestamp: new Date().toISOString(),
+        hasApiKey: !!process.env.XAI_API_KEY,
       },
       { status: 500 },
     )
