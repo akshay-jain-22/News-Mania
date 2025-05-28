@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Loader2, Bug, CheckCircle, AlertTriangle, X } from "lucide-react"
+import { Loader2, Bug, CheckCircle, AlertTriangle, X, Copy } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 export function DebugPanel() {
@@ -16,7 +16,7 @@ export function DebugPanel() {
   const [connectionResult, setConnectionResult] = useState<any>(null)
   const [factCheckResult, setFactCheckResult] = useState<any>(null)
   const [testArticle, setTestArticle] = useState(
-    "NASA announces discovery of water on Mars. Scientists believe this could indicate potential for life on the red planet.",
+    "NASA announces discovery of water on Mars. Scientists believe this could indicate potential for life on the red planet. The discovery was made using advanced spectroscopy techniques.",
   )
   const { toast } = useToast()
 
@@ -25,9 +25,12 @@ export function DebugPanel() {
     setConnectionResult(null)
 
     try {
+      console.log("🧪 Starting connection test...")
       const response = await fetch("/api/fact-check", { method: "GET" })
       const result = await response.json()
       setConnectionResult(result)
+
+      console.log("🔍 Connection test result:", result)
 
       toast({
         title: result.status === "connected" ? "✅ Connection Success" : "❌ Connection Failed",
@@ -66,6 +69,7 @@ export function DebugPanel() {
     setFactCheckResult(null)
 
     try {
+      console.log("🧪 Starting fact-check test...")
       const response = await fetch("/api/fact-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,6 +82,8 @@ export function DebugPanel() {
 
       const result = await response.json()
       setFactCheckResult(result)
+
+      console.log("🔍 Fact-check test result:", result)
 
       toast({
         title: "✅ Fact Check Complete",
@@ -99,6 +105,14 @@ export function DebugPanel() {
     }
   }
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({
+      title: "📋 Copied",
+      description: "Debug info copied to clipboard",
+    })
+  }
+
   if (!isOpen) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
@@ -111,7 +125,7 @@ export function DebugPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96">
+    <div className="fixed bottom-4 right-4 z-50 w-96 max-h-[80vh] overflow-y-auto">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -138,7 +152,7 @@ export function DebugPanel() {
             </Button>
 
             {connectionResult && (
-              <div className="text-xs space-y-1">
+              <div className="text-xs space-y-2 p-2 bg-muted/50 rounded">
                 <div className="flex items-center gap-2">
                   {connectionResult.status === "connected" ? (
                     <CheckCircle className="h-3 w-3 text-green-600" />
@@ -151,11 +165,27 @@ export function DebugPanel() {
                   >
                     {connectionResult.status}
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(JSON.stringify(connectionResult, null, 2))}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
                 </div>
                 <p className="text-muted-foreground">{connectionResult.message}</p>
-                <p className="text-muted-foreground">
-                  API Key: {connectionResult.hasApiKey ? "✅ Found" : "❌ Missing"}
-                </p>
+                <div className="space-y-1">
+                  <p>API Key: {connectionResult.hasApiKey ? "✅ Found" : "❌ Missing"}</p>
+                  {connectionResult.debugInfo && (
+                    <>
+                      <p>API Key Length: {connectionResult.debugInfo.apiKeyLength || "N/A"}</p>
+                      <p>Environment: {connectionResult.debugInfo.nodeEnv || "unknown"}</p>
+                      {connectionResult.debugInfo.response && (
+                        <p>Test Response: {connectionResult.debugInfo.response}</p>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -181,7 +211,7 @@ export function DebugPanel() {
             </Button>
 
             {factCheckResult && (
-              <div className="text-xs space-y-1">
+              <div className="text-xs space-y-2 p-2 bg-muted/50 rounded">
                 {factCheckResult.error ? (
                   <p className="text-red-600">{factCheckResult.error}</p>
                 ) : (
@@ -191,9 +221,25 @@ export function DebugPanel() {
                         {factCheckResult.credibilityScore}%
                       </Badge>
                       <span className="text-muted-foreground">{factCheckResult.analyzedBy}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(JSON.stringify(factCheckResult, null, 2))}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
                     </div>
                     <p className="text-muted-foreground">{factCheckResult.factCheckResult}</p>
-                    <p className="text-muted-foreground">Factors: {factCheckResult.analysisFactors?.length || 0}</p>
+                    <div className="space-y-1">
+                      <p>Factors: {factCheckResult.analysisFactors?.length || 0}</p>
+                      <p>Claims: {factCheckResult.claimsAnalyzed?.length || 0}</p>
+                      {factCheckResult.debugInfo && (
+                        <>
+                          <p>Fallback Used: {factCheckResult.debugInfo.fallbackUsed ? "Yes" : "No"}</p>
+                          <p>Timestamp: {new Date(factCheckResult.debugInfo.timestamp).toLocaleTimeString()}</p>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -204,6 +250,7 @@ export function DebugPanel() {
           <div className="text-xs text-muted-foreground border-t pt-2">
             <p>Environment: {process.env.NODE_ENV || "unknown"}</p>
             <p>Timestamp: {new Date().toLocaleTimeString()}</p>
+            <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
           </div>
         </CardContent>
       </Card>
