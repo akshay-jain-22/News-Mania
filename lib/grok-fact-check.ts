@@ -1,8 +1,3 @@
-// lib/grok-fact-check.ts
-
-import { ChatOpenAI } from "langchain/chat_models/openai"
-import { PromptTemplate } from "langchain/prompts"
-import { StringOutputParser } from "langchain/schema/output_parser"
 import { xai } from "@ai-sdk/xai"
 import { openai } from "@ai-sdk/openai"
 import { generateText } from "ai"
@@ -16,40 +11,6 @@ interface GrokFactCheckResult {
     verdict: "true" | "false" | "partially true" | "unverified"
     explanation: string
   }>
-}
-
-const openAIApiKey = process.env.OPENAI_API_KEY
-
-const factCheckTemplate = `You are an expert fact checker. Given the following statement, provide a detailed analysis of its truthfulness.
-Explain your reasoning and cite any sources you used to verify the information.
-
-Statement: {statement}`
-
-const factCheckPrompt = PromptTemplate.fromTemplate(factCheckTemplate)
-
-const model = new ChatOpenAI({
-  openAIApiKey,
-  modelName: "gpt-4",
-  temperature: 0,
-})
-
-const outputParser = new StringOutputParser()
-
-const chain = factCheckPrompt.pipe(model).pipe(outputParser)
-
-export const factCheckWithGrok = async (statement: string) => {
-  const analysis = await chain.invoke({ statement })
-
-  const analysisFactors: string[] = []
-
-  analysisFactors.push("🌍 Sliced, diced, and analyzed by the Mania World")
-  analysisFactors.push("Fact-checked using advanced AI algorithms")
-  analysisFactors.push("Data sources include reputable news outlets and academic research")
-
-  return {
-    analysis,
-    analysisFactors,
-  }
 }
 
 export async function analyzeArticleWithGrok(
@@ -598,5 +559,42 @@ Respond with ONLY the number (0-100), nothing else.`
   } catch (error) {
     console.error("❌ Error in quick credibility check:", error)
     return 50 // Default neutral score
+  }
+}
+
+// Simple function for factCheckWithGrok to maintain compatibility
+export const factCheckWithGrok = async (statement: string) => {
+  console.log("Using simplified factCheckWithGrok function")
+
+  try {
+    // Use the AI SDK directly instead of langchain
+    const result = await generateText({
+      model: openai("gpt-4o-mini"),
+      prompt: `You are an expert fact checker. Given the following statement, provide a detailed analysis of its truthfulness.
+Explain your reasoning and cite any sources you used to verify the information.
+
+Statement: ${statement}`,
+      temperature: 0,
+      maxTokens: 500,
+    })
+
+    const analysisFactors: string[] = []
+    analysisFactors.push("🌍 Sliced, diced, and analyzed by the Mania World")
+    analysisFactors.push("Fact-checked using advanced AI algorithms")
+    analysisFactors.push("Data sources include reputable news outlets and academic research")
+
+    return {
+      analysis: result.text,
+      analysisFactors,
+    }
+  } catch (error) {
+    console.error("Error in factCheckWithGrok:", error)
+    return {
+      analysis: "Unable to perform fact-check analysis at this time.",
+      analysisFactors: [
+        "🌍 Sliced, diced, and analyzed by the Mania World",
+        "⚠️ Analysis limited due to technical issues",
+      ],
+    }
   }
 }
