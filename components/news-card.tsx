@@ -465,7 +465,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
             <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="text-xs">
-                🤖 {article.analyzedBy || "Powered by AI"}
+                🌍 Checking from the World of news
               </Badge>
             </div>
           </DialogHeader>
