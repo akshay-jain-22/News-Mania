@@ -134,7 +134,7 @@ export async function saveNote(
 
     const newNote = {
       user_id: user.user.id,
-      title: articleTitle || "Note from article",
+      title: articleTitle ? `Note: ${articleTitle}` : "Note from article",
       content: content,
       topic: "News",
       article_id: articleId,
@@ -181,22 +181,38 @@ export async function saveNote(
 export async function createNote(noteInput: NoteInput): Promise<Note | null> {
   try {
     console.log("Creating note:", noteInput.title)
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError) {
+      console.error("Auth error:", userError)
+      throw new Error("Authentication error: " + userError.message)
+    }
+
+    if (!userData.user) {
       console.error("No authenticated user found")
-      return null
+      throw new Error("No authenticated user found")
+    }
+
+    const userId = userData.user.id
+    console.log("User authenticated:", userId)
+
+    // Check if user_notes table exists
+    const { error: tableCheckError } = await supabase.from("user_notes").select("id").limit(1)
+
+    if (tableCheckError) {
+      console.error("Table check error:", tableCheckError)
+      throw new Error("Database table error: " + tableCheckError.message)
     }
 
     const tags = noteInput.tags || extractKeywords(noteInput.content)
 
     const newNote = {
-      user_id: user.user.id,
+      user_id: userId,
       title: noteInput.title,
       content: noteInput.content,
       topic: noteInput.topic || "General",
-      article_id: noteInput.articleId,
-      article_title: noteInput.articleTitle,
+      article_id: noteInput.articleId || null,
+      article_title: noteInput.articleTitle || null,
       is_markdown: noteInput.isMarkdown || false,
       tags: tags,
     }
@@ -210,7 +226,12 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
 
     if (error) {
       console.error("Error creating note:", error)
-      return null
+      throw new Error("Database error: " + error.message)
+    }
+
+    if (!data) {
+      console.error("No data returned from insert")
+      throw new Error("No data returned from database")
     }
 
     console.log("Note created successfully:", data.id)
@@ -229,7 +250,7 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
     }
   } catch (error) {
     console.error("Error creating note:", error)
-    return null
+    throw error
   }
 }
 
@@ -356,6 +377,24 @@ export async function insertSampleNotes(): Promise<boolean> {
         topic: "Politics",
         is_markdown: false,
         tags: ["climate", "policy", "carbon", "international"],
+      },
+      {
+        user_id: user.user.id,
+        title: "Weather Report: Sunny Days Ahead",
+        content:
+          "The forecast for the coming week shows clear skies and temperatures in the mid-70s. Perfect weather for outdoor activities and enjoying nature.",
+        topic: "Weather",
+        is_markdown: false,
+        tags: ["weather", "forecast", "sunny", "outdoor"],
+      },
+      {
+        user_id: user.user.id,
+        title: "Storm Warning: Hurricane Season",
+        content:
+          "Meteorologists predict an active hurricane season this year. Coastal residents should prepare emergency kits and evacuation plans.",
+        topic: "Weather",
+        is_markdown: false,
+        tags: ["weather", "hurricane", "storm", "emergency"],
       },
     ]
 

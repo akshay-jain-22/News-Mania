@@ -28,34 +28,59 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
   const [isMarkdown, setIsMarkdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
 
   // Check if user is authenticated
   useEffect(() => {
     const checkAuth = async () => {
-      const { data } = await supabase.auth.getUser()
+      const { data, error } = await supabase.auth.getUser()
+
+      if (error) {
+        console.error("Auth error:", error)
+        toast({
+          variant: "destructive",
+          title: "Authentication error",
+          description: "Please log in again to view notes.",
+        })
+        router.push("/auth/login")
+        return
+      }
+
       if (!data.user) {
         toast({
           variant: "destructive",
           title: "Authentication required",
           description: "Please log in to add notes.",
         })
+        router.push("/auth/login")
       }
     }
 
     checkAuth()
-  }, [toast])
+  }, [toast, router])
 
   // Load existing notes for this article
   const loadNotes = async () => {
     try {
       setInitialLoading(true)
+      setError(null)
+
+      const { data: userData, error: authError } = await supabase.auth.getUser()
+
+      if (authError || !userData.user) {
+        console.error("Auth error or no user:", authError)
+        setNotes([])
+        return
+      }
+
       const articleNotes = await getNotes(articleId)
       console.log(`Loaded ${articleNotes.length} notes for article ${articleId}`)
       setNotes(articleNotes)
     } catch (error) {
       console.error("Failed to load notes:", error)
+      setError("Failed to load notes. Please try again.")
       toast({
         variant: "destructive",
         title: "Error loading notes",
@@ -74,27 +99,40 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
 
   const handleSaveNote = async () => {
     if (!newNote.trim()) return
-
-    // Check if user is authenticated
-    const { data } = await supabase.auth.getUser()
-    if (!data.user) {
-      toast({
-        variant: "destructive",
-        title: "Authentication required",
-        description: "Please log in to add notes.",
-      })
-      router.push("/auth/login")
-      return
-    }
-
-    setLoading(true)
+    setError(null)
 
     try {
+      // Check if user is authenticated
+      const { data, error: authError } = await supabase.auth.getUser()
+
+      if (authError) {
+        console.error("Auth error:", authError)
+        toast({
+          variant: "destructive",
+          title: "Authentication error",
+          description: "Please log in again to add notes.",
+        })
+        router.push("/auth/login")
+        return
+      }
+
+      if (!data.user) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please log in to add notes.",
+        })
+        router.push("/auth/login")
+        return
+      }
+
+      setLoading(true)
+
       console.log(`Saving note for article ${articleId}:`, newNote)
       const savedNote = await saveNote(articleId, newNote, articleTitle, isMarkdown)
 
       if (!savedNote) {
-        throw new Error("Failed to save note")
+        throw new Error("Failed to save note - no data returned")
       }
 
       // Optimistically update the UI
@@ -107,10 +145,13 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
       })
     } catch (error) {
       console.error("Failed to save note:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+      setError(errorMessage)
+
       toast({
         variant: "destructive",
         title: "Failed to save note",
-        description: "There was an error saving your note. Please try again.",
+        description: `Error: ${errorMessage}. Please try again.`,
       })
     } finally {
       setLoading(false)
@@ -148,6 +189,8 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
             )}
           </Button>
         </div>
+
+        {error && <div className="text-sm text-red-500 p-2 bg-red-50 border border-red-200 rounded">{error}</div>}
       </div>
 
       <Separator className="my-6" />
