@@ -1,4 +1,5 @@
 import { xai } from "@ai-sdk/xai"
+import { openai } from "@ai-sdk/openai"
 import { generateText } from "ai"
 
 interface GrokFactCheckResult {
@@ -17,32 +18,19 @@ export async function analyzeArticleWithGrok(
   content: string,
   description?: string,
 ): Promise<GrokFactCheckResult> {
-  console.log("🤖 Starting Grok fact-check analysis...")
-  console.log("🔑 Checking API key availability...")
+  console.log("🤖 Starting AI fact-check analysis...")
 
-  // Check if API key exists
-  const apiKey = process.env.XAI_API_KEY
-  if (!apiKey) {
-    console.error("❌ XAI_API_KEY not found in environment variables")
-    throw new Error("XAI_API_KEY not configured")
-  }
-
-  console.log("✅ XAI_API_KEY found, length:", apiKey.length)
-
-  try {
-    // Prepare the article content
-    const articleText = `
+  // Prepare the article content
+  const articleText = `
 TITLE: ${title}
 
 DESCRIPTION: ${description || "No description available"}
 
 CONTENT: ${content || "No content available"}
-    `.trim()
+  `.trim()
 
-    console.log("📝 Article prepared, length:", articleText.length)
-
-    // Use the exact prompt format you specified
-    const prompt = `You are a news verification assistant.
+  // Use the exact prompt format you specified
+  const prompt = `You are a news verification assistant.
 
 Given the following news article, perform a credibility assessment and return:
 1. Credibility Score (0–100%)
@@ -59,45 +47,98 @@ Summary: [2-3 line summary of the article]
 
 Reasons: [brief explanation of factors that influenced the credibility score]`
 
-    console.log("🚀 Sending request to Grok AI...")
-    console.log("📤 Prompt length:", prompt.length)
+  // Try Grok first, then fallback to OpenAI
+  let result: any
+  let aiProvider = "Unknown"
 
-    const result = await generateText({
-      model: xai("grok-beta"),
-      prompt,
-      temperature: 0.3,
-      maxTokens: 500,
-    })
+  try {
+    // First, try Grok AI
+    console.log("🚀 Attempting Grok AI analysis...")
 
-    console.log("✅ Received response from Grok AI")
-    console.log("📄 Raw response:", result.text)
+    const grokModels = ["grok-beta", "grok-2", "grok-1", "grok"]
+    let grokSuccess = false
 
-    // Parse the response
-    const parsedResult = parseGrokResponse(result.text, title)
-
-    console.log("🎯 Final parsed result:", {
-      score: parsedResult.credibilityScore,
-      summary: parsedResult.summary.substring(0, 100) + "...",
-      factorsCount: parsedResult.analysisFactors.length,
-    })
-
-    return parsedResult
-  } catch (error) {
-    console.error("🚨 Error in Grok analysis:", error)
-
-    if (error instanceof Error) {
-      console.error("🚨 Error name:", error.name)
-      console.error("🚨 Error message:", error.message)
-      console.error("🚨 Error stack:", error.stack?.substring(0, 500))
+    for (const model of grokModels) {
+      try {
+        console.log(`🧪 Trying Grok model: ${model}`)
+        result = await generateText({
+          model: xai(model),
+          prompt,
+          temperature: 0.3,
+          maxTokens: 500,
+        })
+        aiProvider = `Grok AI (${model})`
+        grokSuccess = true
+        console.log(`✅ Grok AI successful with model: ${model}`)
+        break
+      } catch (grokError) {
+        console.log(`❌ Grok model ${model} failed:`, grokError instanceof Error ? grokError.message : "Unknown error")
+        continue
+      }
     }
 
-    // Re-throw the error to be handled by the API route
-    throw error
+    if (!grokSuccess) {
+      throw new Error("All Grok models failed")
+    }
+  } catch (grokError) {
+    console.log("❌ Grok AI failed, trying OpenAI...")
+
+    try {
+      // Fallback to OpenAI
+      const openaiKey = process.env.OPENAI_API_KEY
+      if (!openaiKey) {
+        throw new Error("OPENAI_API_KEY not configured")
+      }
+
+      console.log("🚀 Using OpenAI as fallback...")
+      result = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt,
+        temperature: 0.3,
+        maxTokens: 500,
+      })
+      aiProvider = "OpenAI GPT-4"
+      console.log("✅ OpenAI analysis successful")
+    } catch (openaiError) {
+      console.log("❌ OpenAI also failed, trying GPT-3.5...")
+
+      try {
+        // Try GPT-3.5 as final fallback
+        result = await generateText({
+          model: openai("gpt-3.5-turbo"),
+          prompt,
+          temperature: 0.3,
+          maxTokens: 500,
+        })
+        aiProvider = "OpenAI GPT-3.5"
+        console.log("✅ GPT-3.5 analysis successful")
+      } catch (finalError) {
+        console.error("❌ All AI providers failed")
+        throw new Error(
+          `All AI providers failed. Grok: ${grokError instanceof Error ? grokError.message : "Unknown"}. OpenAI: ${openaiError instanceof Error ? openaiError.message : "Unknown"}`,
+        )
+      }
+    }
   }
+
+  console.log("✅ Received response from", aiProvider)
+  console.log("📄 Raw response:", result.text)
+
+  // Parse the response
+  const parsedResult = parseAIResponse(result.text, title, aiProvider)
+
+  console.log("🎯 Final parsed result:", {
+    score: parsedResult.credibilityScore,
+    summary: parsedResult.summary.substring(0, 100) + "...",
+    factorsCount: parsedResult.analysisFactors.length,
+    provider: aiProvider,
+  })
+
+  return parsedResult
 }
 
-function parseGrokResponse(responseText: string, title: string): GrokFactCheckResult {
-  console.log("🔍 Parsing Grok response...")
+function parseAIResponse(responseText: string, title: string, aiProvider: string): GrokFactCheckResult {
+  console.log("🔍 Parsing AI response...")
 
   try {
     // Extract credibility score
@@ -116,7 +157,7 @@ function parseGrokResponse(responseText: string, title: string): GrokFactCheckRe
 
     // Extract summary
     const summaryMatch = responseText.match(/Summary:\s*(.+?)(?=\n\n|\nReasons:|$)/is)
-    let summary = `Grok AI analysis of "${title}" completed with ${credibilityScore}% credibility score.`
+    let summary = `AI analysis of "${title}" completed with ${credibilityScore}% credibility score.`
 
     if (summaryMatch) {
       summary = summaryMatch[1].trim().replace(/\n/g, " ")
@@ -127,7 +168,7 @@ function parseGrokResponse(responseText: string, title: string): GrokFactCheckRe
 
     // Extract reasons/explanation
     const reasonsMatch = responseText.match(/Reasons:\s*(.+?)$/is)
-    let explanation = "Grok AI analysis completed based on content evaluation."
+    let explanation = "AI analysis completed based on content evaluation."
 
     if (reasonsMatch) {
       explanation = reasonsMatch[1].trim().replace(/\n/g, " ")
@@ -137,7 +178,7 @@ function parseGrokResponse(responseText: string, title: string): GrokFactCheckRe
     }
 
     // Generate analysis factors based on the score and explanation
-    const analysisFactors = generateAnalysisFactors(credibilityScore, explanation, responseText)
+    const analysisFactors = generateAnalysisFactors(credibilityScore, explanation, responseText, aiProvider)
 
     // Generate claims based on the analysis
     const claimsAnalyzed = generateClaimsAnalyzed(credibilityScore, explanation, title)
@@ -149,36 +190,41 @@ function parseGrokResponse(responseText: string, title: string): GrokFactCheckRe
       claimsAnalyzed,
     }
   } catch (error) {
-    console.error("❌ Error parsing Grok response:", error)
+    console.error("❌ Error parsing AI response:", error)
 
     // Return a basic parsed result
     return {
       credibilityScore: 50,
-      summary: `Grok AI analysis of "${title}" completed. Response parsing encountered issues.`,
-      analysisFactors: ["🤖 Grok AI analysis completed", "⚠️ Response parsing had minor issues"],
+      summary: `AI analysis of "${title}" completed. Response parsing encountered issues.`,
+      analysisFactors: [`🤖 ${aiProvider} analysis completed`, "⚠️ Response parsing had minor issues"],
       claimsAnalyzed: [
         {
           claim: "Overall article assessment",
           verdict: "partially true",
-          explanation: "Grok AI analysis completed with standard evaluation",
+          explanation: "AI analysis completed with standard evaluation",
         },
       ],
     }
   }
 }
 
-function generateAnalysisFactors(score: number, explanation: string, fullResponse: string): string[] {
+function generateAnalysisFactors(
+  score: number,
+  explanation: string,
+  fullResponse: string,
+  aiProvider: string,
+): string[] {
   const factors: string[] = []
 
   // Add factors based on score
   if (score >= 80) {
-    factors.push("✅ High credibility score from Grok AI")
+    factors.push(`✅ High credibility score from ${aiProvider}`)
   } else if (score >= 60) {
-    factors.push("⚠️ Moderate credibility score from Grok AI")
+    factors.push(`⚠️ Moderate credibility score from ${aiProvider}`)
   } else if (score >= 40) {
-    factors.push("⚠️ Mixed credibility indicators identified")
+    factors.push(`⚠️ Mixed credibility indicators identified`)
   } else {
-    factors.push("❌ Low credibility score from Grok AI")
+    factors.push(`❌ Low credibility score from ${aiProvider}`)
   }
 
   // Add factors based on explanation content
@@ -189,7 +235,7 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("credible") ||
     explanationLower.includes("trustworthy")
   ) {
-    factors.push("✅ Grok identified reliable elements")
+    factors.push("✅ AI identified reliable elements")
   }
 
   if (
@@ -197,7 +243,7 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("biased") ||
     explanationLower.includes("partisan")
   ) {
-    factors.push("⚠️ Potential bias detected by Grok")
+    factors.push("⚠️ Potential bias detected by AI")
   }
 
   if (
@@ -205,7 +251,7 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("attribution") ||
     explanationLower.includes("cited")
   ) {
-    factors.push("✅ Source attribution evaluated by Grok")
+    factors.push("✅ Source attribution evaluated by AI")
   }
 
   if (
@@ -213,7 +259,7 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("issue") ||
     explanationLower.includes("problem")
   ) {
-    factors.push("⚠️ Credibility concerns identified by Grok")
+    factors.push("⚠️ Credibility concerns identified by AI")
   }
 
   if (
@@ -221,7 +267,7 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("misleading") ||
     explanationLower.includes("inaccurate")
   ) {
-    factors.push("❌ Misleading content detected by Grok")
+    factors.push("❌ Misleading content detected by AI")
   }
 
   if (
@@ -237,11 +283,11 @@ function generateAnalysisFactors(score: number, explanation: string, fullRespons
     explanationLower.includes("accurate") ||
     explanationLower.includes("verified")
   ) {
-    factors.push("✅ Factual content confirmed by Grok")
+    factors.push("✅ Factual content confirmed by AI")
   }
 
-  // Always add Grok attribution
-  factors.push("🤖 Analysis powered by Grok AI")
+  // Always add AI provider attribution
+  factors.push(`🤖 Analysis powered by ${aiProvider}`)
 
   return factors
 }
@@ -267,49 +313,91 @@ function generateClaimsAnalyzed(
   ]
 }
 
-// Simple connection test
+// Enhanced connection test that tries multiple AI providers
 export async function testGrokConnection(): Promise<{ success: boolean; message: string; details?: any }> {
-  try {
-    console.log("🧪 Testing Grok AI connection...")
+  console.log("🧪 Testing AI connections...")
 
-    const apiKey = process.env.XAI_API_KEY
-    if (!apiKey) {
-      console.error("❌ XAI_API_KEY not found")
-      return {
-        success: false,
-        message: "XAI_API_KEY environment variable not found",
-        details: { hasApiKey: false },
+  const results = {
+    grok: { success: false, message: "", model: "" },
+    openai: { success: false, message: "", model: "" },
+  }
+
+  // Test Grok AI with multiple models
+  const grokModels = ["grok-beta", "grok-2", "grok-1", "grok"]
+
+  for (const model of grokModels) {
+    try {
+      console.log(`🧪 Testing Grok model: ${model}`)
+
+      const result = await generateText({
+        model: xai(model),
+        prompt: "Respond with exactly: Connection successful",
+        temperature: 0,
+        maxTokens: 10,
+      })
+
+      if (result.text.toLowerCase().includes("connection successful")) {
+        results.grok = {
+          success: true,
+          message: `Grok AI working with model ${model}`,
+          model: model,
+        }
+        console.log(`✅ Grok ${model} connection successful`)
+        break
       }
+    } catch (error) {
+      console.log(`❌ Grok ${model} failed:`, error instanceof Error ? error.message : "Unknown error")
+      results.grok.message = error instanceof Error ? error.message : "Unknown error"
     }
+  }
 
-    console.log("✅ API key found, testing connection...")
+  // Test OpenAI
+  try {
+    console.log("🧪 Testing OpenAI...")
 
-    const result = await generateText({
-      model: xai("grok-beta"),
-      prompt: "Respond with exactly: Connection successful",
-      temperature: 0,
-      maxTokens: 10,
-    })
+    const openaiKey = process.env.OPENAI_API_KEY
+    if (openaiKey) {
+      const result = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt: "Respond with exactly: Connection successful",
+        temperature: 0,
+        maxTokens: 10,
+      })
 
-    const success = result.text.toLowerCase().includes("connection successful")
-    console.log(success ? "✅ Grok connection successful" : "❌ Grok connection failed")
-    console.log("🔍 Test response:", result.text)
-
-    return {
-      success,
-      message: success ? "Grok AI connection working properly" : "Grok AI connection failed - unexpected response",
-      details: { response: result.text, hasApiKey: true },
+      if (result.text.toLowerCase().includes("connection successful")) {
+        results.openai = {
+          success: true,
+          message: "OpenAI GPT-4 working properly",
+          model: "gpt-4o-mini",
+        }
+        console.log("✅ OpenAI connection successful")
+      }
+    } else {
+      results.openai.message = "OPENAI_API_KEY not found"
     }
   } catch (error) {
-    console.error("❌ Grok connection test failed:", error)
-    return {
-      success: false,
-      message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      details: {
-        error: error instanceof Error ? error.message : "Unknown error",
-        hasApiKey: !!process.env.XAI_API_KEY,
-      },
-    }
+    console.log("❌ OpenAI failed:", error instanceof Error ? error.message : "Unknown error")
+    results.openai.message = error instanceof Error ? error.message : "Unknown error"
+  }
+
+  // Determine overall success
+  const overallSuccess = results.grok.success || results.openai.success
+  let message = ""
+
+  if (results.grok.success && results.openai.success) {
+    message = "Both Grok AI and OpenAI are working properly"
+  } else if (results.grok.success) {
+    message = `Grok AI working (${results.grok.model}), OpenAI unavailable`
+  } else if (results.openai.success) {
+    message = `OpenAI working (${results.openai.model}), Grok AI unavailable`
+  } else {
+    message = "Both Grok AI and OpenAI are unavailable"
+  }
+
+  return {
+    success: overallSuccess,
+    message,
+    details: results,
   }
 }
 
@@ -381,7 +469,7 @@ export function createEnhancedFallbackAnalysis(title: string, content: string): 
   // Clamp score
   score = Math.max(0, Math.min(100, score))
 
-  factors.push("⚠️ Enhanced fallback analysis (Grok AI unavailable)")
+  factors.push("⚠️ Enhanced fallback analysis (AI providers unavailable)")
 
   return {
     credibilityScore: score,
@@ -397,16 +485,10 @@ export function createEnhancedFallbackAnalysis(title: string, content: string): 
   }
 }
 
-// Quick credibility check function for headlines
+// Quick credibility check function for headlines with AI fallback
 export async function quickCredibilityCheck(headline: string): Promise<number> {
   try {
     console.log("⚡ Quick credibility check for:", headline)
-
-    const apiKey = process.env.XAI_API_KEY
-    if (!apiKey) {
-      console.error("❌ XAI_API_KEY not found for quick check")
-      return 50 // Default neutral score
-    }
 
     const prompt = `You are a news verification assistant. Analyze this headline for credibility and respond with ONLY a number between 0-100 representing the credibility score.
 
@@ -420,22 +502,60 @@ Consider:
 
 Respond with ONLY the number (0-100), nothing else.`
 
-    const result = await generateText({
-      model: xai("grok-beta"),
-      prompt,
-      temperature: 0.1,
-      maxTokens: 10,
-    })
+    // Try Grok first
+    try {
+      const grokModels = ["grok-beta", "grok-2", "grok-1", "grok"]
 
-    const score = Number.parseInt(result.text.trim())
+      for (const model of grokModels) {
+        try {
+          const result = await generateText({
+            model: xai(model),
+            prompt,
+            temperature: 0.1,
+            maxTokens: 10,
+          })
 
-    if (isNaN(score) || score < 0 || score > 100) {
-      console.error("❌ Invalid score from Grok:", result.text)
-      return 50 // Default neutral score
+          const score = Number.parseInt(result.text.trim())
+          if (!isNaN(score) && score >= 0 && score <= 100) {
+            console.log(`✅ Quick check score from Grok ${model}:`, score)
+            return score
+          }
+        } catch (error) {
+          continue
+        }
+      }
+    } catch (error) {
+      console.log("❌ Grok failed for quick check, trying OpenAI...")
     }
 
-    console.log("✅ Quick check score:", score)
-    return score
+    // Fallback to OpenAI
+    try {
+      const result = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt,
+        temperature: 0.1,
+        maxTokens: 10,
+      })
+
+      const score = Number.parseInt(result.text.trim())
+      if (!isNaN(score) && score >= 0 && score <= 100) {
+        console.log("✅ Quick check score from OpenAI:", score)
+        return score
+      }
+    } catch (error) {
+      console.log("❌ OpenAI also failed for quick check")
+    }
+
+    // Final fallback - basic content analysis
+    console.log("⚠️ Using fallback analysis for quick check")
+    const text = headline.toLowerCase()
+    let score = 50
+
+    if (text.includes("shocking") || text.includes("unbelievable")) score -= 20
+    if (text.includes("breaking") || text.includes("urgent")) score += 10
+    if (text.includes("reportedly") || text.includes("allegedly")) score -= 10
+
+    return Math.max(0, Math.min(100, score))
   } catch (error) {
     console.error("❌ Error in quick credibility check:", error)
     return 50 // Default neutral score

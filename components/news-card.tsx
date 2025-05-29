@@ -161,6 +161,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
         factCheckResult: result.factCheckResult,
         claimsAnalyzed: result.claimsAnalyzed,
         analysisFactors: result.analysisFactors,
+        analyzedBy: result.analyzedBy,
       })
 
       // Show detailed results in dialog
@@ -173,7 +174,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
 
       toast({
         title: `${scoreEmoji} Fact check complete`,
-        description: `Credibility score: ${score}%. Analysis by ${result.analyzedBy || "Grok AI"}.`,
+        description: `Credibility score: ${score}%. Analysis by ${result.analyzedBy || "AI"}.`,
         variant: toastVariant,
       })
     } catch (error) {
@@ -464,7 +465,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
             <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="text-xs">
-                🤖 Powered by Grok AI
+                🤖 {article.analyzedBy || "Powered by AI"}
               </Badge>
             </div>
           </DialogHeader>
