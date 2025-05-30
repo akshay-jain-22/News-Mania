@@ -22,12 +22,12 @@ export async function getUserNotes(): Promise<Note[]> {
 
     if (userError) {
       console.error("Auth error:", userError)
-      return []
+      throw new Error("Authentication error: " + userError.message)
     }
 
     if (!userData.user) {
       console.error("No authenticated user found")
-      return []
+      throw new Error("No authenticated user found")
     }
 
     console.log("User authenticated, fetching notes for user:", userData.user.id)
@@ -39,7 +39,7 @@ export async function getUserNotes(): Promise<Note[]> {
 
     if (error) {
       console.error("Error fetching notes:", error)
-      return []
+      throw new Error("Database error: " + error.message)
     }
 
     console.log("Notes fetched successfully:", data?.length || 0)
@@ -59,7 +59,7 @@ export async function getUserNotes(): Promise<Note[]> {
     }))
   } catch (error) {
     console.error("Error getting user notes:", error)
-    return []
+    throw error
   }
 }
 
@@ -126,7 +126,6 @@ export async function saveNote(
 ): Promise<Note | null> {
   try {
     if (!content || content.trim() === "") {
-      console.error("Note content is required")
       throw new Error("Note content is required")
     }
 
@@ -139,7 +138,6 @@ export async function saveNote(
     }
 
     if (!userData.user) {
-      console.error("No authenticated user found")
       throw new Error("No authenticated user found")
     }
 
@@ -209,7 +207,6 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
     }
 
     if (!userData.user) {
-      console.error("No authenticated user found")
       throw new Error("No authenticated user found")
     }
 
@@ -243,7 +240,6 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
     }
 
     if (!data) {
-      console.error("No data returned from insert")
       throw new Error("No data returned from database")
     }
 
@@ -276,8 +272,7 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
     const { data: userData, error: userError } = await supabase.auth.getUser()
 
     if (userError || !userData.user) {
-      console.error("No authenticated user found")
-      return null
+      throw new Error("No authenticated user found")
     }
 
     let tags = updates.tags
@@ -305,7 +300,7 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
 
     if (error) {
       console.error("Error updating note:", error)
-      return null
+      throw new Error("Database error: " + error.message)
     }
 
     return {
@@ -324,7 +319,7 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
     }
   } catch (error) {
     console.error("Error updating note:", error)
-    return null
+    throw error
   }
 }
 
@@ -336,21 +331,20 @@ export async function deleteNote(id: string): Promise<boolean> {
     const { data: userData, error: userError } = await supabase.auth.getUser()
 
     if (userError || !userData.user) {
-      console.error("No authenticated user found")
-      return false
+      throw new Error("No authenticated user found")
     }
 
     const { error } = await supabase.from("user_notes").delete().eq("id", id).eq("user_id", userData.user.id)
 
     if (error) {
       console.error("Error deleting note:", error)
-      return false
+      throw new Error("Database error: " + error.message)
     }
 
     return true
   } catch (error) {
     console.error("Error deleting note:", error)
-    return false
+    throw error
   }
 }
 
@@ -362,8 +356,7 @@ export async function insertSampleNotes(): Promise<boolean> {
     const { data: userData, error: userError } = await supabase.auth.getUser()
 
     if (userError || !userData.user) {
-      console.error("No authenticated user found")
-      return false
+      throw new Error("No authenticated user found")
     }
 
     const sampleNotes = [
@@ -418,14 +411,14 @@ export async function insertSampleNotes(): Promise<boolean> {
 
     if (error) {
       console.error("Error inserting sample notes:", error)
-      return false
+      throw new Error("Database error: " + error.message)
     }
 
     console.log("Sample notes inserted successfully")
     return true
   } catch (error) {
     console.error("Error inserting sample notes:", error)
-    return false
+    throw error
   }
 }
 

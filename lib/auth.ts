@@ -1,56 +1,139 @@
-// Simple authentication state management without NextAuth
+// Authentication state management with Supabase
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-
-type User = {
-  id: string
-  name: string
-  email: string
-  image?: string
-}
+import { supabase } from "@/lib/supabase-client"
+import type { User } from "@supabase/supabase-js"
 
 type AuthState = {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
   signIn: (email: string, password: string) => Promise<boolean>
-  signOut: () => void
+  signUp: (email: string, password: string) => Promise<boolean>
+  signOut: () => Promise<void>
+  initialize: () => Promise<void>
 }
 
 export const useAuth = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
-      signIn: async (email, password) => {
-        set({ isLoading: true })
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 500))
+      initialize: async () => {
+        try {
+          set({ isLoading: true })
 
-        // Simple mock authentication - in a real app, this would call your API
-        if (email && password) {
-          const user = {
-            id: "1",
-            name: "Demo User",
-            email,
-            image: "/placeholder.svg?height=32&width=32",
+          const {
+            data: { user },
+            error,
+          } = await supabase.auth.getUser()
+
+          if (error) {
+            console.error("Auth initialization error:", error)
+            set({ user: null, isAuthenticated: false, isLoading: false })
+            return
           }
 
-          set({ user, isAuthenticated: true, isLoading: false })
-          return true
-        }
+          set({
+            user,
+            isAuthenticated: !!user,
+            isLoading: false,
+          })
 
-        set({ isLoading: false })
-        return false
+          // Listen for auth changes
+          supabase.auth.onAuthStateChange((event, session) => {
+            console.log("Auth state changed:", event, session?.user?.id)
+            set({
+              user: session?.user || null,
+              isAuthenticated: !!session?.user,
+            })
+          })
+        } catch (error) {
+          console.error("Auth initialization failed:", error)
+          set({ user: null, isAuthenticated: false, isLoading: false })
+        }
       },
-      signOut: () => {
-        set({ user: null, isAuthenticated: false })
+
+      signIn: async (email, password) => {
+        try {
+          set({ isLoading: true })
+
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+
+          if (error) {
+            console.error("Sign in error:", error)
+            set({ isLoading: false })
+            return false
+          }
+
+          set({
+            user: data.user,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+
+          return true
+        } catch (error) {
+          console.error("Sign in failed:", error)
+          set({ isLoading: false })
+          return false
+        }
+      },
+
+      signUp: async (email, password) => {
+        try {
+          set({ isLoading: true })
+
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+          })
+
+          if (error) {
+            console.error("Sign up error:", error)
+            set({ isLoading: false })
+            return false
+          }
+
+          // Note: User might need to confirm email
+          if (data.user && !data.session) {
+            console.log("Please check your email for confirmation")
+          }
+
+          set({
+            user: data.user,
+            isAuthenticated: !!data.session,
+            isLoading: false,
+          })
+
+          return true
+        } catch (error) {
+          console.error("Sign up failed:", error)
+          set({ isLoading: false })
+          return false
+        }
+      },
+
+      signOut: async () => {
+        try {
+          await supabase.auth.signOut()
+          set({ user: null, isAuthenticated: false })
+        } catch (error) {
+          console.error("Sign out error:", error)
+        }
       },
     }),
     {
       name: "auth-storage",
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     },
   ),
 )

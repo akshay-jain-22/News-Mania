@@ -54,3 +54,4 @@ const NewsCard: React.FC<NewsCardProps> = ({ article }) => {
 }
 
 export default NewsCard
+export { NewsCard }

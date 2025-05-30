@@ -20,33 +20,32 @@ import type { Note } from "@/types/notes"
 interface NotesSectionProps {
   articleId: string
   articleTitle?: string
+  articleUrl?: string
 }
 
-export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
+export function NotesSection({ articleId, articleTitle, articleUrl }: NotesSectionProps) {
   const [notes, setNotes] = useState<Note[]>([])
   const [newNote, setNewNote] = useState("")
   const [isMarkdown, setIsMarkdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
-  // Check if user is authenticated
+  // Check authentication
   useEffect(() => {
     const checkAuth = async () => {
       const { data, error } = await supabase.auth.getUser()
 
       if (error) {
         console.error("Auth error:", error)
-        toast({
-          variant: "destructive",
-          title: "Authentication error",
-          description: "Please log in again to view notes.",
-        })
-        router.push("/auth/login")
+        setIsAuthenticated(false)
         return
       }
+
+      setIsAuthenticated(!!data.user)
 
       if (!data.user) {
         toast({
@@ -54,12 +53,11 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
           title: "Authentication required",
           description: "Please log in to add notes.",
         })
-        router.push("/auth/login")
       }
     }
 
     checkAuth()
-  }, [toast, router])
+  }, [toast])
 
   // Load existing notes for this article
   const loadNotes = async () => {
@@ -92,10 +90,10 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
   }
 
   useEffect(() => {
-    if (articleId) {
+    if (articleId && isAuthenticated) {
       loadNotes()
     }
-  }, [articleId])
+  }, [articleId, isAuthenticated])
 
   const handleSaveNote = async () => {
     if (!newNote.trim()) return
@@ -128,14 +126,14 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
 
       setLoading(true)
 
-      console.log(`Saving note for article ${articleId}:`, newNote)
-      const savedNote = await saveNote(articleId, newNote, articleTitle, isMarkdown)
+      console.log(`Saving note for article ${articleId}:`, newNote.substring(0, 50) + "...")
+      const savedNote = await saveNote(articleId, newNote, articleTitle, isMarkdown, articleUrl)
 
       if (!savedNote) {
         throw new Error("Failed to save note - no data returned")
       }
 
-      // Optimistically update the UI
+      // Update the UI
       setNotes([savedNote, ...notes])
       setNewNote("")
 
@@ -158,6 +156,18 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
     }
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Your Notes</h2>
+        <Card className="p-6 text-center">
+          <p className="text-muted-foreground mb-4">Please log in to add and view notes for this article.</p>
+          <Button onClick={() => router.push("/auth/login")}>Log In</Button>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Your Notes</h2>
@@ -169,10 +179,11 @@ export function NotesSection({ articleId, articleTitle }: NotesSectionProps) {
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           className="min-h-[120px]"
+          disabled={loading}
         />
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Switch id="markdown-toggle" checked={isMarkdown} onCheckedChange={setIsMarkdown} />
+            <Switch id="markdown-toggle" checked={isMarkdown} onCheckedChange={setIsMarkdown} disabled={loading} />
             <Label htmlFor="markdown-toggle" className="flex items-center">
               <Markdown className="h-4 w-4 mr-1" />
               Markdown

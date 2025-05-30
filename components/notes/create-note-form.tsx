@@ -19,9 +19,10 @@ interface CreateNoteFormProps {
   onNoteCreated: (note: Note) => void
   articleId?: string
   articleTitle?: string
+  articleUrl?: string
 }
 
-export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: CreateNoteFormProps) {
+export function CreateNoteForm({ onNoteCreated, articleId, articleTitle, articleUrl }: CreateNoteFormProps) {
   const [title, setTitle] = useState(articleTitle ? `Note about: ${articleTitle}` : "")
   const [content, setContent] = useState("")
   const [topic, setTopic] = useState("General")
@@ -73,11 +74,13 @@ export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: Creat
 
       console.log("Creating note with data:", {
         title,
-        content,
+        content: content.substring(0, 50) + "...",
         topic,
         isMarkdown,
         articleId,
         articleTitle,
+        articleUrl,
+        userId: userData.user.id,
       })
 
       const note = await createNote({
@@ -87,6 +90,7 @@ export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: Creat
         isMarkdown,
         articleId,
         articleTitle,
+        articleUrl,
       })
 
       if (note) {
@@ -123,7 +127,14 @@ export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: Creat
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="title">Title</Label>
-        <Input id="title" placeholder="Note title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+        <Input
+          id="title"
+          placeholder="Note title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          disabled={isSubmitting}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="content">Content</Label>
@@ -134,6 +145,7 @@ export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: Creat
           value={content}
           onChange={(e) => setContent(e.target.value)}
           required
+          disabled={isSubmitting}
         />
       </div>
       <div className="space-y-2">
@@ -143,10 +155,11 @@ export function CreateNoteForm({ onNoteCreated, articleId, articleTitle }: Creat
           placeholder="e.g., Technology, Politics, Health, Weather"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
+          disabled={isSubmitting}
         />
       </div>
       <div className="flex items-center space-x-2">
-        <Switch id="markdown" checked={isMarkdown} onCheckedChange={setIsMarkdown} />
+        <Switch id="markdown" checked={isMarkdown} onCheckedChange={setIsMarkdown} disabled={isSubmitting} />
         <Label htmlFor="markdown">Enable Markdown Support</Label>
       </div>
 

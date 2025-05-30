@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getUserNotes, insertSampleNotes } from "@/lib/notes-service"
 import { NoteCard } from "@/components/note-card"
 import { CreateNoteForm } from "@/components/create-note-form"
-import { PlusCircle, Search, FolderOpen, Loader2, BookOpen } from "lucide-react"
+import { PlusCircle, Search, FolderOpen, Loader2, BookOpen, RefreshCw } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -26,16 +26,39 @@ import type { Note } from "@/types/notes"
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredNotes, setFilteredNotes] = useState<Note[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
 
   // Check authentication and fetch notes
   useEffect(() => {
     checkAuthAndFetchNotes()
+  }, [])
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id)
+      if (event === "SIGNED_IN" && session?.user) {
+        setIsAuthenticated(true)
+        setUserId(session.user.id)
+        fetchNotes()
+      } else if (event === "SIGNED_OUT") {
+        setIsAuthenticated(false)
+        setUserId(null)
+        setNotes([])
+        setFilteredNotes([])
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const checkAuthAndFetchNotes = async () => {
@@ -59,6 +82,8 @@ export default function NotesPage() {
 
       if (!user) {
         console.log("No authenticated user found")
+        setIsAuthenticated(false)
+        setUserId(null)
         toast({
           variant: "destructive",
           title: "Authentication required",
@@ -70,6 +95,7 @@ export default function NotesPage() {
 
       console.log("User authenticated:", user.id)
       setIsAuthenticated(true)
+      setUserId(user.id)
       await fetchNotes()
     } catch (error) {
       console.error("Error checking auth:", error)
@@ -86,10 +112,18 @@ export default function NotesPage() {
   const fetchNotes = async () => {
     try {
       console.log("Fetching notes...")
+      setRefreshing(true)
       const fetchedNotes = await getUserNotes()
       console.log("Fetched notes:", fetchedNotes.length)
       setNotes(fetchedNotes)
       setFilteredNotes(fetchedNotes)
+
+      if (fetchedNotes.length > 0) {
+        toast({
+          title: "Notes loaded",
+          description: `Found ${fetchedNotes.length} notes`,
+        })
+      }
     } catch (error) {
       console.error("Error fetching notes:", error)
       toast({
@@ -97,6 +131,8 @@ export default function NotesPage() {
         title: "Error",
         description: "Failed to load notes. Please try again.",
       })
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -119,7 +155,7 @@ export default function NotesPage() {
     setFilteredNotes(filtered)
   }, [searchQuery, notes])
 
-  // Add this useEffect after the existing ones
+  // Auto-refresh when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isAuthenticated) {
@@ -151,7 +187,7 @@ export default function NotesPage() {
     })
   }
 
-  const handleDeleteNote = (id: string) => {
+  const handleDeleteNote = async (id: string) => {
     setNotes(notes.filter((note) => note.id !== id))
     toast({
       title: "Note deleted",
@@ -233,7 +269,10 @@ export default function NotesPage() {
             <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">My Notes</h1>
-                <p className="text-muted-foreground">Manage your personal notes ({notes.length} total)</p>
+                <p className="text-muted-foreground">
+                  Manage your personal notes ({notes.length} total)
+                  {userId && <span className="text-xs ml-2">User: {userId.slice(0, 8)}...</span>}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative w-full md:w-64">
@@ -261,8 +300,8 @@ export default function NotesPage() {
                     <CreateNoteForm onNoteCreated={handleNoteCreated} />
                   </DialogContent>
                 </Dialog>
-                <Button variant="outline" onClick={fetchNotes}>
-                  Refresh
+                <Button variant="outline" onClick={fetchNotes} disabled={refreshing}>
+                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
