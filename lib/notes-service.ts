@@ -7,6 +7,7 @@ export type NoteInput = {
   topic?: string
   articleId?: string
   articleTitle?: string
+  articleUrl?: string
   isMarkdown?: boolean
   tags?: string[]
 }
@@ -17,18 +18,23 @@ export type NoteInput = {
 export async function getUserNotes(): Promise<Note[]> {
   try {
     console.log("Fetching user notes")
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError) {
+      console.error("Auth error:", userError)
+      return []
+    }
+
+    if (!userData.user) {
       console.error("No authenticated user found")
       return []
     }
 
-    console.log("User authenticated, fetching notes for user:", user.user.id)
+    console.log("User authenticated, fetching notes for user:", userData.user.id)
     const { data, error } = await supabase
       .from("user_notes")
       .select("*")
-      .eq("user_id", user.user.id)
+      .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -47,8 +53,9 @@ export async function getUserNotes(): Promise<Note[]> {
       updatedAt: note.updated_at,
       articleId: note.article_id,
       articleTitle: note.article_title,
+      articleUrl: note.article_url,
       isMarkdown: note.is_markdown || false,
-      tags: note.tags || [],
+      tags: Array.isArray(note.tags) ? note.tags : [],
     }))
   } catch (error) {
     console.error("Error getting user notes:", error)
@@ -62,9 +69,9 @@ export async function getUserNotes(): Promise<Note[]> {
 export async function getNotes(articleId?: string): Promise<Note[]> {
   try {
     console.log(`Getting notes for article ${articleId}`)
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError || !userData.user) {
       console.error("No authenticated user found")
       return []
     }
@@ -72,7 +79,7 @@ export async function getNotes(articleId?: string): Promise<Note[]> {
     let query = supabase
       .from("user_notes")
       .select("*")
-      .eq("user_id", user.user.id)
+      .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false })
 
     if (articleId) {
@@ -97,8 +104,9 @@ export async function getNotes(articleId?: string): Promise<Note[]> {
       updatedAt: note.updated_at,
       articleId: note.article_id,
       articleTitle: note.article_title,
+      articleUrl: note.article_url,
       isMarkdown: note.is_markdown || false,
-      tags: note.tags || [],
+      tags: Array.isArray(note.tags) ? note.tags : [],
     }))
   } catch (error) {
     console.error("Error getting notes:", error)
@@ -114,31 +122,38 @@ export async function saveNote(
   content?: string,
   articleTitle?: string,
   isMarkdown?: boolean,
+  articleUrl?: string,
 ): Promise<Note | null> {
   try {
     if (!content || content.trim() === "") {
       console.error("Note content is required")
-      return null
+      throw new Error("Note content is required")
     }
 
     console.log(`Saving note for article ${articleId}:`, content.substring(0, 50) + "...")
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError) {
+      console.error("Auth error:", userError)
+      throw new Error("Authentication error: " + userError.message)
+    }
+
+    if (!userData.user) {
       console.error("No authenticated user found")
-      return null
+      throw new Error("No authenticated user found")
     }
 
     // Generate tags from content
     const tags = extractKeywords(content)
 
     const newNote = {
-      user_id: user.user.id,
+      user_id: userData.user.id,
       title: articleTitle ? `Note: ${articleTitle}` : "Note from article",
       content: content,
       topic: "News",
       article_id: articleId,
       article_title: articleTitle,
+      article_url: articleUrl,
       is_markdown: isMarkdown || false,
       tags: tags,
     }
@@ -152,7 +167,11 @@ export async function saveNote(
 
     if (error) {
       console.error("Error saving note:", error)
-      return null
+      throw new Error("Database error: " + error.message)
+    }
+
+    if (!data) {
+      throw new Error("No data returned from database")
     }
 
     console.log("Note saved successfully:", data.id)
@@ -166,12 +185,13 @@ export async function saveNote(
       updatedAt: data.updated_at,
       articleId: data.article_id,
       articleTitle: data.article_title,
+      articleUrl: data.article_url,
       isMarkdown: data.is_markdown || false,
-      tags: data.tags || [],
+      tags: Array.isArray(data.tags) ? data.tags : [],
     }
   } catch (error) {
     console.error("Error saving note:", error)
-    return null
+    throw error
   }
 }
 
@@ -196,14 +216,6 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
     const userId = userData.user.id
     console.log("User authenticated:", userId)
 
-    // Check if user_notes table exists
-    const { error: tableCheckError } = await supabase.from("user_notes").select("id").limit(1)
-
-    if (tableCheckError) {
-      console.error("Table check error:", tableCheckError)
-      throw new Error("Database table error: " + tableCheckError.message)
-    }
-
     const tags = noteInput.tags || extractKeywords(noteInput.content)
 
     const newNote = {
@@ -213,6 +225,7 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
       topic: noteInput.topic || "General",
       article_id: noteInput.articleId || null,
       article_title: noteInput.articleTitle || null,
+      article_url: noteInput.articleUrl || null,
       is_markdown: noteInput.isMarkdown || false,
       tags: tags,
     }
@@ -245,8 +258,9 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
       updatedAt: data.updated_at,
       articleId: data.article_id,
       articleTitle: data.article_title,
+      articleUrl: data.article_url,
       isMarkdown: data.is_markdown || false,
-      tags: data.tags || [],
+      tags: Array.isArray(data.tags) ? data.tags : [],
     }
   } catch (error) {
     console.error("Error creating note:", error)
@@ -259,9 +273,9 @@ export async function createNote(noteInput: NoteInput): Promise<Note | null> {
  */
 export async function updateNote(id: string, updates: Partial<NoteInput>): Promise<Note | null> {
   try {
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError || !userData.user) {
       console.error("No authenticated user found")
       return null
     }
@@ -275,6 +289,7 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
       ...(updates.title && { title: updates.title }),
       ...(updates.content && { content: updates.content }),
       ...(updates.topic && { topic: updates.topic }),
+      ...(updates.articleUrl && { article_url: updates.articleUrl }),
       ...(updates.isMarkdown !== undefined && { is_markdown: updates.isMarkdown }),
       tags,
       updated_at: new Date().toISOString(),
@@ -284,7 +299,7 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
       .from("user_notes")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", user.user.id)
+      .eq("user_id", userData.user.id)
       .select()
       .single()
 
@@ -303,8 +318,9 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
       updatedAt: data.updated_at,
       articleId: data.article_id,
       articleTitle: data.article_title,
+      articleUrl: data.article_url,
       isMarkdown: data.is_markdown || false,
-      tags: data.tags || [],
+      tags: Array.isArray(data.tags) ? data.tags : [],
     }
   } catch (error) {
     console.error("Error updating note:", error)
@@ -317,14 +333,14 @@ export async function updateNote(id: string, updates: Partial<NoteInput>): Promi
  */
 export async function deleteNote(id: string): Promise<boolean> {
   try {
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError || !userData.user) {
       console.error("No authenticated user found")
       return false
     }
 
-    const { error } = await supabase.from("user_notes").delete().eq("id", id).eq("user_id", user.user.id)
+    const { error } = await supabase.from("user_notes").delete().eq("id", id).eq("user_id", userData.user.id)
 
     if (error) {
       console.error("Error deleting note:", error)
@@ -343,17 +359,17 @@ export async function deleteNote(id: string): Promise<boolean> {
  */
 export async function insertSampleNotes(): Promise<boolean> {
   try {
-    const { data: user } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!user.user) {
+    if (userError || !userData.user) {
       console.error("No authenticated user found")
       return false
     }
 
     const sampleNotes = [
       {
-        user_id: user.user.id,
-        title: "AI Advancements in 2023",
+        user_id: userData.user.id,
+        title: "AI Advancements in 2024",
         content:
           "GPT-4 has shown remarkable capabilities in understanding and generating human-like text. The next frontier appears to be multimodal models that can process both text and images.",
         topic: "Technology",
@@ -361,7 +377,7 @@ export async function insertSampleNotes(): Promise<boolean> {
         tags: ["ai", "gpt4", "technology", "multimodal"],
       },
       {
-        user_id: user.user.id,
+        user_id: userData.user.id,
         title: "The Future of Quantum Computing",
         content:
           "IBM and Google continue to make strides in quantum computing. The race to quantum supremacy is heating up with practical applications on the horizon.",
@@ -370,7 +386,7 @@ export async function insertSampleNotes(): Promise<boolean> {
         tags: ["quantum", "computing", "ibm", "google"],
       },
       {
-        user_id: user.user.id,
+        user_id: userData.user.id,
         title: "Global Climate Policy",
         content:
           "Recent international agreements show promising steps toward carbon reduction, but implementation remains a challenge for many nations.",
@@ -379,7 +395,7 @@ export async function insertSampleNotes(): Promise<boolean> {
         tags: ["climate", "policy", "carbon", "international"],
       },
       {
-        user_id: user.user.id,
+        user_id: userData.user.id,
         title: "Weather Report: Sunny Days Ahead",
         content:
           "The forecast for the coming week shows clear skies and temperatures in the mid-70s. Perfect weather for outdoor activities and enjoying nature.",
@@ -388,7 +404,7 @@ export async function insertSampleNotes(): Promise<boolean> {
         tags: ["weather", "forecast", "sunny", "outdoor"],
       },
       {
-        user_id: user.user.id,
+        user_id: userData.user.id,
         title: "Storm Warning: Hurricane Season",
         content:
           "Meteorologists predict an active hurricane season this year. Coastal residents should prepare emergency kits and evacuation plans.",

@@ -8,6 +8,18 @@ export interface Note {
   updatedAt: string
   articleId?: string
   articleTitle?: string
+  articleUrl?: string
+  isMarkdown: boolean
+  tags: string[]
+}
+
+export interface CreateNoteInput {
+  title: string
+  content: string
+  topic?: string
+  articleId?: string
+  articleTitle?: string
+  articleUrl?: string
   isMarkdown?: boolean
   tags?: string[]
 }

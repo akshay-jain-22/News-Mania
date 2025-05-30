@@ -119,6 +119,18 @@ export default function NotesPage() {
     setFilteredNotes(filtered)
   }, [searchQuery, notes])
 
+  // Add this useEffect after the existing ones
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated) {
+        fetchNotes()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }, [isAuthenticated])
+
   // Group notes by topic
   const notesByTopic: Record<string, Note[]> = {}
   filteredNotes.forEach((note) => {
