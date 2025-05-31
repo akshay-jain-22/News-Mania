@@ -1,180 +1,145 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { BookmarkPlus, Bookmark } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import { BookmarkPlus, Loader2 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { createNote } from "@/lib/notes-service"
-import { supabase } from "@/lib/supabase-client"
-import { useRouter } from "next/navigation"
+import { useAuthStore } from "@/lib/auth"
 
 interface SaveArticleButtonProps {
   articleId: string
   articleTitle: string
   articleUrl?: string
+  variant?: "default" | "outline" | "ghost" | "secondary"
+  size?: "default" | "sm" | "lg" | "icon"
   className?: string
 }
 
-export function SaveArticleButton({ articleId, articleTitle, articleUrl, className }: SaveArticleButtonProps) {
+export function SaveArticleButton({
+  articleId,
+  articleTitle,
+  articleUrl,
+  variant = "ghost",
+  size = "icon",
+  className = "",
+}: SaveArticleButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [noteContent, setNoteContent] = useState("")
-  const [noteTitle, setNoteTitle] = useState(`Notes on: ${articleTitle}`)
-  const [topic, setTopic] = useState("News")
-  const [isMarkdown, setIsMarkdown] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [noteText, setNoteText] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
   const { toast } = useToast()
-  const router = useRouter()
+  const { user } = useAuthStore()
 
-  const handleSave = async () => {
-    if (!noteContent.trim()) {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!user) {
       toast({
         variant: "destructive",
-        title: "Note content required",
-        description: "Please enter some content for your note.",
+        title: "Authentication required",
+        description: "Please sign in to save articles.",
       })
       return
     }
 
-    try {
-      setIsLoading(true)
-
-      // Check authentication
-      const { data: userData, error: authError } = await supabase.auth.getUser()
-
-      if (authError || !userData.user) {
-        toast({
-          variant: "destructive",
-          title: "Authentication required",
-          description: "Please log in to save notes.",
-        })
-        router.push("/auth/login")
-        return
-      }
-
-      console.log("Saving article note:", {
-        title: noteTitle,
-        content: noteContent,
-        topic,
-        articleId,
-        articleTitle,
-        articleUrl,
-        isMarkdown,
-      })
-
-      const savedNote = await createNote({
-        title: noteTitle,
-        content: noteContent,
-        topic,
-        articleId,
-        articleTitle,
-        articleUrl,
-        isMarkdown,
-      })
-
-      if (savedNote) {
-        console.log("Note saved successfully:", savedNote.id)
-        toast({
-          title: "Note saved",
-          description: "Your note has been saved successfully.",
-        })
-
-        // Reset form and close dialog
-        setNoteContent("")
-        setNoteTitle(`Notes on: ${articleTitle}`)
-        setTopic("News")
-        setIsMarkdown(false)
-        setIsOpen(false)
-      } else {
-        throw new Error("Failed to save note")
-      }
-    } catch (error) {
-      console.error("Error saving note:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+    if (!noteText.trim()) {
       toast({
         variant: "destructive",
-        title: "Failed to save note",
-        description: `Error: ${errorMessage}. Please try again.`,
+        title: "Note required",
+        description: "Please add a note before saving.",
+      })
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      await createNote({
+        title: `Note: ${articleTitle}`,
+        content: noteText,
+        topic: "Saved Articles",
+        article_id: articleId,
+        article_title: articleTitle,
+        article_url: articleUrl,
+      })
+
+      setIsSaved(true)
+      setIsOpen(false)
+      setNoteText("")
+
+      toast({
+        title: "Article saved!",
+        description: "Your note has been saved successfully.",
+      })
+    } catch (error) {
+      console.error("Error saving note:", error)
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: "There was an error saving your note. Please try again.",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={className}>
-          <BookmarkPlus className="h-4 w-4 mr-2" />
-          Save Article with Note
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Save Article with Personal Note</DialogTitle>
-          <DialogDescription>Add your thoughts and notes about this article.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="note-title">Note Title</Label>
-            <Input
-              id="note-title"
-              value={noteTitle}
-              onChange={(e) => setNoteTitle(e.target.value)}
-              placeholder="Enter note title"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="note-content">Your Notes</Label>
-            <Textarea
-              id="note-content"
-              value={noteContent}
-              onChange={(e) => setNoteContent(e.target.value)}
-              placeholder="Write your thoughts about this article..."
-              className="min-h-[120px]"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="topic">Topic</Label>
-            <Input
-              id="topic"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g., News, Technology"
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Switch id="markdown" checked={isMarkdown} onCheckedChange={setIsMarkdown} />
-            <Label htmlFor="markdown">Enable Markdown formatting</Label>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isLoading || !noteContent.trim()}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Note"
-              )}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Button
+        variant={variant}
+        size={size}
+        className={className}
+        onClick={() => setIsOpen(true)}
+        title="Save article with note"
+      >
+        {isSaved ? <Bookmark className="h-4 w-4 fill-current" /> : <BookmarkPlus className="h-4 w-4" />}
+        {size !== "icon" && <span className="ml-2">{isSaved ? "Saved" : "Save Article with Note"}</span>}
+      </Button>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Save Article with Note</DialogTitle>
+            <DialogDescription>Add a personal note to save with "{articleTitle}"</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="note">Your Note</Label>
+                <Textarea
+                  id="note"
+                  placeholder="Add your thoughts about this article..."
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  className="min-h-[100px]"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Note"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
