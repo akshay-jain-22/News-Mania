@@ -10,8 +10,8 @@ const CACHE_DURATION = 60 * 60 * 1000 // 1 hour cache
 let lastRefreshTime = 0
 export const newsCache: Record<string, { data: NewsArticle[]; timestamp: number }> = {}
 
-// Mock data to use when API fails
-const MOCK_ARTICLES: Record<string, NewsArticle[]> = generateMockArticles()
+// Enhanced mock data to use when API fails
+const MOCK_ARTICLES: Record<string, NewsArticle[]> = generateEnhancedMockArticles()
 
 interface FetchNewsParams {
   category?: string
@@ -20,7 +20,7 @@ interface FetchNewsParams {
   page?: number
   country?: string
   sources?: string[]
-  forceRefresh?: boolean // New parameter to force refresh
+  forceRefresh?: boolean
 }
 
 export async function fetchNews({
@@ -50,12 +50,12 @@ export async function fetchNews({
   }
 
   try {
-    console.log(`Fetching fresh news data for ${cacheKey}`)
+    console.log(`Attempting to fetch fresh news data for ${cacheKey}`)
 
     // Construct the API URL based on parameters
     let url = `${BASE_URL}/top-headlines?pageSize=${pageSize}&page=${page}&apiKey=${API_KEY}`
 
-    if (category && category !== "all") {
+    if (category && category !== "all" && category !== "general") {
       url += `&category=${category}`
     }
 
@@ -79,25 +79,36 @@ export async function fetchNews({
       next: { revalidate: 3600 }, // Revalidate every hour
     })
 
+    // Handle API errors gracefully
     if (!response.ok) {
-      console.error(`News API error: ${response.status} ${response.statusText}`)
+      console.warn(`News API returned ${response.status}: ${response.statusText}`)
 
-      // If we get a 426 error or any other error, use mock data
-      const mockData = MOCK_ARTICLES[category] || MOCK_ARTICLES.general
+      // For any API error (including 426), return mock data
+      const mockData = getMockDataForCategory(category, pageSize)
 
       // Update cache with mock data
       newsCache[cacheKey] = {
-        data: mockData.slice(0, pageSize),
+        data: mockData,
         timestamp: currentTime,
       }
 
-      return mockData.slice(0, pageSize)
+      console.log(`Using mock data for category: ${category}`)
+      return mockData
     }
 
     const data = await response.json()
 
+    // Validate response structure
     if (!data.articles || !Array.isArray(data.articles)) {
-      throw new Error("Invalid response format from News API")
+      console.warn("Invalid response format from News API, using mock data")
+      const mockData = getMockDataForCategory(category, pageSize)
+
+      newsCache[cacheKey] = {
+        data: mockData,
+        timestamp: currentTime,
+      }
+
+      return mockData
     }
 
     // Transform the API response to match our NewsArticle type
@@ -108,10 +119,10 @@ export async function fetchNews({
       title: article.title || "No title available",
       description: article.description || "No description available",
       url: article.url || "#",
-      urlToImage: article.urlToImage || null, // Use null if no image is available
+      urlToImage: article.urlToImage || null,
       publishedAt: article.publishedAt || new Date().toISOString(),
       content: article.content || "No content available",
-      credibilityScore: undefined, // Will be set by fact checking
+      credibilityScore: undefined,
       isFactChecked: false,
       factCheckResult: null,
     }))
@@ -123,9 +134,10 @@ export async function fetchNews({
     }
     lastRefreshTime = currentTime
 
+    console.log(`Successfully fetched ${articles.length} articles from API`)
     return articles
   } catch (error) {
-    console.error("Error fetching news:", error)
+    console.warn("Error fetching news from API, using mock data:", error)
 
     // If we have cached data, return it as fallback
     if (newsCache[cacheKey]) {
@@ -134,10 +146,23 @@ export async function fetchNews({
     }
 
     // Return mock data if no cache is available
-    console.log("Using mock data as fallback due to API error")
-    const mockData = MOCK_ARTICLES[category] || MOCK_ARTICLES.general
-    return mockData.slice(0, pageSize)
+    const mockData = getMockDataForCategory(category, pageSize)
+
+    // Cache the mock data
+    newsCache[cacheKey] = {
+      data: mockData,
+      timestamp: currentTime,
+    }
+
+    console.log(`Using mock data for category: ${category} due to error`)
+    return mockData
   }
+}
+
+// Helper function to get mock data for a specific category
+function getMockDataForCategory(category: string, pageSize: number): NewsArticle[] {
+  const mockData = MOCK_ARTICLES[category] || MOCK_ARTICLES.general
+  return mockData.slice(0, pageSize)
 }
 
 // Function to force refresh all news data
@@ -259,59 +284,7 @@ export async function fetchArticleById(id: string): Promise<NewsArticle | null> 
       }
     }
 
-    // If not in cache, try to fetch from the API directly
-    try {
-      // Try to fetch from the News API
-      const response = await fetch(`${BASE_URL}/everything?q=${id}&apiKey=${API_KEY}`, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Newsmania/1.0",
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.articles && data.articles.length > 0) {
-          const apiArticle = data.articles[0]
-
-          // Transform to our NewsArticle type
-          const article: NewsArticle = {
-            id,
-            source: apiArticle.source || { id: null, name: "Unknown Source" },
-            author: apiArticle.author || "Unknown Author",
-            title: apiArticle.title || "No title available",
-            description: apiArticle.description || "No description available",
-            url: apiArticle.url || "#",
-            urlToImage: apiArticle.urlToImage || null,
-            publishedAt: apiArticle.publishedAt || new Date().toISOString(),
-            content: apiArticle.content || "No content available",
-            credibilityScore: undefined,
-            isFactChecked: false,
-            factCheckResult: null,
-          }
-
-          // If the article has a real URL, fetch its content
-          if (article.url && article.url !== "#") {
-            try {
-              const extractedContent = await extractContentFromUrl(article.url)
-              if (extractedContent) {
-                article.content = extractedContent.content || article.content
-                article.description = extractedContent.description || article.description
-                article.urlToImage = extractedContent.image || article.urlToImage
-              }
-            } catch (extractError) {
-              console.error("Error extracting content from URL:", extractError)
-            }
-          }
-
-          return article
-        }
-      }
-    } catch (apiError) {
-      console.error("Error fetching from News API:", apiError)
-    }
-
-    // If all else fails, use a deterministic approach as fallback
+    // If not in cache, create a consistent article based on ID
     const idParts = id.split("-")
     if (idParts.length < 2) {
       throw new Error("Invalid article ID format")
@@ -321,7 +294,6 @@ export async function fetchArticleById(id: string): Promise<NewsArticle | null> 
     const index = Number.parseInt(idParts[1], 10)
 
     // Use a deterministic approach to recreate the article
-    // This ensures the same ID always returns the same article
     const seed = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
     return createConsistentArticle(id, category, index, seed)
   } catch (error) {
@@ -373,129 +345,14 @@ async function extractContentFromUrl(url: string): Promise<{
 }
 
 function createConsistentArticle(id: string, category: string, index: number, seed: number): NewsArticle {
-  // Use a set of unique titles for each category
-  const categoryTitles: Record<string, string[]> = {
-    business: [
-      "Global Markets See Unexpected Growth Despite Economic Challenges",
-      "Tech Giant Announces Record Quarterly Profits",
-      "New Trade Agreement Set to Boost Regional Economies",
-      "Startup Secures $100M in Series B Funding Round",
-      "Central Bank Signals Shift in Monetary Policy",
-    ],
-    technology: [
-      "New AI Breakthrough Promises to Revolutionize Healthcare",
-      "Tech Company Unveils Next-Generation Smartphone",
-      "Quantum Computing Breakthrough Announced by Researchers",
-      "New Cybersecurity Framework Adopted by Major Industries",
-      "Renewable Energy Technology Shows Promising Efficiency Gains",
-    ],
-    sports: [
-      "Underdog Team Clinches Championship in Stunning Upset",
-      "Star Athlete Signs Record-Breaking Contract Extension",
-      "Olympic Committee Announces New Events for Next Games",
-      "Historic Comeback Stuns Fans in Season Opener",
-      "Sports League Implements Revolutionary Rule Changes",
-    ],
-    health: [
-      "Study Reveals Promising Results for New Treatment Approach",
-      "Global Health Initiative Launches to Combat Emerging Diseases",
-      "Breakthrough in Medical Research Offers Hope for Chronic Condition",
-      "New Dietary Guidelines Released After Comprehensive Study",
-      "Mental Health Awareness Campaign Shows Positive Impact",
-    ],
-    science: [
-      "Researchers Discover New Species in Unexplored Ocean Depths",
-      "Space Mission Reveals Unexpected Findings About Distant Planet",
-      "Climate Scientists Develop Improved Prediction Models",
-      "Genetic Research Opens New Possibilities for Disease Treatment",
-      "Archaeological Discovery Changes Understanding of Ancient Civilization",
-    ],
-    entertainment: [
-      "Award-Winning Director Announces Groundbreaking New Project",
-      "Streaming Platform's Original Series Breaks Viewing Records",
-      "Music Industry Embraces New Technology for Live Performances",
-      "Anticipated Film Sequel Exceeds Box Office Expectations",
-      "Cultural Festival Celebrates Diversity in Arts and Entertainment",
-    ],
-    politics: [
-      "Leaders Reach Historic Agreement on Climate Change Initiative",
-      "Election Results Signal Shift in Regional Political Landscape",
-      "New Legislation Aims to Address Long-Standing Social Issues",
-      "International Summit Focuses on Global Security Cooperation",
-      "Political Reform Movement Gains Momentum Across Multiple Nations",
-    ],
-    jewelry: [
-      "Rare Diamond Collection Breaks Auction Records Worldwide",
-      "Innovative Jewelry Designer Combines Traditional and Modern Techniques",
-      "Ethical Sourcing Initiative Transforms Luxury Jewelry Industry",
-      "Historic Royal Jewelry Collection Goes on Public Display",
-      "New Technology Revolutionizes Gemstone Authentication Process",
-    ],
-    general: [
-      "Breaking News: Important Developments in Global Affairs",
-      "Community Initiative Shows Promising Results in First Year",
-      "New Research Highlights Changing Consumer Behaviors",
-      "International Cooperation Leads to Breakthrough in Key Sector",
-      "Experts Weigh In on Emerging Trends Across Multiple Industries",
-    ],
-  }
-
-  // Use a set of unique content for each category
-  const categoryContent: Record<string, string[]> = {
-    business: [
-      "Financial markets across the globe reported unexpected growth this quarter, defying analyst predictions amid ongoing economic challenges. Major indices showed significant gains, with technology and renewable energy sectors leading the surge. Experts attribute this resilience to innovative business models and strategic adaptations to changing consumer behaviors. Investment in sustainable practices has also contributed to this positive trend, according to industry reports.",
-      "A leading technology corporation has announced record-breaking quarterly profits, exceeding market expectations by a significant margin. The company attributes this success to strong performance in its cloud services division and increased adoption of its enterprise solutions. Analysts note that strategic acquisitions and research investments made over the past two years have positioned the company favorably in competitive markets.",
-      "Regional leaders have finalized a comprehensive trade agreement expected to significantly boost economic activity across participating nations. The deal reduces tariffs on key exports and establishes new frameworks for digital commerce and intellectual property protection. Economic forecasts suggest the agreement could generate millions of new jobs and increase regional GDP by several percentage points over the next decade.",
-      "An emerging technology startup has secured $100 million in Series B funding, one of the largest investment rounds in the sector this year. The company, which specializes in sustainable supply chain solutions, plans to use the capital to expand into new markets and accelerate product development. Venture capital firms cited the company's innovative approach and strong growth metrics as key factors in their investment decision.",
-      "The Central Bank has signaled a significant shift in monetary policy following its latest meeting, indicating a move away from the accommodative stance maintained over recent years. Financial analysts interpret this change as a response to improving economic indicators and concerns about potential inflationary pressures. Markets have responded with cautious optimism as businesses and investors adjust strategies to align with the anticipated policy direction.",
-    ],
-    technology: [
-      "A groundbreaking AI system developed by leading researchers has demonstrated remarkable accuracy in diagnosing complex medical conditions, potentially transforming healthcare delivery worldwide. The system, which analyzes patient data and medical imaging with unprecedented precision, could significantly reduce diagnostic errors and treatment delays. Clinical trials show promising results across multiple specialties, with implementation plans already underway at several major medical institutions.",
-      "A major technology manufacturer has unveiled its next-generation smartphone featuring revolutionary display technology and advanced computational capabilities. The device incorporates sustainable materials and modular design elements that extend product lifespan and reduce environmental impact. Industry analysts note that these innovations address growing consumer demand for both cutting-edge features and responsible manufacturing practices.",
-      "Scientists at a prestigious research institution have announced a significant breakthrough in quantum computing that overcomes previous limitations in qubit stability. This development brings practical quantum computing applications considerably closer to commercial viability. The research team suggests their approach could accelerate advancements in fields ranging from materials science to pharmaceutical development, where complex computational problems have hindered progress.",
-      "Industry leaders have adopted a comprehensive cybersecurity framework designed to address evolving threats in an increasingly connected business environment. The collaborative initiative establishes common standards for data protection, threat detection, and incident response across critical infrastructure sectors. Security experts welcome this coordinated approach as essential for maintaining resilience against sophisticated cyber threats targeting interconnected systems.",
-      "Engineers have achieved remarkable efficiency improvements in renewable energy technology, significantly reducing costs and expanding potential applications. The innovations focus on enhanced energy storage solutions and advanced materials that optimize performance under variable conditions. These developments are expected to accelerate the transition to sustainable energy sources and enable implementation in previously challenging contexts.",
-    ],
-    general: [
-      "Important developments in global affairs continue to unfold as nations respond to emerging challenges across economic, environmental, and security domains. Analysts are closely monitoring these situations for potential long-term implications for international relations and cooperation frameworks. Public interest remains high as media coverage highlights both immediate impacts and broader contextual factors. Experts from various fields are contributing perspectives on constructive approaches to these complex issues.",
-      "A community-based initiative launched last year has reported encouraging results across multiple metrics, exceeding initial expectations. The program, which focuses on collaborative problem-solving and local resource mobilization, has successfully addressed several long-standing challenges facing residents. Organizers attribute this success to strong stakeholder engagement and adaptive implementation strategies that respond to community feedback.",
-      "Newly published research provides valuable insights into evolving consumer behaviors and preferences in the post-pandemic marketplace. The comprehensive study identifies significant shifts in purchasing patterns, brand loyalty factors, and service expectations across demographic groups. Business leaders are utilizing these findings to refine product offerings and customer experience strategies in an increasingly competitive environment.",
-      "An unprecedented level of international cooperation has led to a significant breakthrough in addressing a key global challenge. The collaborative effort, involving public and private organizations from multiple countries, demonstrates the potential of coordinated approaches to complex problems. Participants highlight the importance of shared objectives and transparent communication in achieving meaningful progress on issues that transcend national boundaries.",
-      "Leading experts from diverse disciplines have shared analysis on emerging trends that are reshaping multiple industries and social structures. Their insights highlight interconnections between technological innovation, changing demographic patterns, and evolving value systems. This multidisciplinary perspective offers valuable context for decision-makers navigating increasingly complex operational and strategic landscapes.",
-    ],
-  }
-
-  // Add content for missing categories
-  Object.keys(categoryTitles).forEach((cat) => {
-    if (!categoryContent[cat]) {
-      categoryContent[cat] = [
-        `This comprehensive article covers the most significant recent events in ${cat}, providing context and analysis from leading experts in the field. Readers will gain valuable insights into current trends and future projections.`,
-        `An in-depth exploration of the latest developments in the ${cat} sector, highlighting innovations and challenges that are shaping its evolution. The article draws on extensive research and expert interviews to provide a nuanced understanding of complex issues.`,
-        `A detailed analysis of recent changes in the ${cat} landscape, examining their implications for various stakeholders. The article presents multiple perspectives and offers thoughtful consideration of potential future scenarios.`,
-        `This feature article examines transformative developments in ${cat}, contextualizing them within broader social and economic trends. Readers will appreciate the balanced reporting and insightful commentary from recognized authorities.`,
-        `A thorough investigation of emerging patterns in ${cat}, supported by data analysis and expert testimony. The article provides valuable background information while addressing current questions of significant public interest.`,
-      ]
-    }
-  })
-
-  // Use the seed to ensure consistent article generation
-  const titleIndex = seed % categoryTitles[category]?.length || 0
-  const contentIndex = (seed * 31) % categoryContent[category]?.length || 0
+  // Use the mock data to create consistent articles
+  const mockData = MOCK_ARTICLES[category] || MOCK_ARTICLES.general
+  const articleIndex = index % mockData.length
+  const baseArticle = mockData[articleIndex]
 
   return {
-    id,
-    source: { id: null, name: categoryTitles[category] ? "Newsmania" : "Unknown Source" },
-    author: "Newsmania Staff",
-    title: categoryTitles[category]?.[titleIndex] || `News Article about ${category}`,
-    description: `This ${category} article provides in-depth coverage of recent developments and their implications.`,
-    url: "#",
-    urlToImage: getCategoryImageByID(id, seed),
-    publishedAt: new Date(Date.now() - (seed % 7) * 86400000).toISOString(), // Consistent date based on seed
-    content:
-      categoryContent[category]?.[contentIndex] || `Content for this ${category} article is currently unavailable.`,
-    credibilityScore: undefined,
-    isFactChecked: false,
-    factCheckResult: null,
+    ...baseArticle,
+    id, // Use the provided ID
   }
 }
 
@@ -574,8 +431,8 @@ function getCategoryImage(category: string, seed: number): string {
   return images[imageIndex]
 }
 
-// Function to generate mock articles for each category
-function generateMockArticles(): Record<string, NewsArticle[]> {
+// Function to generate enhanced mock articles for each category
+function generateEnhancedMockArticles(): Record<string, NewsArticle[]> {
   const categories = [
     "business",
     "technology",
@@ -586,6 +443,7 @@ function generateMockArticles(): Record<string, NewsArticle[]> {
     "politics",
     "jewelry",
     "general",
+    "world",
   ]
   const result: Record<string, NewsArticle[]> = {}
 
@@ -597,75 +455,172 @@ function generateMockArticles(): Record<string, NewsArticle[]> {
       const id = `${category}-${i}-${Date.now()}`
       const seed = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
 
-      // Generate titles based on category
-      let title = ""
-      let content = ""
-      let description = ""
-
-      switch (category) {
-        case "business":
-          title = [
-            "Global Markets Rally as Economic Outlook Improves",
-            "Tech Giant Announces Record Quarterly Profits",
-            "New Trade Agreement Set to Boost Regional Economies",
-            "Startup Secures $100M in Series B Funding Round",
-            "Central Bank Signals Shift in Monetary Policy",
-          ][i % 5]
-          description =
-            "Latest developments in the business world show promising trends for investors and consumers alike."
-          content =
-            "Financial analysts are reporting significant movements in global markets as economic indicators show stronger than expected performance. Industry leaders attribute this growth to technological innovation and strategic policy decisions that have created favorable conditions for business expansion."
-          break
-
-        case "technology":
-          title = [
-            "Revolutionary AI Model Breaks Performance Records",
-            "Tech Company Unveils Next-Generation Smartphone",
-            "Quantum Computing Breakthrough Announced by Researchers",
-            "New Cybersecurity Framework Adopted by Major Industries",
-            "Renewable Energy Technology Shows Promising Efficiency Gains",
-          ][i % 5]
-          description = "Cutting-edge technological advancements continue to transform industries and daily life."
-          content =
-            "The technology sector continues to drive innovation across multiple domains, with recent breakthroughs promising to address longstanding challenges in computing, energy, and communications. Experts predict these developments will have far-reaching implications for both consumers and enterprises."
-          break
-
-        case "sports":
-          title = [
-            "Underdog Team Clinches Championship in Dramatic Final",
-            "Star Athlete Signs Record-Breaking Contract Extension",
-            "Olympic Committee Announces New Events for Next Games",
-            "Historic Comeback Stuns Fans in Season Opener",
-            "Sports League Implements Revolutionary Rule Changes",
-          ][i % 5]
-          description =
-            "The world of sports continues to deliver excitement and unexpected outcomes for fans worldwide."
-          content =
-            "Sports enthusiasts witnessed remarkable performances and surprising results as the competitive season reaches its peak. Commentators note that the combination of strategic preparation and exceptional talent has created particularly compelling matchups this year."
-          break
-
-        default:
-          title = `Latest ${category.charAt(0).toUpperCase() + category.slice(1)} News: Important Developments`
-          description = `Stay updated with the most recent happenings in the ${category} sector.`
-          content = `This comprehensive article covers the most significant recent events in ${category}, providing context and analysis from leading experts in the field. Readers will gain valuable insights into current trends and future projections.`
-      }
+      // Generate titles and content based on category
+      const { title, content, description } = getCategoryContent(category, i)
 
       result[category].push({
         id,
-        source: { id: null, name: "Newsmania" },
-        author: "Newsmania Staff",
+        source: { id: null, name: getCategorySource(category, i) },
+        author: getCategoryAuthor(category, i),
         title,
         description,
         url: "#",
         urlToImage: getCategoryImageByID(id, seed),
-        publishedAt: new Date(Date.now() - i * 3600000).toISOString(), // Stagger publication times
+        publishedAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(), // Stagger publication times
         content,
-        credibilityScore: undefined,
-        isFactChecked: false,
+        credibilityScore: 70 + (seed % 30), // Random credibility between 70-100
+        isFactChecked: i % 3 === 0, // Every third article is fact-checked
         factCheckResult: null,
       })
     }
   })
 
   return result
+}
+
+// Helper functions for generating category-specific content
+function getCategoryContent(category: string, index: number): { title: string; content: string; description: string } {
+  const contentMap: Record<string, Array<{ title: string; content: string; description: string }>> = {
+    business: [
+      {
+        title: "Global Markets Rally as Economic Outlook Improves",
+        description: "Financial markets worldwide show strong performance amid positive economic indicators.",
+        content:
+          "Financial analysts are reporting significant movements in global markets as economic indicators show stronger than expected performance. Industry leaders attribute this growth to technological innovation and strategic policy decisions that have created favorable conditions for business expansion.",
+      },
+      {
+        title: "Tech Giant Announces Record Quarterly Profits",
+        description: "Major technology corporation exceeds market expectations with unprecedented earnings.",
+        content:
+          "A leading technology corporation has announced record-breaking quarterly profits, exceeding market expectations by a significant margin. The company attributes this success to strong performance in its cloud services division and increased adoption of its enterprise solutions.",
+      },
+      {
+        title: "New Trade Agreement Set to Boost Regional Economies",
+        description: "International trade deal promises significant economic benefits for participating nations.",
+        content:
+          "Regional leaders have finalized a comprehensive trade agreement expected to significantly boost economic activity across participating nations. The deal reduces tariffs on key exports and establishes new frameworks for digital commerce.",
+      },
+      {
+        title: "Startup Secures $100M in Series B Funding Round",
+        description: "Emerging technology company raises substantial investment for expansion plans.",
+        content:
+          "An emerging technology startup has secured $100 million in Series B funding, one of the largest investment rounds in the sector this year. The company plans to use the capital to expand into new markets and accelerate product development.",
+      },
+      {
+        title: "Central Bank Signals Shift in Monetary Policy",
+        description: "Financial authorities indicate changes to interest rate strategy amid economic developments.",
+        content:
+          "The Central Bank has signaled a significant shift in monetary policy following its latest meeting, indicating a move away from the accommodative stance maintained over recent years. Markets have responded with cautious optimism.",
+      },
+    ],
+    technology: [
+      {
+        title: "Revolutionary AI Model Breaks Performance Records",
+        description: "New artificial intelligence system achieves unprecedented accuracy in complex tasks.",
+        content:
+          "A groundbreaking AI system developed by leading researchers has demonstrated remarkable accuracy in diagnosing complex problems, potentially transforming how we interact with technology in our daily lives.",
+      },
+      {
+        title: "Tech Company Unveils Next-Generation Smartphone",
+        description: "Latest mobile device features innovative technology and sustainable design elements.",
+        content:
+          "A major technology manufacturer has unveiled its next-generation smartphone featuring revolutionary display technology and advanced computational capabilities. The device incorporates sustainable materials and modular design elements.",
+      },
+      {
+        title: "Quantum Computing Breakthrough Announced by Researchers",
+        description: "Scientists achieve significant advancement in quantum computing stability and performance.",
+        content:
+          "Scientists at a prestigious research institution have announced a significant breakthrough in quantum computing that overcomes previous limitations in qubit stability. This development brings practical quantum computing applications considerably closer to commercial viability.",
+      },
+      {
+        title: "New Cybersecurity Framework Adopted by Major Industries",
+        description: "Comprehensive security standards implemented to address evolving digital threats.",
+        content:
+          "Industry leaders have adopted a comprehensive cybersecurity framework designed to address evolving threats in an increasingly connected business environment. The collaborative initiative establishes common standards for data protection.",
+      },
+      {
+        title: "Renewable Energy Technology Shows Promising Efficiency Gains",
+        description: "Advanced materials and engineering improvements boost clean energy performance.",
+        content:
+          "Engineers have achieved remarkable efficiency improvements in renewable energy technology, significantly reducing costs and expanding potential applications. The innovations focus on enhanced energy storage solutions and advanced materials.",
+      },
+    ],
+    // Add more categories as needed...
+    general: [
+      {
+        title: "Breaking News: Important Developments in Global Affairs",
+        description: "Significant events unfold across multiple sectors with international implications.",
+        content:
+          "Important developments in global affairs continue to unfold as nations respond to emerging challenges across economic, environmental, and security domains. Analysts are closely monitoring these situations for potential long-term implications.",
+      },
+      {
+        title: "Community Initiative Shows Promising Results in First Year",
+        description: "Local program demonstrates effectiveness in addressing regional challenges.",
+        content:
+          "A community-based initiative launched last year has reported encouraging results across multiple metrics, exceeding initial expectations. The program focuses on collaborative problem-solving and local resource mobilization.",
+      },
+      {
+        title: "New Research Highlights Changing Consumer Behaviors",
+        description: "Comprehensive study reveals evolving patterns in marketplace preferences.",
+        content:
+          "Newly published research provides valuable insights into evolving consumer behaviors and preferences in the post-pandemic marketplace. The comprehensive study identifies significant shifts in purchasing patterns and brand loyalty factors.",
+      },
+      {
+        title: "International Cooperation Leads to Breakthrough in Key Sector",
+        description: "Collaborative effort achieves significant progress on global challenge.",
+        content:
+          "An unprecedented level of international cooperation has led to a significant breakthrough in addressing a key global challenge. The collaborative effort demonstrates the potential of coordinated approaches to complex problems.",
+      },
+      {
+        title: "Experts Weigh In on Emerging Trends Across Multiple Industries",
+        description: "Leading authorities provide analysis on transformative developments.",
+        content:
+          "Leading experts from diverse disciplines have shared analysis on emerging trends that are reshaping multiple industries and social structures. Their insights highlight interconnections between technological innovation and changing demographic patterns.",
+      },
+    ],
+  }
+
+  const categoryContent = contentMap[category] || contentMap.general
+  const contentIndex = index % categoryContent.length
+  return categoryContent[contentIndex]
+}
+
+function getCategorySource(category: string, index: number): string {
+  const sourceMap: Record<string, string[]> = {
+    business: ["Business Wire", "Financial Times", "Bloomberg", "Reuters Business", "Wall Street Journal"],
+    technology: ["Tech Crunch", "Wired", "The Verge", "Ars Technica", "IEEE Spectrum"],
+    sports: ["ESPN", "Sports Illustrated", "The Athletic", "CBS Sports", "Fox Sports"],
+    health: ["Health News", "Medical Daily", "WebMD News", "Mayo Clinic", "Harvard Health"],
+    science: ["Science Daily", "Nature News", "Scientific American", "New Scientist", "Science Magazine"],
+    entertainment: ["Entertainment Weekly", "Variety", "The Hollywood Reporter", "Rolling Stone", "Billboard"],
+    politics: ["Politico", "The Hill", "Associated Press", "Reuters Politics", "BBC Politics"],
+    world: ["BBC World", "CNN International", "Al Jazeera", "The Guardian", "Associated Press"],
+    general: ["NewsMania", "Global News", "World Report", "Daily Herald", "News Today"],
+  }
+
+  const sources = sourceMap[category] || sourceMap.general
+  return sources[index % sources.length]
+}
+
+function getCategoryAuthor(category: string, index: number): string {
+  const authorMap: Record<string, string[]> = {
+    business: ["Business Reporter", "Financial Analyst", "Market Correspondent", "Economic Editor", "Trade Specialist"],
+    technology: ["Tech Reporter", "Innovation Correspondent", "Digital Editor", "Science Writer", "Tech Analyst"],
+    sports: ["Sports Reporter", "Athletic Correspondent", "Sports Editor", "Game Analyst", "Sports Writer"],
+    health: ["Health Reporter", "Medical Correspondent", "Wellness Editor", "Health Writer", "Medical Analyst"],
+    science: ["Science Reporter", "Research Correspondent", "Science Editor", "Lab Reporter", "Discovery Writer"],
+    entertainment: ["Entertainment Reporter", "Culture Correspondent", "Arts Editor", "Media Analyst", "Show Reporter"],
+    politics: [
+      "Political Reporter",
+      "Government Correspondent",
+      "Policy Editor",
+      "Political Analyst",
+      "Capitol Reporter",
+    ],
+    world: ["International Correspondent", "Foreign Reporter", "Global Editor", "World Analyst", "Diplomatic Reporter"],
+    general: ["Staff Reporter", "News Correspondent", "Editorial Team", "News Writer", "Field Reporter"],
+  }
+
+  const authors = authorMap[category] || authorMap.general
+  return authors[index % authors.length]
 }
