@@ -206,21 +206,34 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
     setIsSaving(true)
 
     try {
-      // In a real app, this would call an API to save the note
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      // Import and use the actual saveNote function
+      const { saveNote } = await import("@/lib/notes-service")
 
-      toast({
-        title: "Note saved",
-        description: "Your note has been saved successfully.",
-      })
+      const savedNote = await saveNote(
+        article.id,
+        noteText,
+        article.title,
+        false, // isMarkdown
+        article.url,
+      )
 
-      setSaveDialogOpen(false)
-      setNoteText("")
+      if (savedNote) {
+        toast({
+          title: "Note saved successfully",
+          description: "Your note has been saved and can be viewed in My Notes.",
+        })
+
+        setSaveDialogOpen(false)
+        setNoteText("")
+      } else {
+        throw new Error("Failed to save note")
+      }
     } catch (error) {
+      console.error("Error saving note:", error)
       toast({
         variant: "destructive",
         title: "Save failed",
-        description: "There was an error saving your note.",
+        description: error instanceof Error ? error.message : "There was an error saving your note.",
       })
     } finally {
       setIsSaving(false)

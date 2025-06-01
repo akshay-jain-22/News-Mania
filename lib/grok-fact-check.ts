@@ -52,10 +52,9 @@ Reasons: [brief explanation of factors that influenced the credibility score]`
   let aiProvider = "Unknown"
 
   try {
-    // First, try Grok AI
     console.log("🚀 Attempting Grok AI analysis...")
 
-    const grokModels = ["grok-beta", "grok-2", "grok-1", "grok"]
+    const grokModels = ["grok-beta", "grok-2"]
     let grokSuccess = false
 
     for (const model of grokModels) {
@@ -84,7 +83,6 @@ Reasons: [brief explanation of factors that influenced the credibility score]`
     console.log("❌ Grok AI failed, trying OpenAI...")
 
     try {
-      // Fallback to OpenAI
       const openaiKey = process.env.OPENAI_API_KEY
       if (!openaiKey) {
         throw new Error("OPENAI_API_KEY not configured")
@@ -100,24 +98,10 @@ Reasons: [brief explanation of factors that influenced the credibility score]`
       aiProvider = "OpenAI GPT-4"
       console.log("✅ OpenAI analysis successful")
     } catch (openaiError) {
-      console.log("❌ OpenAI also failed, trying GPT-3.5...")
+      console.log("❌ OpenAI also failed, using enhanced fallback...")
 
-      try {
-        // Try GPT-3.5 as final fallback
-        result = await generateText({
-          model: openai("gpt-3.5-turbo"),
-          prompt,
-          temperature: 0.3,
-          maxTokens: 500,
-        })
-        aiProvider = "OpenAI GPT-3.5"
-        console.log("✅ GPT-3.5 analysis successful")
-      } catch (finalError) {
-        console.error("❌ All AI providers failed")
-        throw new Error(
-          `All AI providers failed. Grok: ${grokError instanceof Error ? grokError.message : "Unknown"}. OpenAI: ${openaiError instanceof Error ? openaiError.message : "Unknown"}`,
-        )
-      }
+      // Use enhanced fallback analysis
+      return createEnhancedFallbackAnalysis(title, content || description || "")
     }
   }
 

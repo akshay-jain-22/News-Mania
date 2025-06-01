@@ -141,7 +141,6 @@ export async function saveNote(
       throw new Error("No authenticated user found")
     }
 
-    // Generate tags from content
     const tags = extractKeywords(content)
 
     const newNote = {
@@ -154,6 +153,8 @@ export async function saveNote(
       article_url: articleUrl,
       is_markdown: isMarkdown || false,
       tags: tags,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
 
     console.log("Saving note to Supabase:", {
