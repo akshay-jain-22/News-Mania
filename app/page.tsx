@@ -6,7 +6,6 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetchNews } from "@/lib/news-api"
 import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
@@ -25,72 +24,86 @@ import {
   Trophy,
   Briefcase,
   Monitor,
+  Wifi,
+  WifiOff,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function Home() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([])
   const [trendingNews, setTrendingNews] = useState<NewsArticle[]>([])
-  const [categoryNews, setCategoryNews] = useState<Record<string, NewsArticle[]>>({})
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeCategory, setActiveCategory] = useState("general")
+  const [isUsingFallback, setIsUsingFallback] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
 
   const categories = [
-    { id: "general", name: "GENERAL", icon: Globe },
-    { id: "business", name: "BUSINESS", icon: Briefcase },
-    { id: "technology", name: "TECH", icon: Monitor },
-    { id: "health", name: "HEALTH", icon: Heart },
-    { id: "sports", name: "SPORTS", icon: Trophy },
-    { id: "science", name: "SCIENCE", icon: Zap },
+    { id: "business", name: "BUSINESS" },
+    { id: "technology", name: "TECH" },
+    { id: "health", name: "HEALTH" },
+    { id: "sports", name: "SPORTS" },
+    { id: "science", name: "SCIENCE" },
+    { id: "entertainment", name: "ENTERTAINMENT" },
   ]
 
-  // Load news for all categories
+  // Load mixed news from all categories with better error handling
   useEffect(() => {
     const loadAllNews = async () => {
       try {
         setLoading(true)
         setError(null)
-        console.log("Loading news from all categories...")
+        setIsUsingFallback(false)
+        console.log("Loading mixed news from all categories...")
 
-        // Fetch general news for main feed
-        const generalArticles = await fetchNews({
-          category: "general",
-          pageSize: 20,
-          country: "us",
-        })
+        // Try to fetch news with reduced API calls to avoid rate limiting
+        const newsPromises = [
+          fetchNews({ category: "general", pageSize: 15, country: "us" }).catch(() => []),
+          fetchNews({ category: "business", pageSize: 10, country: "us" }).catch(() => []),
+          fetchNews({ category: "technology", pageSize: 10, country: "us" }).catch(() => []),
+        ]
 
-        // Fetch trending news (top headlines)
-        const trending = await fetchNews({
-          pageSize: 5,
-          country: "us",
-        })
+        const [generalNews, businessNews, techNews] = await Promise.all(newsPromises)
 
-        // Fetch news for each category
-        const categoryPromises = categories.map(async (category) => {
-          const articles = await fetchNews({
-            category: category.id,
-            pageSize: 6,
-            country: "us",
-          })
-          return { category: category.id, articles }
-        })
+        // Check if we got any real data
+        const hasRealData =
+          generalNews.some((article) => !article.id.includes("fallback")) ||
+          businessNews.some((article) => !article.id.includes("fallback")) ||
+          techNews.some((article) => !article.id.includes("fallback"))
 
-        const categoryResults = await Promise.all(categoryPromises)
-        const categoryData: Record<string, NewsArticle[]> = {}
+        if (!hasRealData) {
+          setIsUsingFallback(true)
+          console.log("Using fallback data due to API limitations")
+        }
 
-        categoryResults.forEach(({ category, articles }) => {
-          categoryData[category] = articles
-        })
+        // Mix all articles together
+        const allArticles = [...generalNews, ...businessNews, ...techNews]
 
-        setNewsArticles(generalArticles)
+        // Shuffle the articles to create a mixed feed
+        const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
+
+        // Use first 5 articles for trending
+        const trending = shuffledArticles.slice(0, 5)
+
+        setNewsArticles(shuffledArticles)
         setTrendingNews(trending)
-        setCategoryNews(categoryData)
+        setPage(2)
 
-        console.log(`Loaded news: ${generalArticles.length} general, ${trending.length} trending`)
+        console.log(`Loaded ${shuffledArticles.length} mixed articles`)
       } catch (error) {
         console.error("Failed to load news:", error)
-        setError("Failed to load news. Please check your internet connection and try again.")
+        setError("Unable to load news at the moment. Showing sample content.")
+        setIsUsingFallback(true)
+
+        // Load fallback data
+        try {
+          const fallbackNews = await fetchNews({ category: "general", pageSize: 20 })
+          setNewsArticles(fallbackNews)
+          setTrendingNews(fallbackNews.slice(0, 5))
+        } catch (fallbackError) {
+          console.error("Even fallback failed:", fallbackError)
+        }
       } finally {
         setLoading(false)
       }
@@ -98,6 +111,37 @@ export default function Home() {
 
     loadAllNews()
   }, [])
+
+  // Load more mixed news with error handling
+  const loadMoreNews = async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      console.log(`Loading more mixed news, page ${page}`)
+
+      const moreArticles = await fetchNews({
+        category: "general",
+        pageSize: 10,
+        page,
+        country: "us",
+      })
+
+      if (moreArticles.length > 0) {
+        setNewsArticles((prev) => [...prev, ...moreArticles])
+        setPage((prev) => prev + 1)
+        console.log(`Loaded ${moreArticles.length} more articles`)
+      } else {
+        setHasMore(false)
+        console.log("No more articles to load")
+      }
+    } catch (error) {
+      console.error("Failed to load more news:", error)
+      setHasMore(false)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   // Function to render credibility badge
   const renderCredibilityBadge = (score: number) => {
@@ -137,7 +181,13 @@ export default function Home() {
               </Link>
             ))}
           </div>
-          <div>
+          <div className="flex items-center space-x-4">
+            {isUsingFallback && (
+              <div className="flex items-center text-xs text-yellow-400">
+                <WifiOff className="h-3 w-3 mr-1" />
+                Demo Mode
+              </div>
+            )}
             <Button variant="ghost" size="sm" className="text-xs">
               <Link href="/dashboard">DASHBOARD</Link>
             </Button>
@@ -182,11 +232,22 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {/* Error Alert */}
+        {/* Status Alerts */}
         {error && (
-          <Alert className="mb-6 bg-red-900/20 border-red-600">
+          <Alert className="mb-6 bg-yellow-900/20 border-yellow-600">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-red-200">{error}</AlertDescription>
+            <AlertDescription className="text-yellow-200">
+              {error} {isUsingFallback && "Displaying sample news content."}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isUsingFallback && !error && (
+          <Alert className="mb-6 bg-blue-900/20 border-blue-600">
+            <WifiOff className="h-4 w-4" />
+            <AlertDescription className="text-blue-200">
+              Currently in demo mode. Some features may be limited.
+            </AlertDescription>
           </Alert>
         )}
 
@@ -209,111 +270,157 @@ export default function Home() {
               {newsArticles.length > 0 && (
                 <div className="mb-8">
                   <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden">
-                    <div className="relative aspect-[16/9]">
-                      <Image
-                        src={newsArticles[0].urlToImage || "/placeholder.svg?height=400&width=800"}
-                        alt={newsArticles[0].title}
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                      <div className="absolute bottom-0 left-0 right-0 p-6">
-                        <Badge className="mb-3 bg-red-600 hover:bg-red-700">BREAKING</Badge>
-                        <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 line-clamp-2">
-                          {newsArticles[0].title}
-                        </h2>
-                        <p className="text-gray-200 text-sm line-clamp-2">{newsArticles[0].description}</p>
-                        <div className="flex items-center mt-3 text-xs text-gray-300">
-                          <span>{newsArticles[0].source.name}</span>
-                          <span className="mx-2">•</span>
-                          <Clock className="h-3 w-3 mr-1" />
-                          {formatDistanceToNow(new Date(newsArticles[0].publishedAt))} ago
+                    <Link href={newsArticles[0].url} target="_blank" rel="noopener noreferrer">
+                      <div className="relative aspect-[16/9]">
+                        <Image
+                          src={newsArticles[0].urlToImage || "/placeholder.svg?height=400&width=800"}
+                          alt={newsArticles[0].title}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 right-0 p-6">
+                          <Badge className="mb-3 bg-red-600 hover:bg-red-700">BREAKING</Badge>
+                          <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 line-clamp-2">
+                            {newsArticles[0].title}
+                          </h2>
+                          <p className="text-gray-200 text-sm line-clamp-2">{newsArticles[0].description}</p>
+                          <div className="flex items-center mt-3 text-xs text-gray-300">
+                            <span>{newsArticles[0].source.name}</span>
+                            <span className="mx-2">•</span>
+                            <Clock className="h-3 w-3 mr-1" />
+                            {formatDistanceToNow(new Date(newsArticles[0].publishedAt))} ago
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   </Card>
                 </div>
               )}
 
-              {/* Category Tabs */}
-              <Tabs value={activeCategory} onValueChange={setActiveCategory} className="mb-8">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 bg-[#1a1a1a]">
-                  {categories.map((category) => {
-                    const Icon = category.icon
-                    return (
-                      <TabsTrigger
-                        key={category.id}
-                        value={category.id}
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                      >
-                        <Icon className="h-4 w-4 mr-1" />
-                        <span className="hidden sm:inline">{category.name}</span>
-                      </TabsTrigger>
-                    )
-                  })}
-                </TabsList>
-
-                {categories.map((category) => (
-                  <TabsContent key={category.id} value={category.id} className="mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {(categoryNews[category.id] || []).map((article) => (
-                        <Card
-                          key={article.id}
-                          className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-700 transition-all"
-                        >
-                          <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                            <div className="relative aspect-video overflow-hidden">
-                              <Image
-                                src={article.urlToImage || "/placeholder.svg?height=200&width=300"}
-                                alt={article.title}
-                                fill
-                                className="object-cover transition-transform group-hover:scale-105"
-                              />
-                              <div className="absolute top-2 left-2">
-                                <Badge className="bg-[#121212]/80 backdrop-blur-sm text-white text-xs">
-                                  {article.source.name}
-                                </Badge>
-                              </div>
-                              {article.credibilityScore && (
-                                <div className="absolute top-2 right-2">
-                                  {renderCredibilityBadge(article.credibilityScore)}
-                                </div>
-                              )}
-                            </div>
-                            <CardContent className="p-4">
-                              <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                                {article.title}
-                              </h3>
-                              <p className="text-gray-400 text-xs mb-3 line-clamp-2">{article.description}</p>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  {formatDistanceToNow(new Date(article.publishedAt))} ago
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <button className="text-gray-500 hover:text-primary">
-                                    <MessageSquare className="h-3 w-3" />
-                                  </button>
-                                  <button className="text-gray-500 hover:text-primary">
-                                    <Bookmark className="h-3 w-3" />
-                                  </button>
-                                  <button className="text-gray-500 hover:text-primary">
-                                    <Share2 className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Link>
-                        </Card>
-                      ))}
-                    </div>
-                  </TabsContent>
+              {/* Mixed News Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                {newsArticles.slice(1).map((article) => (
+                  <Card
+                    key={article.id}
+                    className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-700 transition-all"
+                  >
+                    <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                      <div className="relative aspect-video overflow-hidden">
+                        <Image
+                          src={article.urlToImage || "/placeholder.svg?height=200&width=300"}
+                          alt={article.title}
+                          fill
+                          className="object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute top-2 left-2">
+                          <Badge className="bg-[#121212]/80 backdrop-blur-sm text-white text-xs">
+                            {article.source.name}
+                          </Badge>
+                        </div>
+                        {article.credibilityScore && (
+                          <div className="absolute top-2 right-2">
+                            {renderCredibilityBadge(article.credibilityScore)}
+                          </div>
+                        )}
+                      </div>
+                      <CardContent className="p-4">
+                        <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                          {article.title}
+                        </h3>
+                        <p className="text-gray-400 text-xs mb-3 line-clamp-2">{article.description}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-xs text-gray-500">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {formatDistanceToNow(new Date(article.publishedAt))} ago
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                            </button>
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <Bookmark className="h-3 w-3" />
+                            </button>
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <Share2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Link>
+                  </Card>
                 ))}
-              </Tabs>
+              </div>
+
+              {/* Load More Button */}
+              {hasMore && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    className="border-gray-700 hover:bg-gray-800"
+                    onClick={loadMoreNews}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading More...
+                      </>
+                    ) : (
+                      "Load More News"
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {!hasMore && newsArticles.length > 0 && (
+                <div className="text-center text-gray-500">
+                  <p>You've reached the end of the news feed</p>
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
             <div className="lg:col-span-1">
+              {/* Connection Status */}
+              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+                <CardHeader>
+                  <div className="flex items-center">
+                    {isUsingFallback ? (
+                      <WifiOff className="h-5 w-5 mr-2 text-yellow-500" />
+                    ) : (
+                      <Wifi className="h-5 w-5 mr-2 text-green-500" />
+                    )}
+                    <h3 className="font-bold">{isUsingFallback ? "Demo Mode" : "Live Feed"}</h3>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-gray-400">
+                    {isUsingFallback
+                      ? "Showing sample content due to API limitations"
+                      : "Connected to live news sources"}
+                  </p>
+                </CardContent>
+              </Card>
+
               {/* Trending News */}
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
@@ -373,6 +480,31 @@ export default function Home() {
                       Search News
                     </Link>
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* Categories Quick Access */}
+              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+                <CardHeader>
+                  <h3 className="font-bold">Browse Categories</h3>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[
+                    { id: "business", name: "Business", icon: Briefcase },
+                    { id: "technology", name: "Technology", icon: Monitor },
+                    { id: "health", name: "Health", icon: Heart },
+                    { id: "sports", name: "Sports", icon: Trophy },
+                  ].map((category) => {
+                    const Icon = category.icon
+                    return (
+                      <Button key={category.id} asChild className="w-full justify-start" variant="ghost" size="sm">
+                        <Link href={`/topics/${category.id}`}>
+                          <Icon className="h-3 w-3 mr-2" />
+                          {category.name}
+                        </Link>
+                      </Button>
+                    )
+                  })}
                 </CardContent>
               </Card>
 
