@@ -11,10 +11,18 @@ interface FetchNewsParams {
   forceRefresh?: boolean
 }
 
+interface NewsAPIResponse {
+  articles: NewsArticle[]
+  cached: boolean
+  timestamp: number
+  total: number
+  error?: string
+}
+
 export async function fetchNews({
   category = "general",
   query = "",
-  pageSize = 50,
+  pageSize = 20,
   page = 1,
   country = "us",
   sources = [],
@@ -23,12 +31,12 @@ export async function fetchNews({
   try {
     const params = new URLSearchParams({
       category,
-      pageSize: pageSize.toString(),
-      page: page.toString(),
+      pageSize: Math.min(pageSize, 100).toString(), // Limit pageSize
+      page: Math.max(page, 1).toString(), // Ensure page is at least 1
       forceRefresh: forceRefresh.toString(),
     })
 
-    if (query) params.append("query", query)
+    if (query.trim()) params.append("query", query.trim())
     if (country) params.append("country", country)
     if (sources.length > 0) params.append("sources", sources.join(","))
 
@@ -39,14 +47,28 @@ export async function fetchNews({
       headers: {
         "Content-Type": "application/json",
       },
+      // Add timeout for client-side requests
+      signal: AbortSignal.timeout(15000), // 15 second timeout
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorMessage
+      } catch {
+        // If we can't parse the error response, use the default message
+      }
+
+      throw new Error(errorMessage)
     }
 
-    const data = await response.json()
+    const data: NewsAPIResponse = await response.json()
+
+    if (data.error) {
+      throw new Error(data.error)
+    }
 
     if (!data.articles || !Array.isArray(data.articles)) {
       throw new Error("Invalid response format from news API")
@@ -56,7 +78,22 @@ export async function fetchNews({
     return data.articles
   } catch (error) {
     console.error("Error fetching news:", error)
-    throw error
+
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.name === "AbortError" || error.message.includes("timeout")) {
+        throw new Error("Request timed out. Please try again.")
+      }
+
+      if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+        throw new Error("Network error. Please check your internet connection.")
+      }
+
+      // Re-throw the original error if it's already descriptive
+      throw error
+    }
+
+    throw new Error("Unknown error occurred while fetching news")
   }
 }
 
