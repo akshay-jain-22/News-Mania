@@ -391,11 +391,12 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
         </CardContent>
 
         <CardFooter className="p-4 pt-0">
-          <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex items-center justify-between w-full">
+            {/* Read Original Button */}
             <Button
               variant="outline"
               size="sm"
-              className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 hover:text-white"
+              className="bg-transparent border-slate-600 text-white hover:bg-slate-800 hover:text-white px-4 py-2 text-sm font-medium"
               asChild
             >
               {article.url && article.url !== "#" ? (
@@ -403,16 +404,17 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                   Read Original
                 </a>
               ) : (
-                <Link href={dynamicArticleUrl}>Read More</Link>
+                <Link href={dynamicArticleUrl}>Read Original</Link>
               )}
             </Button>
 
-            <div className="flex items-center gap-1">
-              {/* Chat Icon */}
+            {/* Action Icons Row */}
+            <div className="flex items-center gap-2">
+              {/* Chat/Comment Icon */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-600"
                 title="Ask AI about this article"
                 onClick={(e) => {
                   e.preventDefault()
@@ -428,7 +430,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-600"
                 title="Get background context"
                 onClick={(e) => {
                   e.preventDefault()
@@ -443,12 +445,12 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                 <span className="sr-only">Get context</span>
               </Button>
 
-              {/* Bookmark Icon */}
+              {/* Bookmark/Save Icon */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
-                title="Save article with note"
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-600"
+                title="Save to My Notes"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -456,41 +458,42 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                 }}
               >
                 <BookmarkPlus className="h-4 w-4" />
-                <span className="sr-only">Save</span>
+                <span className="sr-only">Save to Notes</span>
               </Button>
 
-              {/* Fact Check Icon */}
+              {/* Fact Check/Shield Icon */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-600"
                 onClick={handleFactCheck}
                 disabled={isFactChecking}
-                title={
-                  article.isFactChecked
-                    ? "View Grok AI fact check details"
-                    : "Run Grok AI fact check analysis on this article"
-                }
+                title={article.isFactChecked ? "View fact check results" : "Run fact check analysis"}
               >
                 {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
                 <span className="sr-only">Fact check</span>
               </Button>
 
-              {/* External Link Icon */}
-              {article.url && article.url !== "#" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
-                  asChild
-                  title="Open original article"
-                >
+              {/* External Link/Share Icon */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-600"
+                title="Open original article in new tab"
+                asChild
+              >
+                {article.url && article.url !== "#" ? (
                   <a href={article.url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
                     <span className="sr-only">Open original</span>
                   </a>
-                </Button>
-              )}
+                ) : (
+                  <Link href={dynamicArticleUrl}>
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="sr-only">View article</span>
+                  </Link>
+                )}
+              </Button>
             </div>
           </div>
         </CardFooter>
