@@ -24,8 +24,8 @@ import {
   Trophy,
   Briefcase,
   Monitor,
-  Wifi,
   RefreshCw,
+  Server,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -57,7 +57,7 @@ export default function Home() {
         setLoading(true)
       }
       setError(null)
-      console.log("Loading real news from NewsAPI...")
+      console.log("Loading real news from NewsAPI via server...")
 
       // Try different approaches to get news
       let newsArticles: NewsArticle[] = []
@@ -207,8 +207,8 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             {!error && newsArticles.length > 0 && (
               <div className="flex items-center text-xs text-green-400">
-                <Wifi className="h-3 w-3 mr-1" />
-                Live Feed
+                <Server className="h-3 w-3 mr-1" />
+                Server-Side API
               </div>
             )}
             <Button variant="ghost" size="sm" className="text-xs">
@@ -288,7 +288,7 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
             <span className="text-xl mb-2">Loading latest news from NewsAPI...</span>
-            <span className="text-sm text-gray-400">Fetching real-time articles</span>
+            <span className="text-sm text-gray-400">Fetching real-time articles via server</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -318,7 +318,7 @@ export default function Home() {
               {/* Hero Section */}
               <div className="mb-8">
                 <h1 className="text-4xl font-bold mb-2">Live News Feed</h1>
-                <p className="text-gray-400">Real-time news from around the world</p>
+                <p className="text-gray-400">Real-time news from around the world via NewsAPI</p>
               </div>
 
               {/* Featured Article */}
@@ -459,8 +459,8 @@ export default function Home() {
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
                   <div className="flex items-center">
-                    <Wifi className="h-5 w-5 mr-2 text-green-500" />
-                    <h3 className="font-bold">Live NewsAPI Feed</h3>
+                    <Server className="h-5 w-5 mr-2 text-green-500" />
+                    <h3 className="font-bold">Server-Side NewsAPI</h3>
                   </div>
                 </CardHeader>
                 <CardContent>

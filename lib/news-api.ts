@@ -1,15 +1,6 @@
 import type { NewsArticle } from "@/types/news"
 import type { FactCheckResult } from "@/types/news"
 
-// Use the provided NewsAPI key
-const API_KEY = "2d28c89f4476422887cf8adbe7bb1e0b"
-const BASE_URL = "https://newsapi.org/v2"
-
-// Cache for API responses
-const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes cache
-let lastRefreshTime = 0
-export const newsCache: Record<string, { data: NewsArticle[]; timestamp: number }> = {}
-
 interface FetchNewsParams {
   category?: string
   query?: string
@@ -29,95 +20,43 @@ export async function fetchNews({
   sources = [],
   forceRefresh = false,
 }: FetchNewsParams): Promise<NewsArticle[]> {
-  const sourcesStr = sources.join(",")
-  const cacheKey = `${category}-${query}-${pageSize}-${page}-${country}-${sourcesStr}`
-
-  const currentTime = Date.now()
-  const shouldRefresh =
-    forceRefresh || !newsCache[cacheKey] || currentTime - newsCache[cacheKey].timestamp > CACHE_DURATION
-
-  if (!shouldRefresh && newsCache[cacheKey]) {
-    console.log(`Using cached data for ${cacheKey}`)
-    return newsCache[cacheKey].data
-  }
-
   try {
-    console.log(`Fetching fresh news data for ${cacheKey}`)
+    const params = new URLSearchParams({
+      category,
+      pageSize: pageSize.toString(),
+      page: page.toString(),
+      forceRefresh: forceRefresh.toString(),
+    })
 
-    let url = `${BASE_URL}/top-headlines?pageSize=${pageSize}&page=${page}&apiKey=${API_KEY}`
+    if (query) params.append("query", query)
+    if (country) params.append("country", country)
+    if (sources.length > 0) params.append("sources", sources.join(","))
 
-    if (category && category !== "all" && category !== "general") {
-      url += `&category=${category}`
-    }
+    console.log(`Fetching news via API route: /api/news?${params.toString()}`)
 
-    if (country) {
-      url += `&country=${country}`
-    }
-
-    if (query) {
-      url += `&q=${encodeURIComponent(query)}`
-    }
-
-    if (sources && sources.length > 0) {
-      url += `&sources=${encodeURIComponent(sources.join(","))}`
-    }
-
-    const response = await fetch(url, {
+    const response = await fetch(`/api/news?${params.toString()}`, {
+      method: "GET",
       headers: {
-        Accept: "application/json",
-        "User-Agent": "Newsmania/1.0",
+        "Content-Type": "application/json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`News API returned ${response.status}: ${response.statusText}`, errorText)
-      throw new Error(`News API error: ${response.status} - ${response.statusText}`)
+      const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
 
     if (!data.articles || !Array.isArray(data.articles)) {
-      throw new Error("Invalid response format from News API")
+      throw new Error("Invalid response format from news API")
     }
 
-    const articles: NewsArticle[] = data.articles
-      .filter((article: any) => {
-        return (
-          article.title &&
-          article.title !== "[Removed]" &&
-          article.description &&
-          article.description !== "[Removed]" &&
-          article.url &&
-          article.source?.name
-        )
-      })
-      .map((article: any, index: number) => ({
-        id: `api-${Date.now()}-${index}`,
-        source: article.source || { id: null, name: "Unknown Source" },
-        author: article.author || "Unknown Author",
-        title: article.title,
-        description: article.description,
-        url: article.url,
-        urlToImage: article.urlToImage,
-        publishedAt: article.publishedAt || new Date().toISOString(),
-        content: article.content || article.description,
-        credibilityScore: Math.floor(Math.random() * 30) + 70,
-        isFactChecked: Math.random() > 0.7,
-        factCheckResult: null,
-      }))
-
-    newsCache[cacheKey] = {
-      data: articles,
-      timestamp: currentTime,
-    }
-    lastRefreshTime = currentTime
-
-    console.log(`Successfully fetched ${articles.length} articles from API`)
-    return articles
+    console.log(`Successfully fetched ${data.articles.length} articles ${data.cached ? "(cached)" : "(fresh)"}`)
+    return data.articles
   } catch (error) {
-    console.error("Error fetching news from API:", error)
-    throw error // Re-throw the error instead of returning fallback data
+    console.error("Error fetching news:", error)
+    throw error
   }
 }
 
@@ -130,13 +69,7 @@ export async function fetchMoreNews(page: number): Promise<NewsArticle[]> {
 export async function refreshAllNews(): Promise<boolean> {
   try {
     console.log("Forcing refresh of all news data...")
-
-    // Clear the cache
-    for (const key in newsCache) {
-      delete newsCache[key]
-    }
-
-    lastRefreshTime = Date.now()
+    await fetchNews({ forceRefresh: true, pageSize: 20 })
     return true
   } catch (error) {
     console.error("Error refreshing news:", error)
@@ -150,23 +83,12 @@ export async function setupNewsRefresh() {
 
 export async function factCheckArticle(articleId: string): Promise<FactCheckResult> {
   try {
-    const article = await fetchArticleById(articleId)
-    if (!article) {
-      throw new Error("Article not found")
-    }
-
-    console.log("Starting fact check for article:", article.title)
-
     const response = await fetch("/api/fact-check", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        title: article.title,
-        content: article.content,
-        description: article.description,
-      }),
+      body: JSON.stringify({ articleId }),
     })
 
     if (!response.ok) {
@@ -200,17 +122,17 @@ export async function factCheckArticle(articleId: string): Promise<FactCheckResu
   }
 }
 
+// In-memory cache for articles (for client-side lookups)
+const articleCache: NewsArticle[] = []
+
 export async function fetchArticleById(id: string): Promise<NewsArticle | null> {
   try {
     console.log("Fetching article by ID:", id)
 
-    // Check cache first
-    for (const key in newsCache) {
-      const cachedArticles = newsCache[key].data
-      const article = cachedArticles.find((article) => article.id === id)
-      if (article) {
-        return article
-      }
+    // Check local cache first
+    const cachedArticle = articleCache.find((article) => article.id === id)
+    if (cachedArticle) {
+      return cachedArticle
     }
 
     // If not found in cache, return null
