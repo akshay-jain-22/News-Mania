@@ -25,7 +25,7 @@ import {
   Briefcase,
   Monitor,
   Wifi,
-  WifiOff,
+  RefreshCw,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -35,7 +35,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isUsingFallback, setIsUsingFallback] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
 
@@ -48,77 +48,100 @@ export default function Home() {
     { id: "entertainment", name: "ENTERTAINMENT" },
   ]
 
-  // Load mixed news from all categories with better error handling
-  useEffect(() => {
-    const loadAllNews = async () => {
-      try {
+  // Load real news from API only
+  const loadAllNews = async (isRetry = false) => {
+    try {
+      if (isRetry) {
+        setRetrying(true)
+      } else {
         setLoading(true)
-        setError(null)
-        setIsUsingFallback(false)
-        console.log("Loading mixed news from all categories...")
-
-        // Try to fetch news with reduced API calls to avoid rate limiting
-        const newsPromises = [
-          fetchNews({ category: "general", pageSize: 15, country: "us" }).catch(() => []),
-          fetchNews({ category: "business", pageSize: 10, country: "us" }).catch(() => []),
-          fetchNews({ category: "technology", pageSize: 10, country: "us" }).catch(() => []),
-        ]
-
-        const [generalNews, businessNews, techNews] = await Promise.all(newsPromises)
-
-        // Check if we got any real data
-        const hasRealData =
-          generalNews.some((article) => !article.id.includes("fallback")) ||
-          businessNews.some((article) => !article.id.includes("fallback")) ||
-          techNews.some((article) => !article.id.includes("fallback"))
-
-        if (!hasRealData) {
-          setIsUsingFallback(true)
-          console.log("Using fallback data due to API limitations")
-        }
-
-        // Mix all articles together
-        const allArticles = [...generalNews, ...businessNews, ...techNews]
-
-        // Shuffle the articles to create a mixed feed
-        const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
-
-        // Use first 5 articles for trending
-        const trending = shuffledArticles.slice(0, 5)
-
-        setNewsArticles(shuffledArticles)
-        setTrendingNews(trending)
-        setPage(2)
-
-        console.log(`Loaded ${shuffledArticles.length} mixed articles`)
-      } catch (error) {
-        console.error("Failed to load news:", error)
-        setError("Unable to load news at the moment. Showing sample content.")
-        setIsUsingFallback(true)
-
-        // Load fallback data
-        try {
-          const fallbackNews = await fetchNews({ category: "general", pageSize: 20 })
-          setNewsArticles(fallbackNews)
-          setTrendingNews(fallbackNews.slice(0, 5))
-        } catch (fallbackError) {
-          console.error("Even fallback failed:", fallbackError)
-        }
-      } finally {
-        setLoading(false)
       }
-    }
+      setError(null)
+      console.log("Loading real news from NewsAPI...")
 
+      // Try different approaches to get news
+      let newsArticles: NewsArticle[] = []
+      let trendingArticles: NewsArticle[] = []
+
+      try {
+        // First try: Get general news
+        console.log("Attempting to fetch general news...")
+        const generalNews = await fetchNews({
+          category: "general",
+          pageSize: 20,
+          country: "us",
+          forceRefresh: isRetry,
+        })
+        newsArticles = [...newsArticles, ...generalNews]
+        console.log(`Fetched ${generalNews.length} general articles`)
+      } catch (generalError) {
+        console.log("General news failed, trying without country filter...")
+        try {
+          // Second try: Get news without country filter
+          const globalNews = await fetchNews({
+            pageSize: 20,
+            forceRefresh: isRetry,
+          })
+          newsArticles = [...newsArticles, ...globalNews]
+          console.log(`Fetched ${globalNews.length} global articles`)
+        } catch (globalError) {
+          console.log("Global news failed, trying with sources...")
+          try {
+            // Third try: Use specific sources
+            const sourceNews = await fetchNews({
+              sources: ["bbc-news", "reuters", "cnn", "the-guardian-uk"],
+              pageSize: 20,
+              forceRefresh: isRetry,
+            })
+            newsArticles = [...newsArticles, ...sourceNews]
+            console.log(`Fetched ${sourceNews.length} source articles`)
+          } catch (sourceError) {
+            throw new Error("Unable to fetch news from any source")
+          }
+        }
+      }
+
+      // Try to get trending news (use first 5 articles as trending)
+      trendingArticles = newsArticles.slice(0, 5)
+
+      if (newsArticles.length === 0) {
+        throw new Error("No news articles available from the API")
+      }
+
+      setNewsArticles(newsArticles)
+      setTrendingNews(trendingArticles)
+      setPage(2)
+
+      console.log(`Successfully loaded ${newsArticles.length} real news articles`)
+    } catch (error) {
+      console.error("Failed to load real news:", error)
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch news from the API. Please check your internet connection or try again later.",
+      )
+    } finally {
+      setLoading(false)
+      setRetrying(false)
+    }
+  }
+
+  useEffect(() => {
     loadAllNews()
   }, [])
 
-  // Load more mixed news with error handling
+  // Retry function
+  const handleRetry = () => {
+    loadAllNews(true)
+  }
+
+  // Load more real news
   const loadMoreNews = async () => {
     if (loadingMore || !hasMore) return
 
     try {
       setLoadingMore(true)
-      console.log(`Loading more mixed news, page ${page}`)
+      console.log(`Loading more real news, page ${page}`)
 
       const moreArticles = await fetchNews({
         category: "general",
@@ -130,7 +153,7 @@ export default function Home() {
       if (moreArticles.length > 0) {
         setNewsArticles((prev) => [...prev, ...moreArticles])
         setPage((prev) => prev + 1)
-        console.log(`Loaded ${moreArticles.length} more articles`)
+        console.log(`Loaded ${moreArticles.length} more real articles`)
       } else {
         setHasMore(false)
         console.log("No more articles to load")
@@ -182,10 +205,10 @@ export default function Home() {
             ))}
           </div>
           <div className="flex items-center space-x-4">
-            {isUsingFallback && (
-              <div className="flex items-center text-xs text-yellow-400">
-                <WifiOff className="h-3 w-3 mr-1" />
-                Demo Mode
+            {!error && newsArticles.length > 0 && (
+              <div className="flex items-center text-xs text-green-400">
+                <Wifi className="h-3 w-3 mr-1" />
+                Live Feed
               </div>
             )}
             <Button variant="ghost" size="sm" className="text-xs">
@@ -232,29 +255,61 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {/* Status Alerts */}
+        {/* Error Alert with Retry */}
         {error && (
-          <Alert className="mb-6 bg-yellow-900/20 border-yellow-600">
+          <Alert className="mb-6 bg-red-900/20 border-red-600">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-yellow-200">
-              {error} {isUsingFallback && "Displaying sample news content."}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isUsingFallback && !error && (
-          <Alert className="mb-6 bg-blue-900/20 border-blue-600">
-            <WifiOff className="h-4 w-4" />
-            <AlertDescription className="text-blue-200">
-              Currently in demo mode. Some features may be limited.
+            <AlertDescription className="flex items-center justify-between">
+              <span className="text-red-200">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                disabled={retrying}
+                className="ml-4 border-red-600 text-red-200 hover:bg-red-900/20"
+              >
+                {retrying ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-3 w-3" />
+                    Retry
+                  </>
+                )}
+              </Button>
             </AlertDescription>
           </Alert>
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <span className="ml-2 text-xl">Loading latest news...</span>
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+            <span className="text-xl mb-2">Loading latest news from NewsAPI...</span>
+            <span className="text-sm text-gray-400">Fetching real-time articles</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Unable to Load News</h2>
+            <p className="text-gray-400 text-center max-w-md mb-6">
+              We're having trouble connecting to our news sources. Please check your internet connection and try again.
+            </p>
+            <Button onClick={handleRetry} disabled={retrying}>
+              {retrying ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try Again
+                </>
+              )}
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -298,7 +353,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Mixed News Grid */}
+              {/* Real News Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                 {newsArticles.slice(1).map((article) => (
                   <Card
@@ -371,7 +426,7 @@ export default function Home() {
               </div>
 
               {/* Load More Button */}
-              {hasMore && (
+              {hasMore && newsArticles.length > 0 && (
                 <div className="flex justify-center">
                   <Button
                     variant="outline"
@@ -404,51 +459,49 @@ export default function Home() {
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
                   <div className="flex items-center">
-                    {isUsingFallback ? (
-                      <WifiOff className="h-5 w-5 mr-2 text-yellow-500" />
-                    ) : (
-                      <Wifi className="h-5 w-5 mr-2 text-green-500" />
-                    )}
-                    <h3 className="font-bold">{isUsingFallback ? "Demo Mode" : "Live Feed"}</h3>
+                    <Wifi className="h-5 w-5 mr-2 text-green-500" />
+                    <h3 className="font-bold">Live NewsAPI Feed</h3>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-gray-400">
-                    {isUsingFallback
-                      ? "Showing sample content due to API limitations"
-                      : "Connected to live news sources"}
+                    {newsArticles.length > 0
+                      ? `Showing ${newsArticles.length} real-time articles`
+                      : "Connecting to news sources..."}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Trending News */}
-              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
-                <CardHeader>
-                  <div className="flex items-center">
-                    <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                    <h3 className="font-bold">Trending Now</h3>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {trendingNews.map((article, index) => (
-                    <div key={article.id} className="flex items-start space-x-3 group">
-                      <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-xs font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                          <h4 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
-                            {article.title}
-                          </h4>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {formatDistanceToNow(new Date(article.publishedAt))} ago
-                          </p>
-                        </Link>
-                      </div>
+              {trendingNews.length > 0 && (
+                <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+                      <h3 className="font-bold">Trending Now</h3>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {trendingNews.map((article, index) => (
+                      <div key={article.id} className="flex items-start space-x-3 group">
+                        <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-xs font-bold">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                            <h4 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
+                              {article.title}
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {formatDistanceToNow(new Date(article.publishedAt))} ago
+                            </p>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Quick Actions */}
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
