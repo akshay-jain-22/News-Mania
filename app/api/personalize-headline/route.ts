@@ -10,48 +10,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Original title is required" }, { status: 400 })
     }
 
-    const prompt = `
-You are a news personalization expert. Your task is to create a personalized headline that will appeal to a specific user based on their interests and reading history.
+    const { text: personalizedHeadline } = await generateText({
+      model: openai("gpt-4o-mini"),
+      prompt: `Create a personalized, engaging headline for this news article based on the user's interests.
 
 Original headline: "${originalTitle}"
 
-User profile:
-- Interests: ${userInterests?.join(", ") || "general news"}
-- Preferred categories: ${preferredCategories?.join(", ") || "general"}
-- Recent reading history: ${readingHistory?.length || 0} articles
+User interests: ${userInterests?.join(", ") || "general news"}
+Preferred categories: ${preferredCategories?.join(", ") || "general"}
+Recent reading topics: ${readingHistory?.slice(0, 3).join(", ") || "various topics"}
 
-Instructions:
-1. Keep the core information and accuracy of the original headline
-2. Adjust the tone and emphasis to match the user's interests
-3. Make it more engaging for this specific user
-4. Keep it concise (under 100 characters)
-5. Don't change facts or add false information
+Guidelines:
+- Keep it concise and engaging (under 80 characters)
+- Highlight aspects that would interest this specific user
+- Maintain factual accuracy
+- Make it more compelling than the original
+- Don't use clickbait tactics
 
-Return only the personalized headline, nothing else.
-`
-
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt,
-      maxTokens: 100,
-      temperature: 0.7,
+Return only the personalized headline, nothing else.`,
     })
 
-    const personalizedHeadline = text.trim().replace(/^["']|["']$/g, "") // Remove quotes if present
-
     return NextResponse.json({
-      personalizedHeadline: personalizedHeadline || originalTitle,
-      originalTitle,
+      personalizedHeadline: personalizedHeadline.trim(),
+      success: true,
     })
   } catch (error) {
     console.error("Error personalizing headline:", error)
-
-    // Fallback to original title
-    const { originalTitle } = await request.json()
-    return NextResponse.json({
-      personalizedHeadline: originalTitle,
-      originalTitle,
-      error: "Fallback used",
-    })
+    return NextResponse.json({ personalizedHeadline: request.body?.originalTitle || "News Update" }, { status: 200 })
   }
 }

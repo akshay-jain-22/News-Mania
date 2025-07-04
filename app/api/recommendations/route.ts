@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { recommendationEngine } from "@/lib/recommendation-engine"
-import { fetchNews } from "@/lib/news-api"
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +13,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    // Get recommendations from the engine
     const recommendations = await recommendationEngine.getRecommendations({
       userId,
       maxResults,
@@ -22,28 +20,9 @@ export async function GET(request: NextRequest) {
       excludeReadArticles: excludeRead,
     })
 
-    // If no personalized recommendations, get trending articles
-    if (recommendations.length === 0) {
-      const trendingArticles = await fetchNews({ pageSize: maxResults })
-      const fallbackRecommendations = trendingArticles.map((article, index) => ({
-        articleId: article.id,
-        score: 0.8 - index * 0.05,
-        reason: "Trending now",
-        category: "general",
-        confidence: 0.5,
-      }))
-
-      return NextResponse.json({
-        recommendations: fallbackRecommendations,
-        type: "trending",
-        message: "Showing trending articles",
-      })
-    }
-
     return NextResponse.json({
       recommendations,
-      type: "personalized",
-      message: "Personalized recommendations",
+      success: true,
     })
   } catch (error) {
     console.error("Error getting recommendations:", error)
@@ -59,7 +38,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "userId, action, and articleId are required" }, { status: 400 })
     }
 
-    // Update user profile based on interaction
     await recommendationEngine.updateUserProfile(userId, action, articleId, timeSpent)
 
     return NextResponse.json({

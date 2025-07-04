@@ -38,6 +38,7 @@ import { NewsAIChat } from "@/components/news-ai-chat"
 
 interface NewsCardProps {
   article: NewsArticle
+  onInteraction?: (action: string, articleId: string, timeSpent?: number) => void
 }
 
 // Function to get a category-specific placeholder image
@@ -108,7 +109,7 @@ function createSlug(title: string): string {
     .trim()
 }
 
-export function NewsCard({ article: initialArticle }: NewsCardProps) {
+export function NewsCard({ article: initialArticle, onInteraction }: NewsCardProps) {
   const [article, setArticle] = useState(initialArticle)
   const [isFactChecking, setIsFactChecking] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -177,6 +178,8 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
         description: `Credibility score: ${score}%. Analysis by ${result.analyzedBy || "AI"}.`,
         variant: toastVariant,
       })
+
+      onInteraction?.("fact_check", article.id)
     } catch (error) {
       console.error("🚨 Fact check error:", error)
       console.error("🚨 Error details:", {
@@ -225,6 +228,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
 
         setSaveDialogOpen(false)
         setNoteText("")
+        onInteraction?.("save", article.id)
       } else {
         throw new Error("Failed to save note")
       }
@@ -348,7 +352,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
   return (
     <>
       <Card className="overflow-hidden flex flex-col h-full">
-        <Link href={dynamicArticleUrl} className="group">
+        <Link href={dynamicArticleUrl} className="group" onClick={() => onInteraction?.("click", article.id)}>
           <div className="relative aspect-video w-full overflow-hidden">
             <Image
               src={imageUrl || "/placeholder.svg"}
@@ -393,11 +397,18 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
           <div className="flex items-center justify-between gap-2 w-full">
             <Button variant="outline" size="sm" asChild>
               {article.url && article.url !== "#" ? (
-                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => onInteraction?.("click", article.id)}
+                >
                   Read Original
                 </a>
               ) : (
-                <Link href={dynamicArticleUrl}>Read More</Link>
+                <Link href={dynamicArticleUrl} onClick={() => onInteraction?.("click", article.id)}>
+                  Read More
+                </Link>
               )}
             </Button>
             <div className="flex items-center gap-2">
@@ -409,6 +420,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                   e.preventDefault()
                   e.stopPropagation()
                   setChatDialogOpen(true)
+                  onInteraction?.("chat", article.id)
                 }}
               >
                 <MessageCircle className="h-4 w-4" />
@@ -425,6 +437,7 @@ export function NewsCard({ article: initialArticle }: NewsCardProps) {
                   if (!newsContext) {
                     handleGetContext()
                   }
+                  onInteraction?.("context", article.id)
                 }}
               >
                 <Info className="h-4 w-4" />

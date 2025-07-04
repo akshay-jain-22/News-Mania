@@ -6,61 +6,44 @@ export async function POST(request: NextRequest) {
   try {
     const { topCategories, recommendationCount, userInterests, timeOfDay } = await request.json()
 
-    const timeGreeting = timeOfDay < 12 ? "Good morning" : timeOfDay < 18 ? "Good afternoon" : "Good evening"
+    const greeting = timeOfDay < 12 ? "Good morning" : timeOfDay < 18 ? "Good afternoon" : "Good evening"
 
-    const prompt = `
-You are a friendly news assistant. Create a personalized welcome message for a user's news feed.
+    const { text: message } = await generateText({
+      model: openai("gpt-4o-mini"),
+      prompt: `Create a personalized, friendly message to introduce a news feed to a user.
 
 Context:
-- Time: ${timeGreeting}
-- User's top categories: ${topCategories?.join(", ") || "general news"}
-- Number of recommendations: ${recommendationCount || 0}
-- User interests: ${userInterests?.join(", ") || "various topics"}
+- Time: ${greeting}
+- User's top interests: ${topCategories?.join(", ") || "general news"}
+- Number of articles: ${recommendationCount}
+- Specific interests: ${userInterests?.join(", ") || "various topics"}
 
-Instructions:
-1. Create a warm, personalized greeting
-2. Reference their interests naturally
-3. Build excitement about the curated content
-4. Keep it conversational and under 50 words
-5. Don't be overly promotional
+Guidelines:
+- Be warm and personal but professional
+- Reference their interests naturally
+- Keep it under 50 words
+- Make them excited to read
+- Don't be overly enthusiastic
 
-Examples:
-- "Good morning! We've found some fascinating tech stories that align with your interests in AI and startups."
-- "Here's your afternoon briefing with the latest on climate change and renewable energy."
-
-Return only the personalized message, nothing else.
-`
-
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt,
-      maxTokens: 80,
-      temperature: 0.8,
+Return only the message, nothing else.`,
     })
 
-    const message = text.trim()
-
     return NextResponse.json({
-      message: message || `${timeGreeting}! Here are some stories tailored for you:`,
-      timeOfDay,
-      categories: topCategories,
+      message: message.trim(),
+      success: true,
     })
   } catch (error) {
     console.error("Error generating personalized message:", error)
 
-    const { timeOfDay, topCategories } = await request.json()
-    const timeGreeting = timeOfDay < 12 ? "Good morning" : timeOfDay < 18 ? "Good afternoon" : "Good evening"
-
-    const fallbackMessage =
-      topCategories?.length > 0
-        ? `${timeGreeting}! Here's the latest on ${topCategories[0]} and other topics you follow:`
-        : `${timeGreeting}! Here are today's top stories:`
+    const fallbackMessages = [
+      "Good morning! Here are today's top stories curated for you.",
+      "Good afternoon! We've found some interesting articles you might enjoy.",
+      "Good evening! Your personalized news feed is ready.",
+    ]
 
     return NextResponse.json({
-      message: fallbackMessage,
-      timeOfDay,
-      categories: topCategories,
-      error: "Fallback used",
+      message: fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)],
+      success: true,
     })
   }
 }

@@ -2,50 +2,48 @@
 
 import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { NewsCard } from "@/components/news-card"
+import { PersonalizedFeed } from "@/components/personalized-feed"
+import { RecommendationDebug } from "@/components/recommendation-debug"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, RefreshCw, AlertCircle, Sparkles, TrendingUp, Settings, BarChart3, Brain } from "lucide-react"
 import { fetchNews } from "@/lib/news-api"
 import type { NewsArticle } from "@/types/news"
 import { useToast } from "@/components/ui/use-toast"
+import NewsCard from "@/components/news-card" // Import NewsCard component
 
 export default function DashboardPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("personalized")
   const { toast } = useToast()
 
-  const loadNews = async (pageNum = 1, isRefresh = false) => {
-    try {
-      if (pageNum === 1) {
-        setLoading(true)
-        setError(null)
-      } else {
-        setLoadingMore(true)
-      }
+  // Mock user ID for demo - in production, get from auth
+  useEffect(() => {
+    // Simulate getting user ID from authentication
+    const mockUserId = "user_" + Math.random().toString(36).substr(2, 9)
+    setUserId(mockUserId)
+  }, [])
 
-      console.log(`Loading news page ${pageNum}...`)
+  const loadNews = async (isRefresh = false) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      console.log("Loading news for dashboard...")
       const newArticles = await fetchNews({
         pageSize: 20,
-        page: pageNum,
+        page: 1,
         forceRefresh: isRefresh,
       })
 
       console.log(`Loaded ${newArticles.length} articles`)
-
-      if (pageNum === 1) {
-        setArticles(newArticles)
-      } else {
-        setArticles((prev) => [...prev, ...newArticles])
-      }
-
-      // Check if we have more articles
-      setHasMore(newArticles.length === 20)
-      setPage(pageNum)
+      setArticles(newArticles)
 
       if (isRefresh) {
         toast({
@@ -64,18 +62,11 @@ export default function DashboardPage() {
       })
     } finally {
       setLoading(false)
-      setLoadingMore(false)
-    }
-  }
-
-  const handleLoadMore = async () => {
-    if (!loadingMore && hasMore) {
-      await loadNews(page + 1)
     }
   }
 
   const handleRefresh = async () => {
-    await loadNews(1, true)
+    await loadNews(true)
   }
 
   useEffect(() => {
@@ -92,13 +83,21 @@ export default function DashboardPage() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">Live News Feed</h1>
-                <p className="text-muted-foreground">Real-time news from around the world</p>
+                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                  <Sparkles className="h-8 w-8 text-purple-600" />
+                  Personalized News Dashboard
+                </h1>
+                <p className="text-muted-foreground">AI-powered news recommendations tailored just for you</p>
               </div>
-              <Button onClick={handleRefresh} disabled={loading} variant="outline">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleRefresh} disabled={loading} variant="outline">
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Refresh
+                </Button>
+                <Button variant="outline" size="icon">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Error State */}
@@ -109,50 +108,153 @@ export default function DashboardPage() {
               </Alert>
             )}
 
-            {/* Loading State */}
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                  <p className="text-muted-foreground">Loading latest news...</p>
-                </div>
-              </div>
-            )}
-
-            {/* Masonry Grid */}
-            {!loading && articles.length > 0 && (
-              <div className="masonry-grid">
-                {articles.map((article) => (
-                  <div key={article.id} className="masonry-item">
-                    <NewsCard article={article} />
+            {/* Personalization Status */}
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-full">
+                      <Brain className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-blue-900">AI Personalization Active</h3>
+                      <p className="text-sm text-blue-700">Learning from your reading patterns</p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="bg-green-100 text-green-700">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-1" />
+                      Online
+                    </Badge>
+                    {userId && (
+                      <Badge variant="outline" className="text-xs">
+                        ID: {userId.slice(-6)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            {/* No Articles State */}
-            {!loading && articles.length === 0 && !error && (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">No news articles available</p>
-                <Button onClick={() => loadNews(1, true)}>Try Again</Button>
-              </div>
-            )}
+            {/* Tabs for different views */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="personalized" className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Personalized
+                </TabsTrigger>
+                <TabsTrigger value="trending" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Trending
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Analytics
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Load More Button */}
-            {!loading && articles.length > 0 && hasMore && (
-              <div className="flex justify-center py-6">
-                <Button onClick={handleLoadMore} disabled={loadingMore} variant="outline">
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading more...
-                    </>
-                  ) : (
-                    "Load More Articles"
-                  )}
-                </Button>
-              </div>
-            )}
+              <TabsContent value="personalized" className="space-y-6">
+                <PersonalizedFeed userId={userId} articles={articles} />
+                {process.env.NODE_ENV === "development" && userId && (
+                  <RecommendationDebug personalizedFeed={null} userId={userId} />
+                )}
+              </TabsContent>
+
+              <TabsContent value="trending" className="space-y-6">
+                {/* Loading State */}
+                {loading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                      <p className="text-muted-foreground">Loading trending news...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Trending News Grid */}
+                {!loading && articles.length > 0 && (
+                  <div className="masonry-grid">
+                    {articles.map((article) => (
+                      <div key={article.id} className="masonry-item">
+                        <NewsCard article={article} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* No Articles State */}
+                {!loading && articles.length === 0 && !error && (
+                  <div className="text-center py-12">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-muted-foreground mb-4">No trending articles available</p>
+                    <Button onClick={() => loadNews(true)}>Try Again</Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="analytics" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Reading Time Today</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">12m 34s</div>
+                      <p className="text-xs text-muted-foreground">+2m from yesterday</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Articles Read</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">8</div>
+                      <p className="text-xs text-muted-foreground">+3 from yesterday</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Personalization Score</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">87%</div>
+                      <p className="text-xs text-muted-foreground">Excellent match</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Interest Categories</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {[
+                        { category: "Technology", percentage: 35, color: "bg-blue-500" },
+                        { category: "Business", percentage: 28, color: "bg-green-500" },
+                        { category: "Science", percentage: 20, color: "bg-purple-500" },
+                        { category: "Politics", percentage: 17, color: "bg-red-500" },
+                      ].map((item) => (
+                        <div key={item.category} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span>{item.category}</span>
+                            <span>{item.percentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${item.color}`}
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </main>

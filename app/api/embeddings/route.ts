@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { generateText } from "ai"
+import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 })
     }
 
-    // Use OpenAI Embeddings API
+    // Generate embedding using OpenAI
     const response = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
@@ -16,165 +18,68 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        input: text,
-        model: "text-embedding-3-small", // or text-embedding-3-large for better quality
+        input: text.slice(0, 8000), // Limit text length
+        model: "text-embedding-3-small",
       }),
     })
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`)
+      throw new Error("Failed to generate embedding")
     }
 
     const data = await response.json()
     const embedding = data.data[0].embedding
 
-    // Extract keywords using simple NLP
-    const keywords = extractKeywords(text)
+    // Extract keywords using AI
+    let keywords: string[] = []
+    let sentiment = 0
 
-    // Analyze sentiment (simple approach)
-    const sentiment = analyzeSentiment(text)
+    try {
+      const { text: keywordText } = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt: `Extract 5-10 key topics/keywords from this text and rate sentiment from -1 (negative) to 1 (positive):
+
+Text: ${text.slice(0, 1000)}
+
+Format: 
+Keywords: word1, word2, word3
+Sentiment: 0.2`,
+      })
+
+      const lines = keywordText.split("\n")
+      const keywordLine = lines.find((line) => line.startsWith("Keywords:"))
+      const sentimentLine = lines.find((line) => line.startsWith("Sentiment:"))
+
+      if (keywordLine) {
+        keywords = keywordLine
+          .replace("Keywords:", "")
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean)
+      }
+
+      if (sentimentLine) {
+        sentiment = Number.parseFloat(sentimentLine.replace("Sentiment:", "").trim()) || 0
+      }
+    } catch (error) {
+      console.error("Error extracting keywords/sentiment:", error)
+      // Fallback keyword extraction
+      keywords = text
+        .toLowerCase()
+        .replace(/[^\w\s]/g, "")
+        .split(/\s+/)
+        .filter((word: string) => word.length > 3)
+        .slice(0, 10)
+    }
 
     return NextResponse.json({
       embedding,
       keywords,
       sentiment,
-      dimensions: embedding.length,
-      type,
+      success: true,
     })
   } catch (error) {
     console.error("Error generating embedding:", error)
-
-    // Fallback to random embedding for development
-    const fallbackEmbedding = Array.from({ length: 1536 }, () => Math.random() - 0.5)
-    const text = "default text" // Declare text variable here
-
-    return NextResponse.json({
-      embedding: fallbackEmbedding,
-      keywords: extractKeywords(text),
-      sentiment: 0,
-      dimensions: fallbackEmbedding.length,
-      type: "fallback",
-    })
+    return NextResponse.json({ error: "Failed to generate embedding" }, { status: 500 })
   }
-}
-
-function extractKeywords(text: string): string[] {
-  // Simple keyword extraction
-  const words = text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .split(/\s+/)
-    .filter((word) => word.length > 3)
-    .filter(
-      (word) =>
-        ![
-          "this",
-          "that",
-          "with",
-          "have",
-          "will",
-          "from",
-          "they",
-          "been",
-          "said",
-          "each",
-          "which",
-          "their",
-          "time",
-          "more",
-          "very",
-          "what",
-          "know",
-          "just",
-          "first",
-          "into",
-          "over",
-          "think",
-          "also",
-          "your",
-          "work",
-          "life",
-          "only",
-          "can",
-          "still",
-          "should",
-          "after",
-          "being",
-          "now",
-          "made",
-          "before",
-          "here",
-          "through",
-          "when",
-          "where",
-          "how",
-          "all",
-          "any",
-          "may",
-          "say",
-          "get",
-          "has",
-          "him",
-          "his",
-          "had",
-          "let",
-        ].includes(word),
-    )
-
-  const wordCount = new Map<string, number>()
-  words.forEach((word) => {
-    wordCount.set(word, (wordCount.get(word) || 0) + 1)
-  })
-
-  return Array.from(wordCount.entries())
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
-    .map(([word]) => word)
-}
-
-function analyzeSentiment(text: string): number {
-  // Simple sentiment analysis
-  const positiveWords = [
-    "good",
-    "great",
-    "excellent",
-    "amazing",
-    "wonderful",
-    "fantastic",
-    "positive",
-    "success",
-    "win",
-    "best",
-    "love",
-    "like",
-    "happy",
-    "pleased",
-    "excited",
-  ]
-  const negativeWords = [
-    "bad",
-    "terrible",
-    "awful",
-    "horrible",
-    "negative",
-    "fail",
-    "worst",
-    "hate",
-    "dislike",
-    "sad",
-    "angry",
-    "disappointed",
-    "concerned",
-    "worried",
-  ]
-
-  const words = text.toLowerCase().split(/\s+/)
-  let score = 0
-
-  words.forEach((word) => {
-    if (positiveWords.includes(word)) score += 1
-    if (negativeWords.includes(word)) score -= 1
-  })
-
-  return Math.max(-1, Math.min(1, (score / words.length) * 10))
 }
