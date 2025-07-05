@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { NewsCard } from "@/components/news-card"
 import { useRecommendations } from "@/hooks/use-recommendations"
-import { Loader2, Sparkles, TrendingUp, User, RefreshCw, Settings, Heart, Eye, Clock } from "lucide-react"
+import { Loader2, Sparkles, TrendingUp, User, RefreshCw, Heart, Eye, Clock } from "lucide-react"
 import type { NewsArticle } from "@/types/news"
 
 interface PersonalizedFeedProps {
@@ -16,28 +16,17 @@ interface PersonalizedFeedProps {
 
 export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProps) {
   const { personalizedFeed, loading, error, fetchPersonalizedFeed, trackInteraction } = useRecommendations(userId)
-  const [feedArticles, setFeedArticles] = useState<NewsArticle[]>(articles)
+  const [feedArticles, setFeedArticles] = useState<NewsArticle[]>([])
   const [readingTime, setReadingTime] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    if (personalizedFeed?.articles) {
-      // Convert recommendation results to NewsArticle format
-      const convertedArticles: NewsArticle[] = personalizedFeed.articles.map((item: any) => ({
-        id: item.id || item.articleId,
-        title: item.personalizedHeadline || item.title,
-        description: item.description || `Recommended: ${item.reason}`,
-        content: item.content || item.description || "",
-        url: item.url || "#",
-        urlToImage: item.urlToImage || null,
-        publishedAt: item.publishedAt || new Date().toISOString(),
-        source: { id: null, name: item.source || "Recommended" },
-        author: item.author || "AI Curator",
-        credibilityScore: Math.round((item.score || 0.5) * 100),
-        isFactChecked: false,
-      }))
-      setFeedArticles(convertedArticles)
+    if (personalizedFeed?.articles && personalizedFeed.articles.length > 0) {
+      setFeedArticles(personalizedFeed.articles)
+    } else if (articles.length > 0) {
+      // Fallback to provided articles
+      setFeedArticles(articles.slice(0, 10))
     }
-  }, [personalizedFeed])
+  }, [personalizedFeed, articles])
 
   const handleArticleInteraction = (action: string, articleId: string, timeSpent?: number) => {
     trackInteraction(action, articleId, timeSpent)
@@ -84,7 +73,7 @@ export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProp
     )
   }
 
-  if (loading && !personalizedFeed) {
+  if (loading && feedArticles.length === 0) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
@@ -96,7 +85,7 @@ export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProp
     )
   }
 
-  if (error) {
+  if (error && feedArticles.length === 0) {
     return (
       <Card className="border-red-200 bg-red-50">
         <CardContent className="p-6 text-center">
@@ -123,13 +112,10 @@ export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProp
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                  {personalizedFeed.feedType === "personalized" ? "AI Curated" : "Trending"}
+                  AI Curated
                 </Badge>
                 <Button onClick={handleRefresh} variant="ghost" size="sm" disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Settings className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -139,24 +125,26 @@ export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProp
             <div className="flex flex-wrap items-center gap-4 text-sm text-purple-600">
               <div className="flex items-center gap-1">
                 <Eye className="h-4 w-4" />
-                <span>{personalizedFeed.recommendations.length} articles curated</span>
+                <span>{feedArticles.length} articles curated</span>
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
                 <span>Updated {new Date(personalizedFeed.lastUpdated).toLocaleTimeString()}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <TrendingUp className="h-4 w-4" />
-                <span>
-                  Relevance:{" "}
-                  {Math.round(
-                    (personalizedFeed.recommendations.reduce((acc, rec) => acc + rec.score, 0) /
-                      personalizedFeed.recommendations.length) *
-                      100,
-                  )}
-                  %
-                </span>
-              </div>
+              {personalizedFeed.recommendations && personalizedFeed.recommendations.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="h-4 w-4" />
+                  <span>
+                    Avg. Relevance:{" "}
+                    {Math.round(
+                      (personalizedFeed.recommendations.reduce((acc, rec) => acc + rec.score, 0) /
+                        personalizedFeed.recommendations.length) *
+                        100,
+                    )}
+                    %
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -206,47 +194,12 @@ export function PersonalizedFeed({ userId, articles = [] }: PersonalizedFeedProp
         </Card>
       )}
 
-      {/* Reading Statistics */}
-      {Object.keys(readingTime).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Your Reading Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {Object.values(readingTime).reduce((acc, time) => acc + time, 0)}s
-                </div>
-                <div className="text-sm text-blue-600">Total Reading Time</div>
-              </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{Object.keys(readingTime).length}</div>
-                <div className="text-sm text-green-600">Articles Read</div>
-              </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {Math.round(
-                    Object.values(readingTime).reduce((acc, time) => acc + time, 0) / Object.keys(readingTime).length,
-                  ) || 0}
-                  s
-                </div>
-                <div className="text-sm text-purple-600">Avg. Reading Time</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* News Articles Grid */}
       <div className="masonry-grid">
         {feedArticles.map((article, index) => (
           <div key={article.id} className="masonry-item relative">
             <NewsCard article={article} onInteraction={handleArticleInteraction} />
-            {personalizedFeed?.recommendations.find((r) => r.articleId === article.id) && (
+            {personalizedFeed?.recommendations?.find((r) => r.articleId === article.id) && (
               <div className="absolute -top-2 -right-2 z-10">
                 <Badge className="bg-purple-600 text-white shadow-lg" variant="default">
                   <Sparkles className="h-3 w-3 mr-1" />

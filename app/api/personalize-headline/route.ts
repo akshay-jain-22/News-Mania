@@ -10,32 +10,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Original title is required" }, { status: 400 })
     }
 
-    const { text: personalizedHeadline } = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt: `Create a personalized, engaging headline for this news article based on the user's interests.
+    try {
+      const { text: personalizedHeadline } = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt: `
+          Rewrite this news headline to be more engaging for a user with these interests:
+          
+          Original headline: "${originalTitle}"
+          User interests: ${userInterests?.join(", ") || "general news"}
+          Preferred categories: ${preferredCategories?.join(", ") || "general"}
+          
+          Make it more personalized and engaging while keeping the core information. Keep it under 100 characters.
+          Only return the new headline, nothing else.
+        `,
+        maxTokens: 50,
+      })
 
-Original headline: "${originalTitle}"
-
-User interests: ${userInterests?.join(", ") || "general news"}
-Preferred categories: ${preferredCategories?.join(", ") || "general"}
-Recent reading topics: ${readingHistory?.slice(0, 3).join(", ") || "various topics"}
-
-Guidelines:
-- Keep it concise and engaging (under 80 characters)
-- Highlight aspects that would interest this specific user
-- Maintain factual accuracy
-- Make it more compelling than the original
-- Don't use clickbait tactics
-
-Return only the personalized headline, nothing else.`,
-    })
-
-    return NextResponse.json({
-      personalizedHeadline: personalizedHeadline.trim(),
-      success: true,
-    })
+      return NextResponse.json({
+        personalizedHeadline: personalizedHeadline || originalTitle,
+      })
+    } catch (aiError) {
+      console.error("AI headline generation failed:", aiError)
+      // Fallback to simple personalization
+      const personalizedHeadline = `${originalTitle} - Trending in ${preferredCategories?.[0] || "News"}`
+      return NextResponse.json({ personalizedHeadline })
+    }
   } catch (error) {
     console.error("Error personalizing headline:", error)
-    return NextResponse.json({ personalizedHeadline: request.body?.originalTitle || "News Update" }, { status: 200 })
+    return NextResponse.json({ error: "Failed to personalize headline" }, { status: 500 })
   }
 }

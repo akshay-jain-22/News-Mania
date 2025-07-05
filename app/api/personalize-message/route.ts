@@ -8,42 +8,38 @@ export async function POST(request: NextRequest) {
 
     const greeting = timeOfDay < 12 ? "Good morning" : timeOfDay < 18 ? "Good afternoon" : "Good evening"
 
-    const { text: message } = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt: `Create a personalized, friendly message to introduce a news feed to a user.
+    try {
+      const { text: message } = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt: `
+          Create a personalized greeting message for a news reader with these preferences:
+          
+          Time: ${greeting}
+          Top categories: ${topCategories?.join(", ") || "general news"}
+          Number of recommendations: ${recommendationCount}
+          User interests: ${userInterests?.join(", ") || "various topics"}
+          
+          Create a warm, engaging message that mentions their interests. Keep it under 150 characters.
+          Only return the message, nothing else.
+        `,
+        maxTokens: 50,
+      })
 
-Context:
-- Time: ${greeting}
-- User's top interests: ${topCategories?.join(", ") || "general news"}
-- Number of articles: ${recommendationCount}
-- Specific interests: ${userInterests?.join(", ") || "various topics"}
+      return NextResponse.json({
+        message: message || `${greeting}! Here are ${recommendationCount} articles tailored for you.`,
+      })
+    } catch (aiError) {
+      console.error("AI message generation failed:", aiError)
+      // Fallback message
+      const fallbackMessage =
+        topCategories?.length > 0
+          ? `${greeting}! Here's the latest on ${topCategories[0]} and other topics you follow:`
+          : `${greeting}! Here are today's top stories curated for you:`
 
-Guidelines:
-- Be warm and personal but professional
-- Reference their interests naturally
-- Keep it under 50 words
-- Make them excited to read
-- Don't be overly enthusiastic
-
-Return only the message, nothing else.`,
-    })
-
-    return NextResponse.json({
-      message: message.trim(),
-      success: true,
-    })
+      return NextResponse.json({ message: fallbackMessage })
+    }
   } catch (error) {
-    console.error("Error generating personalized message:", error)
-
-    const fallbackMessages = [
-      "Good morning! Here are today's top stories curated for you.",
-      "Good afternoon! We've found some interesting articles you might enjoy.",
-      "Good evening! Your personalized news feed is ready.",
-    ]
-
-    return NextResponse.json({
-      message: fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)],
-      success: true,
-    })
+    console.error("Error personalizing message:", error)
+    return NextResponse.json({ error: "Failed to personalize message" }, { status: 500 })
   }
 }

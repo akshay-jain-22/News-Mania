@@ -2,7 +2,7 @@ export interface UserProfile {
   userId: string
   preferredCategories: string[]
   readArticles: string[]
-  clickHistory: ClickHistory[]
+  clickHistory: ClickEvent[]
   searchHistory: string[]
   timeSpentOnCategories: Record<string, number>
   lastActiveDate: string
@@ -10,10 +10,10 @@ export interface UserProfile {
   dislikedTopics: string[]
 }
 
-export interface ClickHistory {
+export interface ClickEvent {
   articleId: string
   timestamp: string
-  action: "click" | "read" | "share" | "save" | "skip" | "like" | "dislike"
+  action: "click" | "read" | "share" | "save" | "fact-check"
   timeSpent?: number
   category: string
 }
@@ -47,31 +47,15 @@ export interface RecommendationResult {
 export interface RecommendationRequest {
   userId: string
   maxResults?: number
-  categories?: string[]
   excludeReadArticles?: boolean
+  categories?: string[]
 }
 
 export interface PersonalizedFeed {
   userId: string
-  recommendations: (RecommendationResult & { personalizedHeadline?: string })[]
+  recommendations: RecommendationResult[]
   personalizedMessage: string
   lastUpdated: string
-  feedType: "personalized" | "trending" | "category"
+  feedType: "personalized" | "trending"
   articles?: any[]
-}
-
-export interface PersonalizationSettings {
-  userId: string
-  autoPersonalize: boolean
-  preferredLanguage: string
-  contentFilters: string[]
-  notificationPreferences: {
-    breaking: boolean
-    daily: boolean
-    weekly: boolean
-  }
-  privacySettings: {
-    trackReading: boolean
-    shareData: boolean
-  }
 }
