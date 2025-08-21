@@ -34,7 +34,6 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
   const [personalizedArticles, setPersonalizedArticles] = useState<NewsArticle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isUsingDemo, setIsUsingDemo] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   // Mock user preferences for personalization
@@ -49,19 +48,11 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
       try {
         setLoading(true)
         setError(null)
-        setIsUsingDemo(false)
 
         // If articles are provided, use them for personalization
         if (providedArticles && providedArticles.length > 0) {
           const personalized = personalizeArticles(providedArticles)
           setPersonalizedArticles(personalized)
-
-          // Check if using demo data
-          const hasDemoData = personalized.some((article) => article.id.includes("demo"))
-          if (hasDemoData) {
-            setIsUsingDemo(true)
-            setError("Personalized feed is using demo content due to NewsAPI limitations.")
-          }
         } else {
           // Fetch fresh articles for personalization
           console.log("Loading personalized feed...")
@@ -73,13 +64,6 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
           ])
 
           const allArticles = [...techNews, ...businessNews, ...scienceNews]
-          const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
-
-          if (hasDemoData) {
-            setIsUsingDemo(true)
-            setError("Personalized feed is using demo content due to NewsAPI limitations.")
-          }
-
           const personalized = personalizeArticles(allArticles)
           setPersonalizedArticles(personalized)
         }
@@ -88,7 +72,6 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
       } catch (error) {
         console.error("Failed to load personalized feed:", error)
         setError("Unable to load personalized feed. Please try again later.")
-        setIsUsingDemo(true)
       } finally {
         setLoading(false)
       }
@@ -162,16 +145,6 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
       ])
 
       const allArticles = [...techNews, ...businessNews, ...scienceNews]
-      const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
-
-      if (hasDemoData) {
-        setIsUsingDemo(true)
-        setError("Refreshed personalized feed is using demo content.")
-      } else {
-        setIsUsingDemo(false)
-        setError(null)
-      }
-
       const personalized = personalizeArticles(allArticles)
       setPersonalizedArticles(personalized)
 
@@ -225,18 +198,11 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
 
   return (
     <div className="space-y-6">
-      {/* Status Alert */}
+      {/* Status Alert - Only show if there's an actual error */}
       {error && (
-        <Alert className="bg-yellow-900/20 border-yellow-600">
+        <Alert className="bg-red-900/20 border-red-600">
           <Info className="h-4 w-4" />
-          <AlertDescription className="text-yellow-200">
-            {error}
-            {isUsingDemo && (
-              <div className="mt-2 text-sm">
-                <strong>Note:</strong> Demo content is personalized based on sample preferences.
-              </div>
-            )}
-          </AlertDescription>
+          <AlertDescription className="text-red-200">{error}</AlertDescription>
         </Alert>
       )}
 
@@ -251,13 +217,9 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
               <div>
                 <h2 className="text-xl font-bold text-purple-900 flex items-center gap-2">
                   <Sparkles className="h-5 w-5" />
-                  {isUsingDemo ? "Demo Personalized Feed" : "Your Personalized Feed"}
+                  Your Personalized Feed
                 </h2>
-                <p className="text-sm text-purple-700">
-                  {isUsingDemo
-                    ? "Sample articles tailored to demo preferences"
-                    : "AI-curated articles based on your reading preferences"}
-                </p>
+                <p className="text-sm text-purple-700">AI-curated articles based on your reading preferences</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -275,7 +237,7 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            {isUsingDemo ? "Demo Preferences" : "Your Preferences"}
+            Your Preferences
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -395,9 +357,7 @@ export function PersonalizedFeed({ userId, articles: providedArticles }: Persona
             <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Personalized Articles Available</h3>
             <p className="text-muted-foreground mb-4">
-              {isUsingDemo
-                ? "Demo personalization is not available at the moment."
-                : "Unable to load personalized articles. Please check your connection and try again."}
+              Unable to load personalized articles. Please check your connection and try again.
             </p>
             <Button onClick={refreshFeed} disabled={refreshing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />

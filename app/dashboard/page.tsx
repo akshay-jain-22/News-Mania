@@ -26,7 +26,6 @@ import {
   RefreshCw,
   AlertCircle,
   Loader2,
-  Info,
   BarChart3,
   Eye,
   Heart,
@@ -40,7 +39,6 @@ export default function Dashboard() {
   const [trendingNews, setTrendingNews] = useState<NewsArticle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isUsingDemo, setIsUsingDemo] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState("trending")
 
@@ -58,7 +56,6 @@ export default function Dashboard() {
       try {
         setLoading(true)
         setError(null)
-        setIsUsingDemo(false)
         console.log("Loading dashboard data...")
 
         // Fetch trending news from multiple categories
@@ -69,17 +66,8 @@ export default function Dashboard() {
           fetchNews({ category: "health", pageSize: 6, country: "us" }),
         ])
 
-        // Check if we got demo data
-        const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews]
-        const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
-
-        if (hasDemoData) {
-          setIsUsingDemo(true)
-          setError("NewsAPI is currently unavailable. Dashboard is showing demo content.")
-          console.log("Using demo data for dashboard")
-        }
-
         // Mix and sort articles by recency
+        const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews]
         const mixedArticles = allArticles
           .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
           .slice(0, 20)
@@ -94,7 +82,6 @@ export default function Dashboard() {
       } catch (error) {
         console.error("Failed to load dashboard data:", error)
         setError("Unable to load dashboard data. Please check your connection and try again.")
-        setIsUsingDemo(true)
       } finally {
         setLoading(false)
       }
@@ -118,15 +105,6 @@ export default function Dashboard() {
       ])
 
       const allArticles = [...generalNews, ...businessNews, ...techNews]
-      const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
-
-      if (hasDemoData) {
-        setIsUsingDemo(true)
-        setError("NewsAPI is currently unavailable. Showing refreshed demo content.")
-      } else {
-        setIsUsingDemo(false)
-      }
-
       const mixedArticles = allArticles
         .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
         .slice(0, 20)
@@ -228,39 +206,18 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {/* Status Alerts */}
+        {/* Status Alerts - Only show if there's an actual error */}
         {error && (
-          <Alert className="mb-6 bg-yellow-900/20 border-yellow-600">
+          <Alert className="mb-6 bg-red-900/20 border-red-600">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-yellow-200">
-              {error}
-              {isUsingDemo && (
-                <div className="mt-2 text-sm">
-                  <strong>Note:</strong> Demo content is being used to showcase dashboard functionality.
-                </div>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isUsingDemo && !error && (
-          <Alert className="mb-6 bg-blue-900/20 border-blue-600">
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-blue-200">
-              <strong>Demo Mode:</strong> Dashboard is showing sample content due to NewsAPI limitations.
-              <div className="mt-1 text-sm opacity-80">Articles marked with [DEMO] are placeholder content.</div>
-            </AlertDescription>
+            <AlertDescription className="text-red-200">{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Dashboard Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">{isUsingDemo ? "Demo Dashboard" : "Your News Dashboard"}</h1>
-          <p className="text-gray-400">
-            {isUsingDemo
-              ? "Sample personalized news experience"
-              : "Personalized news feed based on your reading preferences"}
-          </p>
+          <h1 className="text-3xl font-bold mb-2">Your News Dashboard</h1>
+          <p className="text-gray-400">Personalized news feed based on your reading preferences</p>
         </div>
 
         {/* Analytics Cards */}
@@ -319,11 +276,11 @@ export default function Dashboard() {
           <TabsList className="grid w-full grid-cols-3 bg-[#1a1a1a] border-gray-800">
             <TabsTrigger value="trending" className="data-[state=active]:bg-primary">
               <TrendingUp className="h-4 w-4 mr-2" />
-              {isUsingDemo ? "Demo Trending" : "Trending"}
+              Trending
             </TabsTrigger>
             <TabsTrigger value="personalized" className="data-[state=active]:bg-primary">
               <User className="h-4 w-4 mr-2" />
-              {isUsingDemo ? "Demo Personal" : "For You"}
+              For You
             </TabsTrigger>
             <TabsTrigger value="analytics" className="data-[state=active]:bg-primary">
               <BarChart3 className="h-4 w-4 mr-2" />
@@ -334,7 +291,7 @@ export default function Dashboard() {
           {/* Trending Tab */}
           <TabsContent value="trending" className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">{isUsingDemo ? "Demo Trending News" : "Trending News"}</h2>
+              <h2 className="text-2xl font-bold">Trending News</h2>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="border-gray-700 bg-transparent">
                   <Filter className="h-4 w-4 mr-2" />
@@ -427,9 +384,7 @@ export default function Dashboard() {
                   <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No Trending News Available</h3>
                   <p className="text-gray-400 mb-4">
-                    {isUsingDemo
-                      ? "Demo content is not available at the moment."
-                      : "Unable to load trending news. Please check your connection and try again."}
+                    Unable to load trending news. Please check your connection and try again.
                   </p>
                   <Button onClick={refreshDashboard} disabled={refreshing}>
                     <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
