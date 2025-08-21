@@ -13,33 +13,62 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch fresh articles from multiple categories
-    const [techNews, businessNews, scienceNews, generalNews] = await Promise.all([
-      fetchNews({ category: "technology", pageSize: 15 }),
-      fetchNews({ category: "business", pageSize: 15 }),
-      fetchNews({ category: "science", pageSize: 10 }),
-      fetchNews({ category: "general", pageSize: 20 }),
+    const [generalNews, businessNews, techNews, healthNews, sportsNews] = await Promise.all([
+      fetchNews({ category: "general", pageSize: 10, country: "us" }),
+      fetchNews({ category: "business", pageSize: 8, country: "us" }),
+      fetchNews({ category: "technology", pageSize: 8, country: "us" }),
+      fetchNews({ category: "health", pageSize: 6, country: "us" }),
+      fetchNews({ category: "sports", pageSize: 6, country: "us" }),
     ])
 
-    const allArticles = [...techNews, ...businessNews, ...scienceNews, ...generalNews]
+    const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews, ...sportsNews]
 
-    // Generate ML-powered recommendations
-    const recommendations = await mlPersonalizationEngine.generateRecommendations(userId, allArticles, maxResults)
+    // Generate ML recommendations
+    const recommendationScores = mlPersonalizationEngine.generateRecommendations(userId, allArticles, maxResults)
 
-    // Generate personalized headlines for top recommendations
+    // Get the actual articles with their scores
+    const recommendations = recommendationScores
+      .map((score) => {
+        const article = allArticles.find((a) => a.id === score.articleId)
+        return {
+          ...article,
+          recommendationScore: score.score,
+          recommendationReasons: score.reasons,
+        }
+      })
+      .filter(Boolean)
+
+    // Enhance headlines with personalization (optional)
     const enhancedRecommendations = await Promise.all(
-      recommendations.slice(0, 5).map(async (article) => ({
-        ...article,
-        personalizedHeadline: await mlPersonalizationEngine.generatePersonalizedHeadline(userId, article),
-      })),
+      recommendations.map(async (article) => {
+        try {
+          // Try to personalize headline using AI
+          const response = await fetch(`${request.nextUrl.origin}/api/personalize-headline`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              originalHeadline: article.title,
+              userInterests: ["technology", "business"], // This would come from user profile
+            }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            return {
+              ...article,
+              personalizedHeadline: data.personalizedHeadline,
+            }
+          }
+        } catch (error) {
+          console.error("Error personalizing headline:", error)
+        }
+        return article
+      }),
     )
 
-    // Add regular recommendations without personalized headlines
-    const finalRecommendations = [...enhancedRecommendations, ...recommendations.slice(5)]
-
     return NextResponse.json({
-      recommendations: finalRecommendations,
-      totalCount: finalRecommendations.length,
-      userId,
+      recommendations: enhancedRecommendations,
+      totalCount: enhancedRecommendations.length,
     })
   } catch (error) {
     console.error("Error generating ML recommendations:", error)

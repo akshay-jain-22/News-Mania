@@ -1,54 +1,42 @@
-export interface UserProfile {
-  userId: string
-  categoryPreferences: Map<string, number>
-  keywordPreferences: Map<string, number>
-  readingPatterns: ReadingPatterns
-  totalInteractions: number
-  lastActiveDate: string
-  createdAt: string
-}
-
-export interface ReadingPatterns {
-  timeOfDay: Map<number, number> // hour -> count
-  averageReadTime: number
-  preferredLength: "short" | "medium" | "long"
-}
-
 export interface UserInteraction {
   userId: string
   articleId: string
-  interactionType: "view" | "click" | "read" | "share" | "save" | "like" | "comment"
-  timestamp: string
-  timeSpent: number // seconds
-  scrollDepth: number // 0-1
-  sessionId: string
+  interactionType: "view" | "click" | "save" | "share" | "like" | "comment"
+  timestamp: Date
+  timeSpent: number
+  scrollDepth: number
+  category?: string
+  keywords?: string[]
 }
 
-export interface PersonalizationModel {
+export interface UserProfile {
   userId: string
-  modelVersion: string
-  categoryWeights: Record<string, number>
-  keywordEmbeddings: Record<string, number[]>
-  lastTrainingDate: string
-  accuracy: number
+  preferences: {
+    categories: Record<string, number>
+    keywords: Record<string, number>
+    sources: Record<string, number>
+    timeOfDay: Record<string, number>
+  }
+  interactions: UserInteraction[]
+  lastUpdated: Date
 }
 
-export interface RecommendationResult {
+export interface RecommendationScore {
   articleId: string
   score: number
-  reason: string
-  confidence: number
-  personalizedHeadline?: string
+  reasons: string[]
 }
 
 export interface UserInsights {
   totalInteractions: number
+  recentInteractions: number
+  engagementScore: number
   topCategories: [string, number][]
-  topKeywords: [string, number][]
   readingPatterns: {
     averageReadTime: number
     peakHours: number[]
     consistency: number
+    preferredTimeSlot: string
   }
-  engagementScore: number
+  lastActive: Date
 }

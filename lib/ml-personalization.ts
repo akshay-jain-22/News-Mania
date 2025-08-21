@@ -1,506 +1,547 @@
-import type { NewsArticle } from "@/types/news"
-import type { UserProfile, UserInteraction } from "@/types/personalization"
+interface UserInteraction {
+  userId: string
+  articleId: string
+  interactionType: "view" | "click" | "save" | "share" | "like" | "comment"
+  timestamp: Date
+  timeSpent: number
+  scrollDepth: number
+  category?: string
+  keywords?: string[]
+}
 
-export class MLPersonalizationEngine {
+interface UserProfile {
+  userId: string
+  preferences: {
+    categories: Record<string, number>
+    keywords: Record<string, number>
+    sources: Record<string, number>
+    timeOfDay: Record<string, number>
+  }
+  interactions: UserInteraction[]
+  lastUpdated: Date
+}
+
+interface RecommendationScore {
+  articleId: string
+  score: number
+  reasons: string[]
+}
+
+class MLPersonalizationEngine {
   private userProfiles: Map<string, UserProfile> = new Map()
-  private interactionHistory: Map<string, UserInteraction[]> = new Map()
-  private categoryWeights: Map<string, number> = new Map()
-  private keywordEmbeddings: Map<string, number[]> = new Map()
 
-  constructor() {
-    this.initializeEngine()
+  // Track user interaction
+  trackInteraction(interaction: UserInteraction) {
+    const profile = this.getUserProfile(interaction.userId)
+    profile.interactions.push(interaction)
+
+    // Update preferences based on interaction
+    this.updatePreferences(profile, interaction)
+    profile.lastUpdated = new Date()
+
+    this.userProfiles.set(interaction.userId, profile)
   }
 
-  private async initializeEngine() {
-    console.log("🤖 Initializing ML Personalization Engine...")
-
-    // Initialize category weights
-    this.categoryWeights.set("technology", 1.0)
-    this.categoryWeights.set("business", 0.8)
-    this.categoryWeights.set("science", 0.9)
-    this.categoryWeights.set("health", 0.7)
-    this.categoryWeights.set("sports", 0.6)
-    this.categoryWeights.set("entertainment", 0.5)
-    this.categoryWeights.set("general", 0.4)
-
-    // Load existing user data
-    await this.loadUserData()
-  }
-
-  /**
-   * Track user interaction with an article
-   */
-  async trackInteraction(
-    userId: string,
-    articleId: string,
-    interactionType: string,
-    timeSpent?: number,
-    scrollDepth?: number,
-  ) {
-    try {
-      const interaction: UserInteraction = {
+  // Get or create user profile
+  private getUserProfile(userId: string): UserProfile {
+    if (!this.userProfiles.has(userId)) {
+      this.userProfiles.set(userId, {
         userId,
-        articleId,
-        interactionType: interactionType as any,
-        timestamp: new Date().toISOString(),
-        timeSpent: timeSpent || 0,
-        scrollDepth: scrollDepth || 0,
-        sessionId: this.generateSessionId(),
-      }
-
-      // Store interaction
-      const userInteractions = this.interactionHistory.get(userId) || []
-      userInteractions.push(interaction)
-      this.interactionHistory.set(userId, userInteractions)
-
-      // Update user profile
-      await this.updateUserProfile(userId, interaction)
-
-      console.log(`📊 Tracked ${interactionType} interaction for user ${userId}`)
-    } catch (error) {
-      console.error("Error tracking interaction:", error)
-    }
-  }
-
-  /**
-   * Update user profile based on interaction
-   */
-  private async updateUserProfile(userId: string, interaction: UserInteraction) {
-    let profile = this.userProfiles.get(userId)
-
-    if (!profile) {
-      profile = this.createNewUserProfile(userId)
-    }
-
-    // Update interaction counts
-    profile.totalInteractions++
-    profile.lastActiveDate = new Date().toISOString()
-
-    // Update category preferences based on interaction
-    const article = await this.getArticleById(interaction.articleId)
-    if (article) {
-      const category = this.extractCategory(article)
-      const currentWeight = profile.categoryPreferences.get(category) || 0
-
-      // Calculate new weight based on interaction type and time spent
-      const weightIncrease = this.calculateWeightIncrease(interaction)
-      profile.categoryPreferences.set(category, currentWeight + weightIncrease)
-
-      // Update keyword preferences
-      await this.updateKeywordPreferences(profile, article, weightIncrease)
-
-      // Update reading patterns
-      this.updateReadingPatterns(profile, interaction)
-    }
-
-    this.userProfiles.set(userId, profile)
-  }
-
-  /**
-   * Calculate weight increase based on interaction type
-   */
-  private calculateWeightIncrease(interaction: UserInteraction): number {
-    const baseWeights = {
-      view: 0.1,
-      click: 0.3,
-      read: 0.5,
-      share: 0.8,
-      save: 1.0,
-      like: 0.7,
-      comment: 0.9,
-    }
-
-    let weight = baseWeights[interaction.interactionType] || 0.1
-
-    // Boost weight based on time spent
-    if (interaction.timeSpent > 30) weight *= 1.5
-    if (interaction.timeSpent > 60) weight *= 2.0
-    if (interaction.timeSpent > 120) weight *= 2.5
-
-    // Boost weight based on scroll depth
-    if (interaction.scrollDepth > 0.5) weight *= 1.2
-    if (interaction.scrollDepth > 0.8) weight *= 1.5
-
-    return weight
-  }
-
-  /**
-   * Update keyword preferences using NLP
-   */
-  private async updateKeywordPreferences(profile: UserProfile, article: NewsArticle, weight: number) {
-    try {
-      // Extract keywords from article
-      const keywords = await this.extractKeywords(article)
-
-      keywords.forEach((keyword) => {
-        const currentWeight = profile.keywordPreferences.get(keyword) || 0
-        profile.keywordPreferences.set(keyword, currentWeight + weight * 0.1)
+        preferences: {
+          categories: {},
+          keywords: {},
+          sources: {},
+          timeOfDay: {},
+        },
+        interactions: [],
+        lastUpdated: new Date(),
       })
-    } catch (error) {
-      console.error("Error updating keyword preferences:", error)
     }
+    return this.userProfiles.get(userId)!
   }
 
-  /**
-   * Extract keywords from article using simple NLP
-   */
-  private async extractKeywords(article: NewsArticle): Promise<string[]> {
-    const text = `${article.title} ${article.description} ${article.content}`.toLowerCase()
+  // Update user preferences based on interaction
+  private updatePreferences(profile: UserProfile, interaction: UserInteraction) {
+    const weight = this.getInteractionWeight(interaction.interactionType)
+    const timeWeight = Math.min(interaction.timeSpent / 60, 5) // Max 5 minutes
+    const scrollWeight = interaction.scrollDepth
 
-    // Remove common stop words
-    const stopWords = new Set([
-      "the",
-      "a",
-      "an",
-      "and",
-      "or",
-      "but",
-      "in",
-      "on",
-      "at",
-      "to",
-      "for",
-      "of",
-      "with",
-      "by",
-      "is",
-      "are",
-      "was",
-      "were",
-      "be",
-      "been",
-      "being",
-      "have",
-      "has",
-      "had",
-      "do",
-      "does",
-      "did",
-      "will",
-      "would",
-      "could",
-      "should",
-      "may",
-      "might",
-      "must",
-      "can",
-      "this",
-      "that",
-      "these",
-      "those",
-    ])
+    const totalWeight = weight * (1 + timeWeight * 0.1 + scrollWeight * 0.1)
 
-    // Extract words and filter
-    const words = text
-      .replace(/[^\w\s]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.length > 3 && !stopWords.has(word))
-
-    // Count word frequency
-    const wordCount = new Map<string, number>()
-    words.forEach((word) => {
-      wordCount.set(word, (wordCount.get(word) || 0) + 1)
-    })
-
-    // Return top keywords
-    return Array.from(wordCount.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([word]) => word)
-  }
-
-  /**
-   * Update reading patterns
-   */
-  private updateReadingPatterns(profile: UserProfile, interaction: UserInteraction) {
-    const hour = new Date(interaction.timestamp).getHours()
-    const currentCount = profile.readingPatterns.timeOfDay.get(hour) || 0
-    profile.readingPatterns.timeOfDay.set(hour, currentCount + 1)
-
-    // Update average reading time
-    if (interaction.timeSpent > 0) {
-      const currentAvg = profile.readingPatterns.averageReadTime
-      const totalInteractions = profile.totalInteractions
-      profile.readingPatterns.averageReadTime =
-        (currentAvg * (totalInteractions - 1) + interaction.timeSpent) / totalInteractions
+    // Update category preferences
+    if (interaction.category) {
+      profile.preferences.categories[interaction.category] =
+        (profile.preferences.categories[interaction.category] || 0) + totalWeight
     }
-  }
 
-  /**
-   * Generate personalized recommendations using ML
-   */
-  async generateRecommendations(userId: string, articles: NewsArticle[], maxResults = 10): Promise<NewsArticle[]> {
-    try {
-      const profile = this.userProfiles.get(userId)
-      if (!profile) {
-        return this.getColdStartRecommendations(articles, maxResults)
-      }
-
-      console.log(`🎯 Generating ML recommendations for user ${userId}`)
-
-      // Score articles based on user preferences
-      const scoredArticles = await Promise.all(
-        articles.map(async (article) => {
-          const score = await this.calculatePersonalizationScore(profile, article)
-          return { article, score }
-        }),
-      )
-
-      // Sort by score and apply diversity filter
-      const sortedArticles = scoredArticles.sort((a, b) => b.score - a.score).slice(0, maxResults * 2) // Get more than needed for diversity filtering
-
-      // Apply diversity filtering
-      const diverseArticles = this.applyDiversityFilter(sortedArticles, maxResults)
-
-      console.log(`✨ Generated ${diverseArticles.length} personalized recommendations`)
-      return diverseArticles.map((item) => item.article)
-    } catch (error) {
-      console.error("Error generating recommendations:", error)
-      return this.getColdStartRecommendations(articles, maxResults)
+    // Update keyword preferences
+    if (interaction.keywords) {
+      interaction.keywords.forEach((keyword) => {
+        profile.preferences.keywords[keyword] = (profile.preferences.keywords[keyword] || 0) + totalWeight * 0.5
+      })
     }
+
+    // Update time of day preferences
+    const hour = interaction.timestamp.getHours()
+    const timeSlot = this.getTimeSlot(hour)
+    profile.preferences.timeOfDay[timeSlot] = (profile.preferences.timeOfDay[timeSlot] || 0) + totalWeight * 0.2
   }
 
-  /**
-   * Calculate personalization score for an article
-   */
-  private async calculatePersonalizationScore(profile: UserProfile, article: NewsArticle): Promise<number> {
+  // Get interaction weight based on type
+  private getInteractionWeight(type: string): number {
+    const weights = {
+      view: 1,
+      click: 2,
+      save: 4,
+      share: 5,
+      like: 3,
+      comment: 6,
+    }
+    return weights[type as keyof typeof weights] || 1
+  }
+
+  // Get time slot for hour
+  private getTimeSlot(hour: number): string {
+    if (hour >= 6 && hour < 12) return "morning"
+    if (hour >= 12 && hour < 18) return "afternoon"
+    if (hour >= 18 && hour < 22) return "evening"
+    return "night"
+  }
+
+  // Generate recommendations for user
+  generateRecommendations(userId: string, articles: any[], maxResults = 10): RecommendationScore[] {
+    const profile = this.getUserProfile(userId)
+
+    if (profile.interactions.length === 0) {
+      // Cold start - return trending articles
+      return articles.slice(0, maxResults).map((article, index) => ({
+        articleId: article.id,
+        score: 1 - index * 0.1,
+        reasons: ["Trending article"],
+      }))
+    }
+
+    const scores = articles.map((article) => this.scoreArticle(profile, article))
+
+    // Sort by score and return top results
+    return scores.sort((a, b) => b.score - a.score).slice(0, maxResults)
+  }
+
+  // Score individual article for user
+  private scoreArticle(profile: UserProfile, article: any): RecommendationScore {
     let score = 0
+    const reasons: string[] = []
 
-    // Category preference score (40% weight)
+    // Category scoring (40% weight)
     const category = this.extractCategory(article)
-    const categoryPreference = profile.categoryPreferences.get(category) || 0
-    score += categoryPreference * 0.4
+    if (category && profile.preferences.categories[category]) {
+      const categoryScore = profile.preferences.categories[category] * 0.4
+      score += categoryScore
+      reasons.push(`Matches your interest in ${category}`)
+    }
 
-    // Keyword matching score (30% weight)
-    const keywords = await this.extractKeywords(article)
+    // Keyword scoring (30% weight)
+    const keywords = this.extractKeywords(article)
     let keywordScore = 0
     keywords.forEach((keyword) => {
-      const preference = profile.keywordPreferences.get(keyword) || 0
-      keywordScore += preference
+      if (profile.preferences.keywords[keyword]) {
+        keywordScore += profile.preferences.keywords[keyword] * 0.3
+        reasons.push(`Contains keyword: ${keyword}`)
+      }
     })
-    score += (keywordScore / keywords.length) * 0.3
+    score += keywordScore
 
-    // Recency score (15% weight)
+    // Recency scoring (15% weight)
     const hoursAgo = (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 60 * 60)
-    const recencyScore = Math.max(0, 1 - hoursAgo / 48) // Decay over 48 hours
-    score += recencyScore * 0.15
-
-    // Source credibility score (10% weight)
-    const credibilityScore = (article.credibilityScore || 70) / 100
-    score += credibilityScore * 0.1
-
-    // Time-based preference (5% weight)
-    const currentHour = new Date().getHours()
-    const timePreference = profile.readingPatterns.timeOfDay.get(currentHour) || 0
-    const maxTimePreference = Math.max(...Array.from(profile.readingPatterns.timeOfDay.values()))
-    const timeScore = maxTimePreference > 0 ? timePreference / maxTimePreference : 0.5
-    score += timeScore * 0.05
-
-    return Math.max(0, Math.min(1, score))
-  }
-
-  /**
-   * Apply diversity filtering to avoid echo chambers
-   */
-  private applyDiversityFilter(scoredArticles: { article: NewsArticle; score: number }[], maxResults: number) {
-    const selected: { article: NewsArticle; score: number }[] = []
-    const categoryCount = new Map<string, number>()
-
-    for (const item of scoredArticles) {
-      if (selected.length >= maxResults) break
-
-      const category = this.extractCategory(item.article)
-      const currentCount = categoryCount.get(category) || 0
-      const maxPerCategory = Math.ceil(maxResults / 3) // Max 1/3 from same category
-
-      if (currentCount < maxPerCategory) {
-        selected.push(item)
-        categoryCount.set(category, currentCount + 1)
-      }
+    if (hoursAgo < 6) {
+      score += 0.15
+      reasons.push("Recent article")
+    } else if (hoursAgo < 24) {
+      score += 0.1
+      reasons.push("Published today")
     }
 
-    // Fill remaining slots if needed
-    for (const item of scoredArticles) {
-      if (selected.length >= maxResults) break
-      if (!selected.includes(item)) {
-        selected.push(item)
-      }
+    // Source scoring (10% weight)
+    const source = article.source?.name
+    if (source && profile.preferences.sources[source]) {
+      score += profile.preferences.sources[source] * 0.1
+      reasons.push(`From preferred source: ${source}`)
     }
 
-    return selected.slice(0, maxResults)
-  }
+    // Diversity penalty to avoid echo chambers
+    const diversityPenalty = this.calculateDiversityPenalty(profile, article)
+    score *= 1 - diversityPenalty
 
-  /**
-   * Generate LLM-enhanced personalized headlines
-   */
-  async generatePersonalizedHeadline(userId: string, article: NewsArticle): Promise<string> {
-    try {
-      const profile = this.userProfiles.get(userId)
-      if (!profile) return article.title
-
-      // Get user's top interests
-      const topCategories = Array.from(profile.categoryPreferences.entries())
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([category]) => category)
-
-      const topKeywords = Array.from(profile.keywordPreferences.entries())
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([keyword]) => keyword)
-
-      // Call LLM API to personalize headline
-      const response = await fetch("/api/personalize-headline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          originalTitle: article.title,
-          userCategories: topCategories,
-          userKeywords: topKeywords,
-          readingLevel: profile.readingPatterns.averageReadTime > 60 ? "detailed" : "quick",
-        }),
-      })
-
-      if (response.ok) {
-        const { personalizedHeadline } = await response.json()
-        return personalizedHeadline || article.title
-      }
-
-      return article.title
-    } catch (error) {
-      console.error("Error generating personalized headline:", error)
-      return article.title
+    if (diversityPenalty > 0) {
+      reasons.push("Diversity adjustment applied")
     }
-  }
-
-  /**
-   * Get user insights and analytics
-   */
-  getUserInsights(userId: string) {
-    const profile = this.userProfiles.get(userId)
-    const interactions = this.interactionHistory.get(userId) || []
-
-    if (!profile) {
-      return {
-        totalInteractions: 0,
-        topCategories: [],
-        topKeywords: [],
-        readingPatterns: {},
-        engagementScore: 0,
-      }
-    }
-
-    const topCategories = Array.from(profile.categoryPreferences.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-
-    const topKeywords = Array.from(profile.keywordPreferences.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-
-    const engagementScore = this.calculateEngagementScore(profile, interactions)
 
     return {
-      totalInteractions: profile.totalInteractions,
-      topCategories,
-      topKeywords,
-      readingPatterns: {
-        averageReadTime: profile.readingPatterns.averageReadTime,
-        peakHours: this.getPeakReadingHours(profile),
-        consistency: this.calculateReadingConsistency(interactions),
-      },
-      engagementScore,
+      articleId: article.id,
+      score: Math.max(0, score),
+      reasons,
     }
   }
 
-  // Helper methods
-  private createNewUserProfile(userId: string): UserProfile {
-    return {
-      userId,
-      categoryPreferences: new Map(),
-      keywordPreferences: new Map(),
-      readingPatterns: {
-        timeOfDay: new Map(),
-        averageReadTime: 0,
-        preferredLength: "medium",
-      },
-      totalInteractions: 0,
-      lastActiveDate: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
+  // Extract category from article
+  private extractCategory(article: any): string {
+    // Try to determine from source name or content
+    const source = article.source?.name?.toLowerCase() || ""
+    const title = article.title?.toLowerCase() || ""
+    const description = article.description?.toLowerCase() || ""
+
+    const text = `${source} ${title} ${description}`
+
+    if (text.includes("tech") || text.includes("technology") || text.includes("ai") || text.includes("software")) {
+      return "technology"
     }
-  }
-
-  private extractCategory(article: NewsArticle): string {
-    // Extract category from source name or content
-    const sourceName = article.source.name.toLowerCase()
-
-    if (sourceName.includes("tech") || sourceName.includes("digital")) return "technology"
-    if (sourceName.includes("business") || sourceName.includes("financial")) return "business"
-    if (sourceName.includes("health") || sourceName.includes("medical")) return "health"
-    if (sourceName.includes("sports") || sourceName.includes("athletic")) return "sports"
-    if (sourceName.includes("entertainment") || sourceName.includes("celebrity")) return "entertainment"
-    if (sourceName.includes("science") || sourceName.includes("research")) return "science"
+    if (text.includes("business") || text.includes("market") || text.includes("finance") || text.includes("economy")) {
+      return "business"
+    }
+    if (text.includes("health") || text.includes("medical") || text.includes("medicine")) {
+      return "health"
+    }
+    if (text.includes("sport") || text.includes("game") || text.includes("team")) {
+      return "sports"
+    }
+    if (text.includes("science") || text.includes("research") || text.includes("study")) {
+      return "science"
+    }
+    if (text.includes("entertainment") || text.includes("movie") || text.includes("music")) {
+      return "entertainment"
+    }
 
     return "general"
   }
 
-  private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  // Extract keywords from article
+  private extractKeywords(article: any): string[] {
+    const text = `${article.title} ${article.description}`.toLowerCase()
+    const words = text.split(/\W+/).filter((word) => word.length > 3)
+
+    // Remove common stop words
+    const stopWords = new Set([
+      "this",
+      "that",
+      "with",
+      "have",
+      "will",
+      "from",
+      "they",
+      "been",
+      "said",
+      "each",
+      "which",
+      "their",
+      "time",
+      "more",
+      "very",
+      "what",
+      "know",
+      "just",
+      "first",
+      "into",
+      "over",
+      "think",
+      "also",
+      "your",
+      "work",
+      "life",
+      "only",
+      "can",
+      "still",
+      "should",
+      "after",
+      "being",
+      "now",
+      "made",
+      "before",
+      "here",
+      "through",
+      "when",
+      "where",
+      "how",
+      "all",
+      "any",
+      "may",
+      "say",
+      "get",
+      "has",
+      "had",
+      "his",
+      "her",
+      "him",
+      "my",
+      "me",
+      "we",
+      "our",
+      "out",
+      "up",
+      "so",
+      "if",
+      "no",
+      "do",
+      "would",
+      "who",
+      "about",
+      "could",
+      "there",
+      "see",
+      "were",
+      "been",
+      "one",
+      "two",
+      "way",
+      "she",
+      "use",
+      "its",
+      "new",
+      "years",
+      "year",
+      "people",
+      "many",
+      "well",
+      "such",
+      "make",
+      "them",
+      "these",
+      "some",
+      "other",
+      "than",
+      "then",
+      "now",
+      "look",
+      "only",
+      "come",
+      "over",
+      "think",
+      "also",
+      "back",
+      "after",
+      "use",
+      "her",
+      "can",
+      "out",
+      "would",
+      "any",
+      "there",
+      "see",
+      "know",
+      "get",
+      "give",
+      "man",
+      "day",
+      "most",
+      "us",
+      "is",
+      "was",
+      "are",
+      "been",
+      "have",
+      "had",
+      "has",
+      "say",
+      "says",
+      "said",
+      "or",
+      "of",
+      "to",
+      "and",
+      "a",
+      "in",
+      "is",
+      "it",
+      "you",
+      "that",
+      "he",
+      "was",
+      "for",
+      "on",
+      "are",
+      "as",
+      "with",
+      "his",
+      "they",
+      "i",
+      "at",
+      "be",
+      "this",
+      "have",
+      "from",
+      "or",
+      "one",
+      "had",
+      "by",
+      "word",
+      "but",
+      "not",
+      "what",
+      "all",
+      "were",
+      "we",
+      "when",
+      "your",
+      "can",
+      "said",
+      "there",
+      "each",
+      "which",
+      "she",
+      "do",
+      "how",
+      "their",
+      "if",
+      "will",
+      "up",
+      "other",
+      "about",
+      "out",
+      "many",
+      "then",
+      "them",
+      "these",
+      "so",
+      "some",
+      "her",
+      "would",
+      "make",
+      "like",
+      "into",
+      "him",
+      "time",
+      "has",
+      "two",
+      "more",
+      "very",
+      "after",
+      "words",
+      "long",
+      "than",
+      "first",
+      "been",
+      "call",
+      "who",
+      "oil",
+      "its",
+      "now",
+      "find",
+      "could",
+      "made",
+      "may",
+      "part",
+    ])
+
+    return words.filter((word) => !stopWords.has(word)).slice(0, 10)
   }
 
-  private async getArticleById(articleId: string): Promise<NewsArticle | null> {
-    // This would typically fetch from your article storage
-    return null
+  // Calculate diversity penalty to prevent echo chambers
+  private calculateDiversityPenalty(profile: UserProfile, article: any): number {
+    const recentInteractions = profile.interactions
+      .filter((i) => Date.now() - i.timestamp.getTime() < 24 * 60 * 60 * 1000) // Last 24 hours
+      .slice(-10) // Last 10 interactions
+
+    if (recentInteractions.length === 0) return 0
+
+    const category = this.extractCategory(article)
+    const recentCategories = recentInteractions.map((i) => i.category).filter(Boolean)
+
+    const categoryCount = recentCategories.filter((c) => c === category).length
+    const diversityPenalty = Math.min((categoryCount / recentCategories.length) * 0.3, 0.3)
+
+    return diversityPenalty
   }
 
-  private getColdStartRecommendations(articles: NewsArticle[], maxResults: number): NewsArticle[] {
-    // For new users, return trending/popular articles
-    return articles.sort((a, b) => (b.credibilityScore || 0) - (a.credibilityScore || 0)).slice(0, maxResults)
+  // Get user insights
+  getUserInsights(userId: string) {
+    const profile = this.getUserProfile(userId)
+
+    const totalInteractions = profile.interactions.length
+    const recentInteractions = profile.interactions.filter(
+      (i) => Date.now() - i.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000,
+    ) // Last 7 days
+
+    const engagementScore = this.calculateEngagementScore(profile)
+    const topCategories = Object.entries(profile.preferences.categories)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+
+    const readingPatterns = this.analyzeReadingPatterns(profile)
+
+    return {
+      totalInteractions,
+      recentInteractions: recentInteractions.length,
+      engagementScore,
+      topCategories,
+      readingPatterns,
+      lastActive: profile.lastUpdated,
+    }
   }
 
-  private calculateEngagementScore(profile: UserProfile, interactions: UserInteraction[]): number {
-    if (interactions.length === 0) return 0
+  // Calculate engagement score
+  private calculateEngagementScore(profile: UserProfile): number {
+    if (profile.interactions.length === 0) return 0
 
-    const recentInteractions = interactions.filter(
-      (i) => Date.now() - new Date(i.timestamp).getTime() < 7 * 24 * 60 * 60 * 1000, // Last 7 days
+    const recentInteractions = profile.interactions.filter(
+      (i) => Date.now() - i.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000,
     )
 
+    const totalWeight = recentInteractions.reduce((sum, interaction) => {
+      return sum + this.getInteractionWeight(interaction.interactionType)
+    }, 0)
+
     const avgTimeSpent = recentInteractions.reduce((sum, i) => sum + i.timeSpent, 0) / recentInteractions.length
-    const interactionVariety = new Set(recentInteractions.map((i) => i.interactionType)).size
+    const avgScrollDepth = recentInteractions.reduce((sum, i) => sum + i.scrollDepth, 0) / recentInteractions.length
 
-    return Math.min(100, (avgTimeSpent / 60) * 20 + interactionVariety * 10 + recentInteractions.length * 2)
+    return Math.min(100, (totalWeight / recentInteractions.length) * 10 + avgTimeSpent * 0.1 + avgScrollDepth * 20)
   }
 
-  private getPeakReadingHours(profile: UserProfile): number[] {
-    const hourCounts = Array.from(profile.readingPatterns.timeOfDay.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3)
-      .map(([hour]) => hour)
+  // Analyze reading patterns
+  private analyzeReadingPatterns(profile: UserProfile) {
+    const interactions = profile.interactions
 
-    return hourCounts
-  }
+    if (interactions.length === 0) {
+      return {
+        averageReadTime: 0,
+        peakHours: [],
+        consistency: 0,
+        preferredTimeSlot: "morning",
+      }
+    }
 
-  private calculateReadingConsistency(interactions: UserInteraction[]): number {
-    if (interactions.length < 7) return 0
+    const averageReadTime = interactions.reduce((sum, i) => sum + i.timeSpent, 0) / interactions.length
 
-    const dailyInteractions = new Map<string, number>()
-    interactions.forEach((interaction) => {
-      const date = new Date(interaction.timestamp).toDateString()
-      dailyInteractions.set(date, (dailyInteractions.get(date) || 0) + 1)
+    // Find peak hours
+    const hourCounts: Record<number, number> = {}
+    interactions.forEach((i) => {
+      const hour = i.timestamp.getHours()
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1
     })
 
-    const days = Array.from(dailyInteractions.values())
-    const avg = days.reduce((sum, count) => sum + count, 0) / days.length
-    const variance = days.reduce((sum, count) => sum + Math.pow(count - avg, 2), 0) / days.length
+    const peakHours = Object.entries(hourCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([hour]) => Number.parseInt(hour))
 
-    return Math.max(0, 100 - Math.sqrt(variance) * 10)
-  }
+    // Calculate consistency (how regularly user reads)
+    const days = new Set(interactions.map((i) => i.timestamp.toDateString())).size
+    const totalDays = Math.max(1, (Date.now() - interactions[0].timestamp.getTime()) / (24 * 60 * 60 * 1000))
+    const consistency = Math.min(100, (days / totalDays) * 100)
 
-  private async loadUserData() {
-    // Load user profiles and interactions from storage/database
-    // This would typically connect to your database
+    // Find preferred time slot
+    const timeSlotCounts = Object.entries(profile.preferences.timeOfDay).sort(([, a], [, b]) => b - a)
+    const preferredTimeSlot = timeSlotCounts[0]?.[0] || "morning"
+
+    return {
+      averageReadTime,
+      peakHours,
+      consistency,
+      preferredTimeSlot,
+    }
   }
 }
 
 // Export singleton instance
 export const mlPersonalizationEngine = new MLPersonalizationEngine()
+
+// Export types
+export type { UserInteraction, UserProfile, RecommendationScore }

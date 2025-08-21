@@ -96,7 +96,6 @@ export function MLPersonalizedFeed({ userId }: MLPersonalizedFeedProps) {
 
   const handleArticleClick = (article: NewsArticle) => {
     trackInteraction(article.id, "click")
-    // Track view after a delay
     setTimeout(() => trackInteraction(article.id, "view", 30), 1000)
   }
 

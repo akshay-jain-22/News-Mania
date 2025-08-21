@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +15,7 @@ import {
   MessageCircle,
   HelpCircle,
   Loader2,
+  Share2,
 } from "lucide-react"
 import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
@@ -43,7 +43,6 @@ interface NewsCardProps {
 
 // Function to get a category-specific placeholder image
 function getCategoryPlaceholder(article: NewsArticle): string {
-  // Try to determine category from article ID
   const idParts = article.id.split("-")
   const possibleCategory = idParts[0]
 
@@ -72,40 +71,28 @@ function getCategoryPlaceholder(article: NewsArticle): string {
       "https://images.unsplash.com/photo-1603190287605-e6ade32fa852?w=800&h=500&fit=crop",
       "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=500&fit=crop",
     ],
-    politics: [
-      "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&h=500&fit=crop",
-      "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&h=500&fit=crop",
-    ],
-    jewelry: [
-      "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=500&fit=crop",
-      "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800&h=500&fit=crop",
-    ],
     general: [
       "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=800&h=500&fit=crop",
       "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=500&fit=crop",
     ],
   }
 
-  // Check if we have images for this category
   if (possibleCategory in categoryImages) {
     const images = categoryImages[possibleCategory]
-    // Use article ID to deterministically select an image (so same article always gets same image)
     const hash = article.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
     return images[hash % images.length]
   }
 
-  // Default to general news images
   const defaultImages = categoryImages.general
   return defaultImages[Math.floor(Math.random() * defaultImages.length)]
 }
 
-// Create a URL-friendly slug from the article title
 function createSlug(title: string): string {
   return title
     .toLowerCase()
-    .replace(/[^\w\s-]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
     .trim()
 }
 
@@ -122,10 +109,7 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
   const [factCheckDialogOpen, setFactCheckDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Get a placeholder image if article doesn't have one
   const imageUrl = article.urlToImage || getCategoryPlaceholder(article)
-
-  // Create a dynamic URL for the article
   const slug = createSlug(article.title)
   const dynamicArticleUrl = article.url && article.url !== "#" ? article.url : `/article/${article.id}/${slug}`
 
@@ -136,25 +120,8 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
     setIsFactChecking(true)
 
     try {
-      console.log("🚀 Starting fact check for article:", article.title)
-      console.log("📝 Article details:", {
-        id: article.id,
-        source: article.source.name,
-        contentLength: article.content?.length || 0,
-        descriptionLength: article.description?.length || 0,
-      })
-
       const result = await factCheckArticle(article.id)
 
-      console.log("✅ Fact check result received:", {
-        score: result.credibilityScore,
-        isFactChecked: result.isFactChecked,
-        analyzedBy: result.analyzedBy,
-        factorsCount: result.analysisFactors?.length || 0,
-        claimsCount: result.claimsAnalyzed?.length || 0,
-      })
-
-      // Update the article with fact check results
       setArticle({
         ...article,
         isFactChecked: result.isFactChecked,
@@ -165,10 +132,8 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
         analyzedBy: result.analyzedBy,
       })
 
-      // Show detailed results in dialog
       setFactCheckDialogOpen(true)
 
-      // Show appropriate toast based on score
       const score = result.credibilityScore
       const toastVariant = score >= 70 ? "default" : score >= 40 ? "default" : "destructive"
       const scoreEmoji = score >= 70 ? "✅" : score >= 40 ? "⚠️" : "❌"
@@ -181,17 +146,11 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
 
       onInteraction?.("fact_check", article.id)
     } catch (error) {
-      console.error("🚨 Fact check error:", error)
-      console.error("🚨 Error details:", {
-        name: error instanceof Error ? error.name : "Unknown",
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : "No stack trace",
-      })
-
+      console.error("Fact check error:", error)
       toast({
         variant: "destructive",
         title: "Fact check failed",
-        description: "There was an error analyzing this article. Please try again or check the connection test.",
+        description: "There was an error analyzing this article. Please try again.",
       })
     } finally {
       setIsFactChecking(false)
@@ -209,16 +168,9 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
     setIsSaving(true)
 
     try {
-      // Import and use the actual saveNote function
       const { saveNote } = await import("@/lib/notes-service")
 
-      const savedNote = await saveNote(
-        article.id,
-        noteText,
-        article.title,
-        false, // isMarkdown
-        article.url,
-      )
+      const savedNote = await saveNote(article.id, noteText, article.title, false, article.url)
 
       if (savedNote) {
         toast({
@@ -249,11 +201,8 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
     setNewsContext("")
 
     try {
-      console.log("Getting context for article:", article.title)
       const context = await getNewsContext(article.title, article.description, article.content)
-      console.log("Received context:", context.substring(0, 50) + "...")
 
-      // Check if we got a valid context
       if (!context || context.trim() === "") {
         setNewsContext(
           "We couldn't generate specific context for this article at the moment. You might want to check other reliable news sources for more information about this topic.",
@@ -269,133 +218,87 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
         description: "Failed to get additional context for this news article.",
       })
       setNewsContext(
-        `We couldn't retrieve additional context for "${article.title}" at this time. This might be due to temporary service limitations. You can still research this topic through other reliable news sources.`,
+        `We couldn't retrieve additional context for "${article.title}" at this time. This might be due to temporary service limitations.`,
       )
     } finally {
       setIsLoadingContext(false)
     }
   }
 
-  const getCredibilityIndicator = () => {
+  const getCredibilityBadge = () => {
     if (!article.isFactChecked || article.credibilityScore === undefined) {
       return null
     }
 
-    if (article.credibilityScore < 30) {
+    if (article.credibilityScore >= 70) {
       return (
-        <div
-          className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-          title={`Low credibility (${Math.round(article.credibilityScore)}%)`}
-        >
-          <AlertTriangle className="h-4 w-4" />
-        </div>
-      )
-    } else if (article.credibilityScore >= 70) {
-      return (
-        <div
-          className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1"
-          title={`High credibility (${Math.round(article.credibilityScore)}%)`}
-        >
+        <div className="w-full bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
           <CheckCircle className="h-4 w-4" />
+          <span className="font-medium">High Credibility ({Math.round(article.credibilityScore)}%)</span>
         </div>
       )
-    } else {
+    } else if (article.credibilityScore >= 40) {
       return (
-        <div
-          className="absolute top-2 right-2 bg-yellow-600 text-white rounded-full p-1"
-          title={`Mixed credibility (${Math.round(article.credibilityScore)}%)`}
-        >
+        <div className="w-full bg-yellow-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
           <HelpCircle className="h-4 w-4" />
+          <span className="font-medium">Mixed Credibility ({Math.round(article.credibilityScore)}%)</span>
         </div>
-      )
-    }
-
-    return null
-  }
-
-  const { isFactChecked: factChecked, credibilityScore } = article
-
-  const getCredibilityBadge = () => {
-    if (!factChecked) {
-      return (
-        <Badge variant="outline" className="flex items-center gap-1">
-          <HelpCircle className="h-3 w-3" />
-          Not Verified
-        </Badge>
-      )
-    }
-
-    if (credibilityScore < 30) {
-      return (
-        <Badge variant="destructive" className="flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          Low Credibility ({Math.round(credibilityScore)}%)
-        </Badge>
-      )
-    } else if (credibilityScore < 70) {
-      return (
-        <Badge variant="secondary" className="flex items-center gap-1">
-          <HelpCircle className="h-3 w-3" />
-          Mixed Credibility ({Math.round(credibilityScore)}%)
-        </Badge>
       )
     } else {
       return (
-        <Badge variant="default" className="flex items-center gap-1 bg-green-600">
-          <CheckCircle className="h-3 w-3" />
-          High Credibility ({Math.round(credibilityScore)}%)
-        </Badge>
+        <div className="w-full bg-red-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="font-medium">Low Credibility ({Math.round(article.credibilityScore)}%)</span>
+        </div>
       )
     }
   }
 
   return (
     <>
-      <Card className="overflow-hidden flex flex-col h-full">
-        <Link href={dynamicArticleUrl} className="group" onClick={() => onInteraction?.("click", article.id)}>
-          <div className="relative aspect-video w-full overflow-hidden">
-            <Image
-              src={imageUrl || "/placeholder.svg"}
-              alt={article.title}
-              fill
-              className="object-cover transition-transform group-hover:scale-105"
-            />
-            {getCredibilityIndicator()}
-          </div>
-        </Link>
+      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden max-w-md mx-auto">
+        {/* Image */}
+        <div className="relative aspect-video w-full overflow-hidden">
+          <Image src={imageUrl || "/placeholder.svg"} alt={article.title} fill className="object-cover" />
+        </div>
 
-        <CardHeader className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline">{article.source.name}</Badge>
-            <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(article.publishedAt))} ago
-            </span>
+        <CardContent className="p-4 space-y-4">
+          {/* Source and Time */}
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="text-white border-gray-600">
+              {article.source.name}
+            </Badge>
+            <span className="text-sm text-gray-400">{formatDistanceToNow(new Date(article.publishedAt))} ago</span>
           </div>
-          <CardTitle className="line-clamp-2 text-lg">
-            <Link href={dynamicArticleUrl} className="hover:underline">
+
+          {/* Title */}
+          <h2 className="text-xl font-bold text-white leading-tight">
+            <Link href={dynamicArticleUrl} className="hover:text-blue-400 transition-colors">
               {article.title}
             </Link>
-          </CardTitle>
-          <CardDescription className="line-clamp-2">{article.description}</CardDescription>
+          </h2>
 
-          {/* Show credibility badge if fact-checked */}
-          {article.isFactChecked && <div className="mt-2">{getCredibilityBadge()}</div>}
-        </CardHeader>
+          {/* Description */}
+          <p className="text-gray-300 text-sm leading-relaxed">{article.description}</p>
 
-        <CardContent className="p-4 pt-0 flex-grow">
-          <p className="text-sm text-muted-foreground line-clamp-3">{article.content}</p>
+          {/* Credibility Badge */}
+          {getCredibilityBadge()}
 
-          {/* Show fact check result summary if available */}
-          {article.isFactChecked && article.factCheckResult && (
-            <div className="mt-3 p-2 bg-muted/50 rounded-md border">
-              <p className="text-xs text-muted-foreground line-clamp-2">{article.factCheckResult}</p>
-            </div>
+          {/* Content Preview */}
+          {article.content && (
+            <p className="text-gray-400 text-sm leading-relaxed">
+              {article.content.length > 200 ? `${article.content.substring(0, 200)}...` : article.content}
+            </p>
           )}
-        </CardContent>
 
-        <CardFooter className="p-4 pt-0">
-          <div className="flex items-center justify-between gap-2 w-full">
-            <Button variant="outline" size="sm" asChild>
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="bg-transparent border-gray-600 text-white hover:bg-gray-800"
+            >
               {article.url && article.url !== "#" ? (
                 <a
                   href={article.url}
@@ -411,10 +314,12 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                 </Link>
               )}
             </Button>
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
+                className="text-gray-400 hover:text-white hover:bg-gray-800"
                 title="Ask AI about this article"
                 onClick={(e) => {
                   e.preventDefault()
@@ -424,11 +329,12 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                 }}
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="sr-only">Ask AI</span>
               </Button>
+
               <Button
                 variant="ghost"
                 size="icon"
+                className="text-gray-400 hover:text-white hover:bg-gray-800"
                 title="Get background context"
                 onClick={(e) => {
                   e.preventDefault()
@@ -441,11 +347,12 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                 }}
               >
                 <Info className="h-4 w-4" />
-                <span className="sr-only">Get context</span>
               </Button>
+
               <Button
                 variant="ghost"
                 size="icon"
+                className="text-gray-400 hover:text-white hover:bg-gray-800"
                 title="Save article with note"
                 onClick={(e) => {
                   e.preventDefault()
@@ -454,58 +361,71 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                 }}
               >
                 <BookmarkPlus className="h-4 w-4" />
-                <span className="sr-only">Save</span>
               </Button>
+
               <Button
                 variant="ghost"
                 size="icon"
+                className="text-gray-400 hover:text-white hover:bg-gray-800"
                 onClick={handleFactCheck}
                 disabled={isFactChecking}
-                title={
-                  article.isFactChecked
-                    ? "View Grok AI fact check details"
-                    : "Run Grok AI fact check analysis on this article"
-                }
+                title={article.isFactChecked ? "View fact check details" : "Run fact check analysis"}
               >
                 {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-                <span className="sr-only">Fact check</span>
               </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white hover:bg-gray-800"
+                title="Share article"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (navigator.share) {
+                    navigator.share({
+                      title: article.title,
+                      url: article.url,
+                    })
+                  }
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+
               {article.url && article.url !== "#" && (
-                <Button variant="ghost" size="icon" asChild title="Open original article">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800"
+                  title="Open original article"
+                  asChild
+                >
                   <a href={article.url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
-                    <span className="sr-only">Open original</span>
                   </a>
                 </Button>
               )}
             </div>
           </div>
-        </CardFooter>
+        </CardContent>
       </Card>
 
-      {/* Fact Check Results Dialog */}
+      {/* Dialogs remain the same */}
       <Dialog open={factCheckDialogOpen} onOpenChange={setFactCheckDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Fact Check Analysis</DialogTitle>
             <DialogDescription>Detailed analysis of "{article.title}"</DialogDescription>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                🌍 Checking from the World of news
-              </Badge>
-            </div>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Credibility Score */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Credibility Score</span>
-                <span className="font-bold text-lg">
-                  {article.credibilityScore ? Math.round(article.credibilityScore) : "N/A"}%
-                </span>
-              </div>
-              {article.credibilityScore && (
+            {article.credibilityScore && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Credibility Score</span>
+                  <span className="font-bold text-lg">{Math.round(article.credibilityScore)}%</span>
+                </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
@@ -518,71 +438,13 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                     style={{ width: `${article.credibilityScore}%` }}
                   ></div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Summary */}
             {article.factCheckResult && (
               <div className="space-y-2">
                 <span className="font-medium">Summary</span>
                 <p className="text-sm text-muted-foreground">{article.factCheckResult}</p>
-              </div>
-            )}
-
-            {/* Analysis Factors */}
-            {article.analysisFactors && article.analysisFactors.length > 0 && (
-              <div className="space-y-2">
-                <span className="font-medium">Analysis Factors</span>
-                <div className="space-y-1">
-                  {article.analysisFactors.map((factor, index) => (
-                    <div key={index} className="text-sm p-2 bg-muted/30 rounded">
-                      {factor}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Claims Analyzed */}
-            {article.claimsAnalyzed && article.claimsAnalyzed.length > 0 && (
-              <div className="space-y-2">
-                <span className="font-medium">Claims Analyzed</span>
-                <div className="space-y-2">
-                  {article.claimsAnalyzed.map((claim, index) => (
-                    <div key={index} className="p-3 border rounded-md">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-sm">{claim.claim}</span>
-                        <Badge
-                          variant={
-                            claim.verdict === "true"
-                              ? "default"
-                              : claim.verdict === "false"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                        >
-                          {claim.verdict}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{claim.explanation}</p>
-                      {claim.sources && claim.sources.length > 0 && (
-                        <div className="mt-2">
-                          {claim.sources.map((source, sourceIndex) => (
-                            <a
-                              key={sourceIndex}
-                              href={source}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline mr-2"
-                            >
-                              Source {sourceIndex + 1}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>
@@ -597,9 +459,7 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Save Article with Note</DialogTitle>
-            <DialogDescription>
-              Add a note to save with this article. You can view and edit your notes later.
-            </DialogDescription>
+            <DialogDescription>Add a note to save with this article.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSaveNote}>
             <div className="grid gap-4 py-4">
@@ -674,5 +534,4 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
   )
 }
 
-// Export both default and named export for compatibility
 export default NewsCard

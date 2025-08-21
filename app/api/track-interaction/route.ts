@@ -4,13 +4,23 @@ import { mlPersonalizationEngine } from "@/lib/ml-personalization"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, articleId, interactionType, timeSpent, scrollDepth } = body
+    const { userId, articleId, interactionType, timeSpent, scrollDepth, category, keywords } = body
 
     if (!userId || !articleId || !interactionType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    await mlPersonalizationEngine.trackInteraction(userId, articleId, interactionType, timeSpent, scrollDepth)
+    // Track the interaction
+    mlPersonalizationEngine.trackInteraction({
+      userId,
+      articleId,
+      interactionType,
+      timestamp: new Date(),
+      timeSpent: timeSpent || 0,
+      scrollDepth: scrollDepth || 0,
+      category,
+      keywords,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -4,40 +4,33 @@ import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { originalTitle, userCategories, userKeywords, readingLevel } = body
+    const { originalHeadline, userInterests } = await request.json()
 
-    if (!originalTitle) {
-      return NextResponse.json({ error: "Original title is required" }, { status: 400 })
+    if (!originalHeadline) {
+      return NextResponse.json({ error: "Original headline is required" }, { status: 400 })
     }
 
-    const prompt = `
-You are a news headline personalization expert. Your task is to rewrite news headlines to make them more engaging and relevant to specific users based on their interests.
+    // Use AI to personalize the headline
+    const { text: personalizedHeadline } = await generateText({
+      model: openai("gpt-4o"),
+      system: `You are a news headline personalizer. Your job is to slightly adapt news headlines to make them more engaging for users based on their interests, while maintaining journalistic integrity and factual accuracy. 
 
-Original headline: "${originalTitle}"
+Rules:
+1. Keep the core facts and meaning unchanged
+2. Make subtle adjustments to emphasize aspects that align with user interests
+3. Maintain professional journalism standards
+4. Don't sensationalize or mislead
+5. Keep the headline length similar to the original
+6. If no meaningful personalization is possible, return the original headline`,
+      prompt: `Original headline: "${originalHeadline}"
+User interests: ${userInterests?.join(", ") || "general news"}
 
-User's top interests: ${userCategories?.join(", ") || "general news"}
-User's keywords of interest: ${userKeywords?.join(", ") || "current events"}
-User's reading preference: ${readingLevel || "balanced"} (quick = shorter, detailed = longer)
-
-Instructions:
-1. Keep the core news information intact
-2. Make it more appealing to someone interested in: ${userCategories?.join(", ") || "general topics"}
-3. Use language that resonates with their interests
-4. ${readingLevel === "quick" ? "Keep it concise and punchy" : "Make it more detailed and informative"}
-5. Maintain journalistic integrity - don't sensationalize or mislead
-
-Return only the personalized headline, nothing else.
-`
-
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt,
-      maxTokens: 100,
+Personalize this headline to be more engaging for someone interested in ${userInterests?.join(" and ") || "general news"}, while keeping it factually accurate and professional.`,
     })
 
     return NextResponse.json({
-      personalizedHeadline: text.trim(),
+      originalHeadline,
+      personalizedHeadline: personalizedHeadline || originalHeadline,
     })
   } catch (error) {
     console.error("Error personalizing headline:", error)
