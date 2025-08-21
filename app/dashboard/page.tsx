@@ -69,7 +69,7 @@ export default function Dashboard() {
           .slice(0, 20)
 
         // Use top articles for trending
-        const trending = mixedArticles.slice(0, 8)
+        const trending = mixedArticles.slice(0, 9) // 9 articles for 3x3 grid
 
         setNewsArticles(mixedArticles)
         setTrendingNews(trending)
@@ -106,7 +106,7 @@ export default function Dashboard() {
         .slice(0, 20)
 
       setNewsArticles(mixedArticles)
-      setTrendingNews(mixedArticles.slice(0, 8))
+      setTrendingNews(mixedArticles.slice(0, 9))
 
       console.log("Dashboard refreshed successfully")
     } catch (error) {
@@ -301,11 +301,9 @@ export default function Dashboard() {
             </div>
 
             {trendingNews.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {trendingNews.map((article) => (
-                  <div key={article.id} className="flex justify-center">
-                    <NewsCard article={article} />
-                  </div>
+                  <NewsCard key={article.id} article={article} />
                 ))}
               </div>
             ) : (

@@ -234,21 +234,21 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
       return (
         <div className="w-full bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
           <CheckCircle className="h-4 w-4" />
-          <span className="font-medium">High Credibility ({Math.round(article.credibilityScore)}%)</span>
+          <span className="font-medium">High Credibility {Math.round(article.credibilityScore)}%</span>
         </div>
       )
     } else if (article.credibilityScore >= 40) {
       return (
         <div className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
           <HelpCircle className="h-4 w-4" />
-          <span className="font-medium">Mixed Credibility ({Math.round(article.credibilityScore)}%)</span>
+          <span className="font-medium">Mixed Credibility {Math.round(article.credibilityScore)}%</span>
         </div>
       )
     } else {
       return (
         <div className="w-full bg-red-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
           <AlertTriangle className="h-4 w-4" />
-          <span className="font-medium">Low Credibility ({Math.round(article.credibilityScore)}%)</span>
+          <span className="font-medium">Low Credibility {Math.round(article.credibilityScore)}%</span>
         </div>
       )
     }
@@ -256,48 +256,48 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
 
   return (
     <>
-      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden w-full max-w-md mx-auto">
+      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden w-full h-full flex flex-col">
         {/* Image */}
         <div className="relative aspect-video w-full overflow-hidden">
           <Image src={imageUrl || "/placeholder.svg"} alt={article.title} fill className="object-cover" />
         </div>
 
-        <CardContent className="p-4 space-y-4">
+        <CardContent className="p-4 flex-1 flex flex-col">
           {/* Source and Time */}
-          <div className="flex items-center justify-between">
-            <Badge variant="outline" className="text-white border-gray-600 bg-transparent">
+          <div className="flex items-center justify-between mb-3">
+            <Badge variant="outline" className="text-white border-gray-600 bg-transparent text-xs">
               {article.source.name}
             </Badge>
-            <span className="text-sm text-gray-400">{formatDistanceToNow(new Date(article.publishedAt))} ago</span>
+            <span className="text-xs text-gray-400">{formatDistanceToNow(new Date(article.publishedAt))} ago</span>
           </div>
 
           {/* Title */}
-          <h2 className="text-xl font-bold text-white leading-tight">
-            <Link href={dynamicArticleUrl} className="hover:text-blue-400 transition-colors">
+          <h2 className="text-lg font-bold text-white leading-tight mb-3 flex-1">
+            <Link href={dynamicArticleUrl} className="hover:text-blue-400 transition-colors line-clamp-3">
               {article.title}
             </Link>
           </h2>
 
           {/* Description */}
-          <p className="text-gray-300 text-sm leading-relaxed">{article.description}</p>
+          <p className="text-gray-300 text-sm leading-relaxed mb-3 line-clamp-2">{article.description}</p>
 
           {/* Credibility Badge */}
           {getCredibilityBadge()}
 
           {/* Content Preview */}
           {article.content && (
-            <p className="text-gray-400 text-sm leading-relaxed">
-              {article.content.length > 200 ? `${article.content.substring(0, 200)}...` : article.content}
+            <p className="text-gray-400 text-sm leading-relaxed mb-4 line-clamp-2">
+              {article.content.length > 150 ? `${article.content.substring(0, 150)}...` : article.content}
             </p>
           )}
 
-          {/* Action Buttons - Properly Aligned */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+          {/* Action Buttons - Fixed at bottom */}
+          <div className="flex items-center justify-between pt-3 border-t border-gray-700 mt-auto">
             <Button
               variant="outline"
               size="sm"
               asChild
-              className="bg-transparent border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500"
+              className="bg-transparent border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500 text-xs px-3 py-1.5"
             >
               {article.url && article.url !== "#" ? (
                 <a
@@ -310,7 +310,7 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                 </a>
               ) : (
                 <Link href={dynamicArticleUrl} onClick={() => onInteraction?.("click", article.id)}>
-                  Read More
+                  Read Original
                 </Link>
               )}
             </Button>
@@ -319,7 +319,7 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                 title="Ask AI about this article"
                 onClick={(e) => {
                   e.preventDefault()
@@ -328,13 +328,13 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                   onInteraction?.("chat", article.id)
                 }}
               >
-                <MessageCircle className="h-4 w-4" />
+                <MessageCircle className="h-3.5 w-3.5" />
               </Button>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                 title="Get background context"
                 onClick={(e) => {
                   e.preventDefault()
@@ -346,13 +346,13 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                   onInteraction?.("context", article.id)
                 }}
               >
-                <Info className="h-4 w-4" />
+                <Info className="h-3.5 w-3.5" />
               </Button>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                 title="Save article with note"
                 onClick={(e) => {
                   e.preventDefault()
@@ -360,24 +360,24 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                   setSaveDialogOpen(true)
                 }}
               >
-                <BookmarkPlus className="h-4 w-4" />
+                <BookmarkPlus className="h-3.5 w-3.5" />
               </Button>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                 onClick={handleFactCheck}
                 disabled={isFactChecking}
                 title={article.isFactChecked ? "View fact check details" : "Run fact check analysis"}
               >
-                {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                {isFactChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
               </Button>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                 title="Share article"
                 onClick={(e) => {
                   e.preventDefault()
@@ -390,19 +390,19 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
                   }
                 }}
               >
-                <Share2 className="h-4 w-4" />
+                <Share2 className="h-3.5 w-3.5" />
               </Button>
 
               {article.url && article.url !== "#" && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
                   title="Open original article"
                   asChild
                 >
                   <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </Button>
               )}

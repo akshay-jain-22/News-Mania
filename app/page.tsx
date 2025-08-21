@@ -256,12 +256,10 @@ export default function Home() {
                 </div>
               )}
 
-              {/* News Grid with Proper Spacing */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-8">
+              {/* News Grid - Exactly 3 columns for full screen */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {newsArticles.slice(1).map((article) => (
-                  <div key={article.id} className="flex justify-center">
-                    <NewsCard article={article} />
-                  </div>
+                  <NewsCard key={article.id} article={article} />
                 ))}
               </div>
 
