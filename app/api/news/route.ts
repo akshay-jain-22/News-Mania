@@ -1,33 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
+import type { NewsArticle } from "@/types/news"
 
+// Use the provided NewsAPI key
 const API_KEY = "b8b7129df29d475db2853616351d7244"
 const BASE_URL = "https://newsapi.org/v2"
-
-// Cache for API responses
-const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes
-const newsCache: Record<string, { data: any; timestamp: number }> = {}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category") || "general"
     const query = searchParams.get("query") || ""
-    const pageSize = Number.parseInt(searchParams.get("pageSize") || "20")
+    const pageSize = Number.parseInt(searchParams.get("pageSize") || "50")
     const page = Number.parseInt(searchParams.get("page") || "1")
     const country = searchParams.get("country") || "us"
     const sources = searchParams.get("sources") || ""
     const forceRefresh = searchParams.get("forceRefresh") === "true"
 
-    const cacheKey = `${category}-${query}-${pageSize}-${page}-${country}-${sources}`
-    const currentTime = Date.now()
+    console.log(`Server: Fetching news for category: ${category}`)
 
-    // Check cache first
-    if (!forceRefresh && newsCache[cacheKey] && currentTime - newsCache[cacheKey].timestamp < CACHE_DURATION) {
-      console.log(`Returning cached data for ${cacheKey}`)
-      return NextResponse.json(newsCache[cacheKey].data)
-    }
-
-    // Build NewsAPI URL
     let url = `${BASE_URL}/top-headlines?pageSize=${Math.min(pageSize, 100)}&page=${page}&apiKey=${API_KEY}`
 
     if (category && category !== "all" && category !== "general") {
@@ -46,9 +36,8 @@ export async function GET(request: NextRequest) {
       url += `&sources=${encodeURIComponent(sources)}`
     }
 
-    console.log(`Fetching from NewsAPI: ${url.replace(API_KEY, "[API_KEY]")}`)
+    console.log(`Server: Calling NewsAPI...`)
 
-    // Make server-side request to NewsAPI
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
@@ -56,37 +45,32 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    console.log(`NewsAPI response status: ${response.status}`)
+    console.log(`Server: NewsAPI response status: ${response.status}`)
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "Unknown error")
-      console.error(`NewsAPI error ${response.status}: ${response.statusText}`)
-      console.error(`Error details: ${errorText}`)
-
-      // Return fallback content for any API errors
-      const fallbackData = generateFallbackNews(pageSize, category)
-      newsCache[cacheKey] = { data: fallbackData, timestamp: currentTime }
-
-      return NextResponse.json(fallbackData)
+      console.error(`Server: NewsAPI error ${response.status}`)
+      // Return fallback content for any API error
+      const fallbackArticles = generateFallbackNews(pageSize, category)
+      return NextResponse.json({
+        status: "ok",
+        totalResults: fallbackArticles.length,
+        articles: fallbackArticles,
+      })
     }
 
     const data = await response.json()
-    console.log(`NewsAPI response:`, {
-      status: data.status,
-      totalResults: data.totalResults,
-      articlesCount: data.articles?.length,
-    })
 
-    if (!data.articles || !Array.isArray(data.articles) || data.articles.length === 0) {
-      console.warn("No valid articles from NewsAPI, using fallback")
-      const fallbackData = generateFallbackNews(pageSize, category)
-      newsCache[cacheKey] = { data: fallbackData, timestamp: currentTime }
-
-      return NextResponse.json(fallbackData)
+    if (!data.articles || !Array.isArray(data.articles)) {
+      console.warn("Server: Invalid response format, using fallback")
+      const fallbackArticles = generateFallbackNews(pageSize, category)
+      return NextResponse.json({
+        status: "ok",
+        totalResults: fallbackArticles.length,
+        articles: fallbackArticles,
+      })
     }
 
-    // Process and clean articles
-    const processedArticles = data.articles
+    const articles: NewsArticle[] = data.articles
       .filter((article: any) => {
         return (
           article.title &&
@@ -112,43 +96,42 @@ export async function GET(request: NextRequest) {
         factCheckResult: null,
       }))
 
-    if (processedArticles.length === 0) {
-      console.warn("No articles after filtering, using fallback")
-      const fallbackData = generateFallbackNews(pageSize, category)
-      newsCache[cacheKey] = { data: fallbackData, timestamp: currentTime }
-
-      return NextResponse.json(fallbackData)
+    if (articles.length === 0) {
+      console.warn("Server: No valid articles, using fallback")
+      const fallbackArticles = generateFallbackNews(pageSize, category)
+      return NextResponse.json({
+        status: "ok",
+        totalResults: fallbackArticles.length,
+        articles: fallbackArticles,
+      })
     }
 
-    const responseData = {
+    console.log(`Server: Successfully returning ${articles.length} articles`)
+    return NextResponse.json({
       status: "ok",
-      totalResults: data.totalResults,
-      articles: processedArticles,
-    }
-
-    // Cache the response
-    newsCache[cacheKey] = { data: responseData, timestamp: currentTime }
-
-    console.log(`Successfully processed ${processedArticles.length} articles from NewsAPI`)
-    return NextResponse.json(responseData)
+      totalResults: articles.length,
+      articles: articles,
+    })
   } catch (error) {
-    console.error("Server error in news API route:", error)
-
-    // Return fallback content on any error
-    const fallbackData = generateFallbackNews(20, "general")
-    return NextResponse.json(fallbackData)
+    console.error("Server: Error in news API route:", error)
+    const fallbackArticles = generateFallbackNews(50, "general")
+    return NextResponse.json({
+      status: "ok",
+      totalResults: fallbackArticles.length,
+      articles: fallbackArticles,
+    })
   }
 }
 
 // Generate fallback news content
-function generateFallbackNews(pageSize: number, category = "general") {
-  console.log(`Generating ${pageSize} fallback articles for category: ${category}`)
+function generateFallbackNews(pageSize: number, category = "general"): NewsArticle[] {
+  console.log(`Server: Generating ${pageSize} fallback articles for category: ${category}`)
 
   const today = new Date()
   const dayTimestamp = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
   const seed = category.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) + dayTimestamp
 
-  const articles = []
+  const articles: NewsArticle[] = []
 
   for (let i = 0; i < Math.min(pageSize, 25); i++) {
     const articleSeed = seed + i
@@ -171,13 +154,10 @@ function generateFallbackNews(pageSize: number, category = "general") {
     })
   }
 
-  return {
-    status: "ok",
-    totalResults: articles.length,
-    articles,
-  }
+  return articles
 }
 
+// Helper functions for generating realistic content
 function getSourceName(category: string, seed: number): string {
   const sources = {
     general: [

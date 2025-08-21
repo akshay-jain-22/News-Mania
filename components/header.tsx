@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { Brain, Sparkles } from "lucide-react"
 
 export function Header() {
   const [user, setUser] = useState<any>(null)
@@ -42,6 +43,15 @@ export function Header() {
           <span className="text-xl font-bold">NewsMania</span>
         </Link>
         <nav className="flex items-center gap-4">
+          {/* AI Personalization Button */}
+          <Link href="/ai-personalized">
+            <Button variant="outline" className="border-purple-500 text-purple-600 hover:bg-purple-50 bg-transparent">
+              <Brain className="h-4 w-4 mr-2" />
+              <Sparkles className="h-3 w-3 mr-1" />
+              AI Feed
+            </Button>
+          </Link>
+
           <ThemeToggle />
           {!loading && user ? (
             <>
