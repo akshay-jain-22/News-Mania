@@ -23,9 +23,12 @@ import {
   Briefcase,
   Monitor,
   Wifi,
+  Brain,
+  Sparkles,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NewsCard } from "@/components/news-card"
+import { PersonalizedNewsSection } from "@/components/personalized-news-section"
 
 export default function Home() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([])
@@ -118,32 +121,6 @@ export default function Home() {
     }
   }
 
-  // Function to render credibility badge
-  const renderCredibilityBadge = (score: number) => {
-    if (score >= 85) {
-      return (
-        <Badge className="bg-green-600 text-white text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {score}%
-        </Badge>
-      )
-    } else if (score >= 70) {
-      return (
-        <Badge className="bg-yellow-600 text-white text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {score}%
-        </Badge>
-      )
-    } else {
-      return (
-        <Badge className="bg-red-600 text-white text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {score}%
-        </Badge>
-      )
-    }
-  }
-
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Top Navigation Bar */}
@@ -159,6 +136,16 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" className="text-xs">
               <Link href="/dashboard">DASHBOARD</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs bg-purple-600/20 text-purple-300 hover:bg-purple-600/30"
+            >
+              <Link href="/ai-personalized" className="flex items-center gap-1">
+                <Brain className="h-3 w-3" />
+                AI FEED
+              </Link>
             </Button>
           </div>
         </div>
@@ -186,6 +173,17 @@ export default function Home() {
               </Link>
               <Link href="/notes" className="hover:text-primary transition-colors">
                 My Notes
+              </Link>
+              <Link
+                href="/ai-personalized"
+                className="text-purple-400 hover:text-purple-300 transition-colors font-semibold flex items-center gap-1"
+              >
+                <Brain className="h-4 w-4" />
+                <Sparkles className="h-3 w-3" />
+                AI Feed
+                <Badge variant="secondary" className="ml-1 text-xs bg-purple-100 text-purple-700">
+                  NEW
+                </Badge>
               </Link>
             </div>
           </div>
@@ -256,11 +254,22 @@ export default function Home() {
                 </div>
               )}
 
-              {/* News Grid - Exactly 3 columns for full screen */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {newsArticles.slice(1).map((article) => (
-                  <NewsCard key={article.id} article={article} />
-                ))}
+              {/* Personalized News Section */}
+              <div className="mb-8">
+                <PersonalizedNewsSection userId="demo-user" />
+              </div>
+
+              {/* Regular News Grid - Exactly 3 columns for full screen */}
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <Globe className="h-6 w-6" />
+                  Latest Headlines
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {newsArticles.slice(1).map((article) => (
+                    <NewsCard key={article.id} article={article} />
+                  ))}
+                </div>
               </div>
 
               {/* Load More Button */}
@@ -293,6 +302,27 @@ export default function Home() {
 
             {/* Sidebar */}
             <div className="lg:col-span-1">
+              {/* AI Personalization Quick Access */}
+              <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30 mb-6">
+                <CardHeader>
+                  <div className="flex items-center">
+                    <Brain className="h-5 w-5 mr-2 text-purple-400" />
+                    <h3 className="font-bold text-purple-100">AI Personalization</h3>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-purple-200 mb-3">
+                    Get news tailored to your interests using machine learning
+                  </p>
+                  <Button asChild size="sm" className="w-full bg-purple-600 hover:bg-purple-700">
+                    <Link href="/ai-personalized">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      View AI Feed
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
               {/* Connection Status */}
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
@@ -448,6 +478,11 @@ export default function Home() {
                 <li>
                   <Link href="/dashboard" className="text-gray-400 hover:text-primary">
                     Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/ai-personalized" className="text-purple-400 hover:text-purple-300">
+                    AI Personalized Feed
                   </Link>
                 </li>
               </ul>
