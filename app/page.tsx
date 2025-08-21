@@ -26,6 +26,7 @@ import {
   Monitor,
   Wifi,
   Info,
+  WifiOff,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -59,29 +60,28 @@ export default function Home() {
 
         // Try to fetch news with reduced API calls to avoid rate limiting
         const newsPromises = [
-          fetchNews({ category: "general", pageSize: 15, country: "us" }).catch(() => []),
-          fetchNews({ category: "business", pageSize: 10, country: "us" }).catch(() => []),
-          fetchNews({ category: "technology", pageSize: 10, country: "us" }).catch(() => []),
+          fetchNews({ category: "general", pageSize: 15, country: "us" }),
+          fetchNews({ category: "business", pageSize: 10, country: "us" }),
+          fetchNews({ category: "technology", pageSize: 10, country: "us" }),
         ]
 
         const [generalNews, businessNews, techNews] = await Promise.all(newsPromises)
 
         // Check if we got demo data
-        const hasDemoData =
-          generalNews.some((article) => article.id.includes("demo")) ||
-          businessNews.some((article) => article.id.includes("demo")) ||
-          techNews.some((article) => article.id.includes("demo"))
+        const allArticles = [...generalNews, ...businessNews, ...techNews]
+        const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
 
         if (hasDemoData) {
           setIsUsingDemo(true)
-          setError("NewsAPI is currently unavailable. Showing demo content to demonstrate the interface.")
+          setError(
+            "NewsAPI is currently unavailable (Error 426: Upgrade Required). Showing demo content to demonstrate the interface.",
+          )
           console.log("Using demo data due to API limitations")
+        } else {
+          console.log("Successfully loaded real news data from NewsAPI")
         }
 
         // Mix all articles together
-        const allArticles = [...generalNews, ...businessNews, ...techNews]
-
-        // Shuffle the articles to create a mixed feed
         const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
 
         // Use first 5 articles for trending
@@ -91,11 +91,20 @@ export default function Home() {
         setTrendingNews(trending)
         setPage(2)
 
-        console.log(`Loaded ${shuffledArticles.length} mixed articles`)
+        console.log(`Loaded ${shuffledArticles.length} mixed articles (${hasDemoData ? "demo" : "real"} data)`)
       } catch (error) {
         console.error("Failed to load news:", error)
         setError("Unable to load news at the moment. Please check your internet connection and try again.")
         setIsUsingDemo(true)
+
+        // Load demo content as fallback
+        try {
+          const demoNews = await fetchNews({ category: "general", pageSize: 20 })
+          setNewsArticles(demoNews)
+          setTrendingNews(demoNews.slice(0, 5))
+        } catch (demoError) {
+          console.error("Even demo content failed:", demoError)
+        }
       } finally {
         setLoading(false)
       }
@@ -176,7 +185,7 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             {isUsingDemo && (
               <div className="flex items-center text-xs text-yellow-400">
-                <Info className="h-3 w-3 mr-1" />
+                <WifiOff className="h-3 w-3 mr-1" />
                 Demo Mode
               </div>
             )}
@@ -232,8 +241,8 @@ export default function Home() {
               {error}
               {isUsingDemo && (
                 <div className="mt-2 text-sm">
-                  <strong>Note:</strong> This is demo content to showcase the interface. In production, this would show
-                  real news from NewsAPI.org.
+                  <strong>Note:</strong> This is demo content to showcase the interface. The NewsAPI key may need
+                  upgrading for live data access.
                 </div>
               )}
             </AlertDescription>
@@ -413,7 +422,7 @@ export default function Home() {
                 <CardHeader>
                   <div className="flex items-center">
                     {isUsingDemo ? (
-                      <Info className="h-5 w-5 mr-2 text-blue-500" />
+                      <WifiOff className="h-5 w-5 mr-2 text-yellow-500" />
                     ) : (
                       <Wifi className="h-5 w-5 mr-2 text-green-500" />
                     )}
@@ -423,7 +432,7 @@ export default function Home() {
                 <CardContent>
                   <p className="text-xs text-gray-400">
                     {isUsingDemo
-                      ? "Showing demo content - NewsAPI.org unavailable"
+                      ? "NewsAPI unavailable (426 error) - showing demo content"
                       : "Connected to NewsAPI.org live sources"}
                   </p>
                 </CardContent>
@@ -546,7 +555,7 @@ export default function Home() {
               </p>
               {isUsingDemo && (
                 <p className="text-xs text-yellow-400">
-                  Currently in demo mode - NewsAPI.org integration available in production.
+                  Currently in demo mode - NewsAPI.org requires upgrade for live access.
                 </p>
               )}
             </div>
