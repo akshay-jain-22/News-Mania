@@ -1,78 +1,155 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Home, TrendingUp, Shield, Zap, BookOpen, Search, User, Brain, Sparkles, Globe, Settings } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { UserNav } from "@/components/user-nav"
+import { Menu, X, Newspaper, Search, BookOpen, Shield, FileText, Brain } from "lucide-react"
 
 export function Header() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen)
+  }
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center">
-        <div className="mr-4 hidden md:flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <Globe className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">NewsMania</span>
+    <header className="bg-[#121212] border-b border-gray-800 sticky top-0 z-50">
+      <div className="container mx-auto flex items-center justify-between h-16 px-4">
+        {/* Logo */}
+        <Link href="/" className="flex items-center space-x-2">
+          <Newspaper className="h-8 w-8 text-primary" />
+          <span className="text-2xl font-bold">NewsMania</span>
+        </Link>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center space-x-6">
+          <Link href="/" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <Newspaper className="h-4 w-4" />
+            <span>Latest</span>
           </Link>
-          <nav className="flex items-center space-x-6 text-sm font-medium">
-            <Link href="/" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              <Home className="h-4 w-4 inline mr-1" />
-              Home
-            </Link>
-            <Link href="/dashboard" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              <TrendingUp className="h-4 w-4 inline mr-1" />
-              Dashboard
-            </Link>
-            <Link
-              href="/ai-personalized"
-              className="transition-colors hover:text-foreground/80 text-purple-600 font-semibold"
-            >
-              <Brain className="h-4 w-4 inline mr-1" />
-              <Sparkles className="h-3 w-3 inline mr-1" />
-              AI Feed
-              <Badge variant="secondary" className="ml-1 text-xs bg-purple-100 text-purple-700">
-                NEW
-              </Badge>
-            </Link>
-            <Link href="/topics" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              Topics
-            </Link>
-            <Link href="/fact-check" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              <Shield className="h-4 w-4 inline mr-1" />
-              Fact Check
-            </Link>
-            <Link href="/extract" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              <Zap className="h-4 w-4 inline mr-1" />
-              Extract
-            </Link>
-            <Link href="/notes" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              <BookOpen className="h-4 w-4 inline mr-1" />
-              Notes
-            </Link>
-          </nav>
-        </div>
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          <div className="w-full flex-1 md:w-auto md:flex-none">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/search">
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Link>
-            </Button>
-          </div>
-          <nav className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/auth">
-                <User className="h-4 w-4 mr-2" />
-                Sign In
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </nav>
+
+          <Link href="/topics" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <BookOpen className="h-4 w-4" />
+            <span>Topics</span>
+          </Link>
+
+          <Link href="/search" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <Search className="h-4 w-4" />
+            <span>Search</span>
+          </Link>
+
+          <Link href="/fact-check" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <Shield className="h-4 w-4" />
+            <span>Fact Check</span>
+          </Link>
+
+          <Link href="/extract" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <FileText className="h-4 w-4" />
+            <span>Extract</span>
+          </Link>
+
+          <Link href="/notes" className="flex items-center space-x-1 hover:text-primary transition-colors">
+            <BookOpen className="h-4 w-4" />
+            <span>Notes</span>
+          </Link>
+
+          {/* For You - AI Feed */}
+          <Link
+            href="/ai-personalized"
+            className="flex items-center space-x-1 text-purple-400 hover:text-purple-300 transition-colors relative"
+          >
+            <Brain className="h-4 w-4" />
+            <span className="font-semibold">For You</span>
+            <Badge className="bg-purple-600 text-white text-xs ml-1">AI</Badge>
+          </Link>
+        </nav>
+
+        {/* Right Side Actions */}
+        <div className="flex items-center space-x-4">
+          <ThemeToggle />
+          <UserNav />
+
+          {/* Mobile Menu Button */}
+          <Button variant="ghost" size="sm" className="md:hidden" onClick={toggleMenu}>
+            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
         </div>
       </div>
+
+      {/* Mobile Navigation */}
+      {isMenuOpen && (
+        <div className="md:hidden bg-[#1a1a1a] border-t border-gray-800">
+          <nav className="container mx-auto px-4 py-4 space-y-3">
+            <Link
+              href="/"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Newspaper className="h-4 w-4" />
+              <span>Latest News</span>
+            </Link>
+
+            <Link
+              href="/topics"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Topics</span>
+            </Link>
+
+            <Link
+              href="/search"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Search className="h-4 w-4" />
+              <span>Search</span>
+            </Link>
+
+            <Link
+              href="/fact-check"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Shield className="h-4 w-4" />
+              <span>Fact Check</span>
+            </Link>
+
+            <Link
+              href="/extract"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <FileText className="h-4 w-4" />
+              <span>Extract News</span>
+            </Link>
+
+            <Link
+              href="/notes"
+              className="flex items-center space-x-2 py-2 hover:text-primary transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>My Notes</span>
+            </Link>
+
+            {/* For You - AI Feed Mobile */}
+            <Link
+              href="/ai-personalized"
+              className="flex items-center space-x-2 py-2 text-purple-400 hover:text-purple-300 transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Brain className="h-4 w-4" />
+              <span className="font-semibold">For You</span>
+              <Badge className="bg-purple-600 text-white text-xs">AI</Badge>
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   )
 }
