@@ -2,20 +2,15 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { fetchNews } from "@/lib/news-api"
-import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
 import {
   Clock,
-  Bookmark,
-  MessageSquare,
-  Share2,
   Shield,
   TrendingUp,
   User,
@@ -33,6 +28,7 @@ import {
 } from "lucide-react"
 import { PersonalizedFeed } from "@/components/personalized-feed"
 import { RecommendationDebug } from "@/components/recommendation-debug"
+import { NewsCard } from "@/components/news-card"
 
 export default function Dashboard() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([])
@@ -305,77 +301,11 @@ export default function Dashboard() {
             </div>
 
             {trendingNews.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {trendingNews.map((article, index) => (
-                  <Card
-                    key={article.id}
-                    className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-700 transition-all"
-                  >
-                    <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                      <div className="relative aspect-video overflow-hidden">
-                        <Image
-                          src={article.urlToImage || "/placeholder.svg?height=200&width=300"}
-                          alt={article.title}
-                          fill
-                          className="object-cover transition-transform group-hover:scale-105"
-                        />
-                        <div className="absolute top-2 left-2">
-                          <Badge className="bg-primary text-white text-xs">#{index + 1} Trending</Badge>
-                        </div>
-                        <div className="absolute top-2 right-2">
-                          <Badge className="bg-[#121212]/80 backdrop-blur-sm text-white text-xs">
-                            {article.source.name}
-                          </Badge>
-                        </div>
-                        {article.credibilityScore && (
-                          <div className="absolute bottom-2 right-2">
-                            {renderCredibilityBadge(article.credibilityScore)}
-                          </div>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                          {article.title}
-                        </h3>
-                        <p className="text-gray-400 text-xs mb-3 line-clamp-2">{article.description}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center text-xs text-gray-500">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {formatDistanceToNow(new Date(article.publishedAt))} ago
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              className="text-gray-500 hover:text-primary"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                              }}
-                            >
-                              <MessageSquare className="h-3 w-3" />
-                            </button>
-                            <button
-                              className="text-gray-500 hover:text-primary"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                              }}
-                            >
-                              <Bookmark className="h-3 w-3" />
-                            </button>
-                            <button
-                              className="text-gray-500 hover:text-primary"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                              }}
-                            >
-                              <Share2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Link>
-                  </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                {trendingNews.map((article) => (
+                  <div key={article.id} className="flex justify-center">
+                    <NewsCard article={article} />
+                  </div>
                 ))}
               </div>
             ) : (
