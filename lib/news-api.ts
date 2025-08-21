@@ -1,8 +1,8 @@
 import type { NewsArticle } from "@/types/news"
 import type { FactCheckResult } from "@/types/news"
 
-// Use the provided NewsAPI key
-const API_KEY = "2d28c89f4476422887cf8adbe7bb1e0b"
+// Use the new provided NewsAPI key
+const API_KEY = "b8b7129df29d475db2853616351d7244"
 const BASE_URL = "https://newsapi.org/v2"
 
 // Cache for API responses
