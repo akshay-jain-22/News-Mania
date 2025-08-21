@@ -1,6 +1,46 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+
+function personalizeHeadlineLocally(headline: string, userInterests: string[] = []): string {
+  if (!userInterests || userInterests.length === 0) {
+    return headline
+  }
+
+  // Simple local personalization without AI
+  const lowerHeadline = headline.toLowerCase()
+  const primaryInterest = userInterests[0]?.toLowerCase()
+
+  // Add context based on user interests
+  if (
+    primaryInterest === "technology" &&
+    (lowerHeadline.includes("tech") || lowerHeadline.includes("ai") || lowerHeadline.includes("digital"))
+  ) {
+    return `🚀 ${headline}`
+  }
+
+  if (
+    primaryInterest === "business" &&
+    (lowerHeadline.includes("market") || lowerHeadline.includes("economy") || lowerHeadline.includes("company"))
+  ) {
+    return `📈 ${headline}`
+  }
+
+  if (
+    primaryInterest === "science" &&
+    (lowerHeadline.includes("research") || lowerHeadline.includes("study") || lowerHeadline.includes("discovery"))
+  ) {
+    return `🔬 ${headline}`
+  }
+
+  if (
+    primaryInterest === "health" &&
+    (lowerHeadline.includes("health") || lowerHeadline.includes("medical") || lowerHeadline.includes("treatment"))
+  ) {
+    return `🏥 ${headline}`
+  }
+
+  // Return original headline if no personalization applies
+  return headline
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,23 +50,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Original headline is required" }, { status: 400 })
     }
 
-    // Use AI to personalize the headline
-    const { text: personalizedHeadline } = await generateText({
-      model: openai("gpt-4o"),
-      system: `You are a news headline personalizer. Your job is to slightly adapt news headlines to make them more engaging for users based on their interests, while maintaining journalistic integrity and factual accuracy. 
-
-Rules:
-1. Keep the core facts and meaning unchanged
-2. Make subtle adjustments to emphasize aspects that align with user interests
-3. Maintain professional journalism standards
-4. Don't sensationalize or mislead
-5. Keep the headline length similar to the original
-6. If no meaningful personalization is possible, return the original headline`,
-      prompt: `Original headline: "${originalHeadline}"
-User interests: ${userInterests?.join(", ") || "general news"}
-
-Personalize this headline to be more engaging for someone interested in ${userInterests?.join(" and ") || "general news"}, while keeping it factually accurate and professional.`,
-    })
+    // For now, return the original headline with a simple personalization
+    // This avoids OpenAI API calls and quota issues
+    const personalizedHeadline = personalizeHeadlineLocally(originalHeadline, userInterests)
 
     return NextResponse.json({
       originalHeadline,
@@ -34,6 +60,11 @@ Personalize this headline to be more engaging for someone interested in ${userIn
     })
   } catch (error) {
     console.error("Error personalizing headline:", error)
-    return NextResponse.json({ error: "Failed to personalize headline" }, { status: 500 })
+    // Always return the original headline as fallback
+    const { originalHeadline } = await request.json().catch(() => ({ originalHeadline: "News Article" }))
+    return NextResponse.json({
+      originalHeadline,
+      personalizedHeadline: originalHeadline,
+    })
   }
 }

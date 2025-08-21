@@ -8,42 +8,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 })
     }
 
-    // Try to use OpenAI embeddings if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const response = await fetch("https://api.openai.com/v1/embeddings", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            input: text,
-            model: "text-embedding-3-small",
-          }),
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          const embedding = data.data[0].embedding
-
-          // Extract keywords (simple implementation)
-          const keywords = extractKeywords(text)
-          const sentiment = analyzeSentiment(text)
-
-          return NextResponse.json({
-            embedding,
-            keywords,
-            sentiment,
-          })
-        }
-      } catch (error) {
-        console.error("OpenAI API error:", error)
-      }
-    }
-
-    // Fallback to simple embedding
-    const embedding = generateSimpleEmbedding(text)
+    // Generate simple embeddings locally without OpenAI
+    const embedding = generateLocalEmbedding(text)
     const keywords = extractKeywords(text)
     const sentiment = analyzeSentiment(text)
 
@@ -51,11 +17,52 @@ export async function POST(request: NextRequest) {
       embedding,
       keywords,
       sentiment,
+      type: type || "text",
     })
   } catch (error) {
-    console.error("Embedding generation error:", error)
-    return NextResponse.json({ error: "Failed to generate embedding" }, { status: 500 })
+    console.error("Error generating embedding:", error)
+
+    // Return fallback embedding
+    return NextResponse.json({
+      embedding: new Array(384).fill(0).map(() => Math.random() - 0.5),
+      keywords: [],
+      sentiment: 0,
+      type: "text",
+    })
   }
+}
+
+function generateLocalEmbedding(text: string): number[] {
+  // Simple hash-based embedding generation
+  const words = text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 2)
+  const embedding = new Array(384).fill(0)
+
+  words.forEach((word, index) => {
+    const hash = simpleHash(word)
+    const position = Math.abs(hash) % 384
+    embedding[position] += 1 / (index + 1) // Weight by position
+  })
+
+  // Normalize
+  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0))
+  if (magnitude > 0) {
+    return embedding.map((val) => val / magnitude)
+  }
+
+  return embedding
+}
+
+function simpleHash(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return hash
 }
 
 function extractKeywords(text: string): string[] {
@@ -77,9 +84,30 @@ function extractKeywords(text: string): string[] {
 }
 
 function analyzeSentiment(text: string): number {
-  // Simple sentiment analysis
-  const positiveWords = ["good", "great", "excellent", "amazing", "wonderful", "fantastic", "positive", "success"]
-  const negativeWords = ["bad", "terrible", "awful", "horrible", "negative", "failure", "disaster", "crisis"]
+  const positiveWords = [
+    "good",
+    "great",
+    "excellent",
+    "amazing",
+    "wonderful",
+    "fantastic",
+    "positive",
+    "success",
+    "win",
+    "best",
+  ]
+  const negativeWords = [
+    "bad",
+    "terrible",
+    "awful",
+    "horrible",
+    "negative",
+    "fail",
+    "worst",
+    "problem",
+    "issue",
+    "crisis",
+  ]
 
   const words = text.toLowerCase().split(/\s+/)
   let score = 0
@@ -90,28 +118,4 @@ function analyzeSentiment(text: string): number {
   })
 
   return Math.max(-1, Math.min(1, score / words.length))
-}
-
-function generateSimpleEmbedding(text: string): number[] {
-  // Generate a simple embedding based on text characteristics
-  const embedding = new Array(384).fill(0)
-  const words = text.toLowerCase().split(/\s+/)
-
-  words.forEach((word, index) => {
-    const hash = simpleHash(word)
-    const position = hash % 384
-    embedding[position] += 1 / words.length
-  })
-
-  return embedding
-}
-
-function simpleHash(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32-bit integer
-  }
-  return Math.abs(hash)
 }
