@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Brain, Sparkles, User, TrendingUp, Zap, Info, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { Suspense } from "react"
 
 export default function AIPersonalizedPage() {
   const [userId, setUserId] = useState<string | null>(null)
@@ -60,7 +61,18 @@ export default function AIPersonalizedPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <NewsHeader />
+      {/* Header */}
+      <div className="bg-[#121212] border-b border-gray-800">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-3">
+            <Brain className="h-8 w-8 text-purple-400" />
+            <div>
+              <h1 className="text-3xl font-bold">For You</h1>
+              <p className="text-gray-400">AI-powered personalized news feed</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section */}
@@ -154,7 +166,21 @@ export default function AIPersonalizedPage() {
         </div>
 
         {/* AI Personalized Feed */}
-        <MLPersonalizedFeed userId={userId} />
+        <Suspense
+          fallback={
+            <Card className="bg-[#1a1a1a] border-gray-800">
+              <CardContent className="p-8 text-center">
+                <div className="flex items-center justify-center">
+                  <Brain className="h-12 w-12 animate-pulse mr-4 text-purple-500" />
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+                <p className="text-muted-foreground mt-4">AI is personalizing your news feed...</p>
+              </CardContent>
+            </Card>
+          }
+        >
+          <MLPersonalizedFeed userId={userId} />
+        </Suspense>
       </main>
     </div>
   )

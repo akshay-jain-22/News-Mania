@@ -5,18 +5,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  BookmarkPlus,
-  ExternalLink,
-  Shield,
-  AlertTriangle,
-  CheckCircle,
-  Info,
-  MessageCircle,
-  HelpCircle,
-  Loader2,
-  Share2,
-} from "lucide-react"
+import { ExternalLink, Shield, Loader2, Share2, Clock, Bookmark, MessageSquare, BookmarkCheck } from "lucide-react"
 import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
 import { factCheckArticle } from "@/lib/news-api"
@@ -52,7 +41,7 @@ function getCategoryPlaceholder(article: NewsArticle): string {
       "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&h=500&fit=crop",
     ],
     technology: [
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=500&fit=crop",
+      "https://images.unsplash.com/photo-1518770660439-afdab827c52f?w=800&h=500&fit=crop",
       "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=500&fit=crop",
     ],
     sports: [
@@ -61,7 +50,7 @@ function getCategoryPlaceholder(article: NewsArticle): string {
     ],
     health: [
       "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800&h=500&fit=crop",
-      "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=800&h=500&fit=crop",
+      "https://images.unsplash.com/photo-1532938911079-bae0bd08762c?w=800&h=500&fit=crop",
     ],
     science: [
       "https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=800&h=500&fit=crop",
@@ -107,11 +96,18 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
   const [newsContext, setNewsContext] = useState("")
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [factCheckDialogOpen, setFactCheckDialogOpen] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
+  const [startTime] = useState(Date.now())
   const { toast } = useToast()
 
   const imageUrl = article.urlToImage || getCategoryPlaceholder(article)
   const slug = createSlug(article.title)
   const dynamicArticleUrl = article.url && article.url !== "#" ? article.url : `/article/${article.id}/${slug}`
+
+  const handleClick = () => {
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000)
+    onInteraction?.("click", article.id || article.url, timeSpent)
+  }
 
   const handleFactCheck = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -225,190 +221,125 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
     }
   }
 
-  const getCredibilityBadge = () => {
-    if (!article.isFactChecked || article.credibilityScore === undefined) {
-      return null
-    }
+  const handleSave = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsSaved(!isSaved)
+    onInteraction?.("save", article.id || article.url)
+  }
 
-    if (article.credibilityScore >= 70) {
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onInteraction?.("share", article.id || article.url)
+
+    if (navigator.share) {
+      navigator.share({
+        title: article.title,
+        text: article.description,
+        url: article.url,
+      })
+    } else {
+      navigator.clipboard.writeText(article.url)
+    }
+  }
+
+  const renderCredibilityBadge = (score: number) => {
+    if (score >= 85) {
       return (
-        <div className="w-full bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
-          <CheckCircle className="h-4 w-4" />
-          <span className="font-medium">High Credibility {Math.round(article.credibilityScore)}%</span>
-        </div>
+        <Badge className="bg-green-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
       )
-    } else if (article.credibilityScore >= 40) {
+    } else if (score >= 70) {
       return (
-        <div className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
-          <HelpCircle className="h-4 w-4" />
-          <span className="font-medium">Mixed Credibility {Math.round(article.credibilityScore)}%</span>
-        </div>
+        <Badge className="bg-yellow-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
       )
     } else {
       return (
-        <div className="w-full bg-red-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <span className="font-medium">Low Credibility {Math.round(article.credibilityScore)}%</span>
-        </div>
+        <Badge className="bg-red-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
       )
     }
   }
 
   return (
     <>
-      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden w-full h-full flex flex-col">
-        {/* Image */}
-        <div className="relative aspect-video w-full overflow-hidden">
-          <Image src={imageUrl || "/placeholder.svg"} alt={article.title} fill className="object-cover" />
-        </div>
-
-        <CardContent className="p-4 flex-1 flex flex-col">
-          {/* Source and Time */}
-          <div className="flex items-center justify-between mb-3">
-            <Badge variant="outline" className="text-white border-gray-600 bg-transparent text-xs">
-              {article.source.name}
-            </Badge>
-            <span className="text-xs text-gray-400">{formatDistanceToNow(new Date(article.publishedAt))} ago</span>
+      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-600 transition-all hover:shadow-lg">
+        <Link href={article.url} target="_blank" rel="noopener noreferrer" onClick={handleClick} className="block">
+          <div className="relative aspect-video overflow-hidden">
+            <Image
+              src={imageUrl || "/placeholder.svg?height=200&width=300"}
+              alt={article.title}
+              fill
+              className="object-cover transition-transform group-hover:scale-105"
+            />
+            <div className="absolute top-2 left-2">
+              <Badge className="bg-background/80 backdrop-blur-sm text-foreground text-xs">{article.source.name}</Badge>
+            </div>
+            <div className="absolute top-2 right-2">
+              <ExternalLink className="h-4 w-4 text-white/70" />
+            </div>
+            {(article as any).credibilityScore && (
+              <div className="absolute bottom-2 right-2">
+                {renderCredibilityBadge((article as any).credibilityScore)}
+              </div>
+            )}
           </div>
-
-          {/* Title */}
-          <h2 className="text-lg font-bold text-white leading-tight mb-3 flex-1">
-            <Link href={dynamicArticleUrl} className="hover:text-blue-400 transition-colors line-clamp-3">
+          <CardContent className="p-4">
+            <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
               {article.title}
-            </Link>
-          </h2>
+            </h3>
+            <p className="text-muted-foreground text-xs mb-3 line-clamp-2">{article.description}</p>
 
-          {/* Description */}
-          <p className="text-gray-300 text-sm leading-relaxed mb-3 line-clamp-2">{article.description}</p>
-
-          {/* Credibility Badge */}
-          {getCredibilityBadge()}
-
-          {/* Content Preview */}
-          {article.content && (
-            <p className="text-gray-400 text-sm leading-relaxed mb-4 line-clamp-2">
-              {article.content.length > 150 ? `${article.content.substring(0, 150)}...` : article.content}
-            </p>
-          )}
-
-          {/* Action Buttons - Fixed at bottom */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-700 mt-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="bg-transparent border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500 text-xs px-3 py-1.5"
-            >
-              {article.url && article.url !== "#" ? (
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => onInteraction?.("click", article.id)}
-                >
-                  Read Original
-                </a>
-              ) : (
-                <Link href={dynamicArticleUrl} onClick={() => onInteraction?.("click", article.id)}>
-                  Read Original
-                </Link>
-              )}
-            </Button>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                title="Ask AI about this article"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setChatDialogOpen(true)
-                  onInteraction?.("chat", article.id)
-                }}
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                title="Get background context"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setContextDialogOpen(true)
-                  if (!newsContext) {
-                    handleGetContext()
-                  }
-                  onInteraction?.("context", article.id)
-                }}
-              >
-                <Info className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                title="Save article with note"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setSaveDialogOpen(true)
-                }}
-              >
-                <BookmarkPlus className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                onClick={handleFactCheck}
-                disabled={isFactChecking}
-                title={article.isFactChecked ? "View fact check details" : "Run fact check analysis"}
-              >
-                {isFactChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                title="Share article"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  if (navigator.share) {
-                    navigator.share({
-                      title: article.title,
-                      url: article.url,
-                    })
-                  }
-                }}
-              >
-                <Share2 className="h-3.5 w-3.5" />
-              </Button>
-
-              {article.url && article.url !== "#" && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1" />
+                {formatDistanceToNow(new Date(article.publishedAt))} ago
+              </div>
+              <div className="flex items-center space-x-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
-                  title="Open original article"
-                  asChild
+                  title="Ask AI about this article"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setChatDialogOpen(true)
+                    onInteraction?.("chat", article.id)
+                  }}
                 >
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  <MessageSquare className="h-3 w-3" />
                 </Button>
-              )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`transition-colors ${
+                    isSaved ? "text-primary" : "text-muted-foreground hover:text-primary"
+                  }`}
+                  onClick={handleSave}
+                >
+                  {isSaved ? <BookmarkCheck className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
+                  onClick={handleShare}
+                >
+                  <Share2 className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        </Link>
       </Card>
 
       {/* Fact Check Results Dialog */}
