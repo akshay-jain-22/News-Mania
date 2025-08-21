@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { recommendationEngine } from "@/lib/recommendation-engine"
-import { fetchNews } from "@/lib/news-api"
 import type { NewsArticle } from "@/types/news"
-import type { RecommendationResult, UserProfile } from "@/types/recommendations"
+import type { UserProfile } from "@/types/recommendations"
 
 // In-memory storage for demo (use database in production)
 const userProfiles = new Map<string, UserProfile>()
@@ -39,118 +38,34 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, maxResults = 10, excludeReadArticles = true } = await request.json()
+    const recommendationRequest = await request.json()
 
-    if (!userId) {
+    if (!recommendationRequest.userId) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    // Get or create user profile
-    let userProfile = userProfiles.get(userId)
-    if (!userProfile) {
-      userProfile = createNewUserProfile(userId)
-      userProfiles.set(userId, userProfile)
-    }
+    const recommendations = await recommendationEngine.getRecommendations(recommendationRequest)
 
-    // Get user analytics (time spent on categories)
-    const analytics = userAnalytics.get(userId) || {}
-
-    // Fetch fresh articles from API
-    const allArticles = await fetchNews({ pageSize: 50, forceRefresh: true })
-
-    // Filter out read articles if requested
-    const availableArticles = excludeReadArticles
-      ? allArticles.filter((article) => !userProfile!.readArticles.includes(article.id))
-      : allArticles
-
-    // Generate recommendations based on analytics
-    const recommendations: RecommendationResult[] = []
-
-    for (const article of availableArticles) {
-      const score = calculateRecommendationScore(article, userProfile, analytics)
-
-      if (score > 0.3) {
-        // Threshold for relevance
-        recommendations.push({
-          articleId: article.id,
-          score,
-          reason: generateRecommendationReason(article, userProfile, analytics),
-          category: extractCategoryFromArticle(article),
-          confidence: Math.min(0.95, score * 1.2),
-        })
-      }
-    }
-
-    // Sort by score and return top N
-    const sortedRecommendations = recommendations.sort((a, b) => b.score - a.score).slice(0, maxResults)
-
-    return NextResponse.json({
-      recommendations: sortedRecommendations,
-      userProfile: {
-        userId: userProfile.userId,
-        preferredCategories: userProfile.preferredCategories,
-        totalReadArticles: userProfile.readArticles.length,
-        analytics,
-      },
-    })
+    return NextResponse.json({ recommendations })
   } catch (error) {
-    console.error("Error generating recommendations:", error)
-    return NextResponse.json({ error: "Failed to generate recommendations" }, { status: 500 })
+    console.error("Recommendations API error:", error)
+    return NextResponse.json({ error: "Failed to get recommendations" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId, action, articleId, timeSpent, category } = await request.json()
+    const { userId, action, articleId, timeSpent } = await request.json()
 
     if (!userId || !action || !articleId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Update user profile
-    let userProfile = userProfiles.get(userId)
-    if (!userProfile) {
-      userProfile = createNewUserProfile(userId)
-    }
+    await recommendationEngine.updateUserProfile(userId, action, articleId, timeSpent)
 
-    // Add to click history
-    userProfile.clickHistory.push({
-      articleId,
-      timestamp: new Date().toISOString(),
-      action: action as any,
-      timeSpent,
-      category: category || "general",
-    })
-
-    // Update read articles
-    if (action === "read" && !userProfile.readArticles.includes(articleId)) {
-      userProfile.readArticles.push(articleId)
-    }
-
-    // Update analytics (time spent on categories)
-    const analytics = userAnalytics.get(userId) || {}
-    const articleCategory = category || extractCategoryFromId(articleId)
-
-    if (timeSpent && timeSpent > 5) {
-      // Only count meaningful time
-      analytics[articleCategory] = (analytics[articleCategory] || 0) + timeSpent
-      userAnalytics.set(userId, analytics)
-    }
-
-    // Update category preferences based on time spent
-    const topCategories = Object.entries(analytics)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([category]) => category)
-
-    userProfile.preferredCategories = topCategories.length > 0 ? topCategories : ["general"]
-    userProfile.lastActiveDate = new Date().toISOString()
-
-    userProfiles.set(userId, userProfile)
-
-    return NextResponse.json({ success: true, analytics })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error updating user profile:", error)
+    console.error("User profile update error:", error)
     return NextResponse.json({ error: "Failed to update user profile" }, { status: 500 })
   }
 }

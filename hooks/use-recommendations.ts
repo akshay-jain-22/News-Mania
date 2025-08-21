@@ -36,30 +36,23 @@ export function useRecommendations(userId: string | null) {
       if (!userId) return
 
       try {
-        // Extract category from article ID
-        const category = articleId.split("-")[0] || "general"
-
         await fetch("/api/recommendations", {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             userId,
             action,
             articleId,
             timeSpent,
-            category,
           }),
         })
-
-        // Refresh feed after interaction to get updated recommendations
-        if (action === "read" && timeSpent && timeSpent > 30) {
-          setTimeout(() => fetchPersonalizedFeed(), 1000)
-        }
       } catch (err) {
         console.error("Error tracking interaction:", err)
       }
     },
-    [userId, fetchPersonalizedFeed],
+    [userId],
   )
 
   useEffect(() => {

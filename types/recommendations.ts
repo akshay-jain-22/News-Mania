@@ -2,7 +2,7 @@ export interface UserProfile {
   userId: string
   preferredCategories: string[]
   readArticles: string[]
-  clickHistory: ClickEvent[]
+  clickHistory: ClickHistory[]
   searchHistory: string[]
   timeSpentOnCategories: Record<string, number>
   lastActiveDate: string
@@ -10,7 +10,7 @@ export interface UserProfile {
   dislikedTopics: string[]
 }
 
-export interface ClickEvent {
+export interface ClickHistory {
   articleId: string
   timestamp: string
   action: "click" | "read" | "share" | "save" | "fact-check"
@@ -41,7 +41,6 @@ export interface RecommendationResult {
   reason: string
   category: string
   confidence: number
-  personalizedHeadline?: string
 }
 
 export interface RecommendationRequest {
@@ -53,7 +52,7 @@ export interface RecommendationRequest {
 
 export interface PersonalizedFeed {
   userId: string
-  recommendations: RecommendationResult[]
+  recommendations: (RecommendationResult & { personalizedHeadline?: string })[]
   personalizedMessage: string
   lastUpdated: string
   feedType: "personalized" | "trending"

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "NewsMania - Your Trusted News Source",
   description:
     "Stay informed with the latest news, fact-checked articles, and in-depth analysis from around the world.",
-    generator: 'v0.dev'
+    generator: 'v0.app'
 }
 
 export default function RootLayout({

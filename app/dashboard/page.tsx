@@ -1,296 +1,528 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DashboardHeader } from "@/components/dashboard-header"
+import Link from "next/link"
+import Image from "next/image"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { fetchNews } from "@/lib/news-api"
+import { formatDistanceToNow } from "@/lib/utils"
+import type { NewsArticle } from "@/types/news"
+import {
+  Clock,
+  Bookmark,
+  MessageSquare,
+  Share2,
+  Shield,
+  TrendingUp,
+  User,
+  Settings,
+  Bell,
+  Search,
+  Filter,
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+  Info,
+  BarChart3,
+  Eye,
+  Heart,
+  BookOpen,
+} from "lucide-react"
 import { PersonalizedFeed } from "@/components/personalized-feed"
 import { RecommendationDebug } from "@/components/recommendation-debug"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, RefreshCw, AlertCircle, Sparkles, TrendingUp, Settings, BarChart3, Brain } from "lucide-react"
-import { fetchNews } from "@/lib/news-api"
-import type { NewsArticle } from "@/types/news"
-import { useToast } from "@/components/ui/use-toast"
-import NewsCard from "@/components/news-card" // Import NewsCard component
 
-export default function DashboardPage() {
-  const [articles, setArticles] = useState<NewsArticle[]>([])
+export default function Dashboard() {
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([])
+  const [trendingNews, setTrendingNews] = useState<NewsArticle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState("personalized")
-  const { toast } = useToast()
+  const [isUsingDemo, setIsUsingDemo] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [activeTab, setActiveTab] = useState("trending")
 
-  // Mock user ID for demo - in production, get from auth
+  // Mock user analytics data
+  const [userAnalytics] = useState({
+    articlesRead: 47,
+    timeSpent: "2h 34m",
+    favoriteCategories: ["Technology", "Business", "Science"],
+    readingStreak: 12,
+  })
+
+  // Load dashboard data
   useEffect(() => {
-    // Simulate getting user ID from authentication
-    const mockUserId = "user_" + Math.random().toString(36).substr(2, 9)
-    setUserId(mockUserId)
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        setIsUsingDemo(false)
+        console.log("Loading dashboard data...")
+
+        // Fetch trending news from multiple categories
+        const [generalNews, businessNews, techNews, healthNews] = await Promise.all([
+          fetchNews({ category: "general", pageSize: 10, country: "us" }),
+          fetchNews({ category: "business", pageSize: 8, country: "us" }),
+          fetchNews({ category: "technology", pageSize: 8, country: "us" }),
+          fetchNews({ category: "health", pageSize: 6, country: "us" }),
+        ])
+
+        // Check if we got demo data
+        const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews]
+        const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
+
+        if (hasDemoData) {
+          setIsUsingDemo(true)
+          setError("NewsAPI is currently unavailable. Dashboard is showing demo content.")
+          console.log("Using demo data for dashboard")
+        }
+
+        // Mix and sort articles by recency
+        const mixedArticles = allArticles
+          .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+          .slice(0, 20)
+
+        // Use top articles for trending
+        const trending = mixedArticles.slice(0, 8)
+
+        setNewsArticles(mixedArticles)
+        setTrendingNews(trending)
+
+        console.log(`Dashboard loaded with ${mixedArticles.length} articles`)
+      } catch (error) {
+        console.error("Failed to load dashboard data:", error)
+        setError("Unable to load dashboard data. Please check your connection and try again.")
+        setIsUsingDemo(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDashboardData()
   }, [])
 
-  const loadNews = async (isRefresh = false) => {
+  // Refresh dashboard data
+  const refreshDashboard = async () => {
+    setRefreshing(true)
     try {
-      setLoading(true)
+      // Clear any existing error
       setError(null)
 
-      console.log("Loading news for dashboard...")
-      const newArticles = await fetchNews({
-        pageSize: 20,
-        page: 1,
-        forceRefresh: isRefresh,
-      })
+      // Reload data
+      const [generalNews, businessNews, techNews] = await Promise.all([
+        fetchNews({ category: "general", pageSize: 10, country: "us", forceRefresh: true }),
+        fetchNews({ category: "business", pageSize: 8, country: "us", forceRefresh: true }),
+        fetchNews({ category: "technology", pageSize: 8, country: "us", forceRefresh: true }),
+      ])
 
-      console.log(`Loaded ${newArticles.length} articles`)
-      setArticles(newArticles)
+      const allArticles = [...generalNews, ...businessNews, ...techNews]
+      const hasDemoData = allArticles.some((article) => article.id.includes("demo"))
 
-      if (isRefresh) {
-        toast({
-          title: "News refreshed",
-          description: `Loaded ${newArticles.length} fresh articles`,
-        })
+      if (hasDemoData) {
+        setIsUsingDemo(true)
+        setError("NewsAPI is currently unavailable. Showing refreshed demo content.")
+      } else {
+        setIsUsingDemo(false)
       }
-    } catch (error) {
-      console.error("Error loading news:", error)
-      setError("Failed to load news. Please check your internet connection and try again.")
 
-      toast({
-        variant: "destructive",
-        title: "Error loading news",
-        description: "Please check your connection and try again.",
-      })
+      const mixedArticles = allArticles
+        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+        .slice(0, 20)
+
+      setNewsArticles(mixedArticles)
+      setTrendingNews(mixedArticles.slice(0, 8))
+
+      console.log("Dashboard refreshed successfully")
+    } catch (error) {
+      console.error("Failed to refresh dashboard:", error)
+      setError("Failed to refresh dashboard data.")
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const handleRefresh = async () => {
-    await loadNews(true)
+  // Function to render credibility badge
+  const renderCredibilityBadge = (score: number) => {
+    if (score >= 85) {
+      return (
+        <Badge className="bg-green-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
+    } else if (score >= 70) {
+      return (
+        <Badge className="bg-yellow-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
+    } else {
+      return (
+        <Badge className="bg-red-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
+    }
   }
 
-  useEffect(() => {
-    loadNews()
-  }, [])
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <span className="ml-2 text-xl">Loading your dashboard...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* Header */}
+      <header className="bg-[#121212] border-b border-gray-800 sticky top-0 z-50">
+        <div className="container mx-auto flex items-center justify-between h-16 px-4">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="text-2xl font-bold">NewsMania</span>
+            </Link>
+            <div className="hidden md:flex items-center space-x-6">
+              <Link href="/" className="hover:text-primary transition-colors">
+                Latest
+              </Link>
+              <Link href="/dashboard" className="text-primary font-medium">
+                Dashboard
+              </Link>
+              <Link href="/topics" className="hover:text-primary transition-colors">
+                Topics
+              </Link>
+              <Link href="/fact-check" className="hover:text-primary transition-colors">
+                Fact Check
+              </Link>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshDashboard}
+              disabled={refreshing}
+              className="border-gray-700 bg-transparent"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+            <Button variant="ghost" size="sm">
+              <Bell className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
 
-      <main className="flex-1 py-6">
-        <div className="container px-4 md:px-6">
-          <div className="flex flex-col gap-6">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                  <Sparkles className="h-8 w-8 text-purple-600" />
-                  Personalized News Dashboard
-                </h1>
-                <p className="text-muted-foreground">AI-powered news recommendations tailored just for you</p>
+      <main className="container mx-auto px-4 py-6">
+        {/* Status Alerts */}
+        {error && (
+          <Alert className="mb-6 bg-yellow-900/20 border-yellow-600">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-yellow-200">
+              {error}
+              {isUsingDemo && (
+                <div className="mt-2 text-sm">
+                  <strong>Note:</strong> Demo content is being used to showcase dashboard functionality.
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isUsingDemo && !error && (
+          <Alert className="mb-6 bg-blue-900/20 border-blue-600">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-blue-200">
+              <strong>Demo Mode:</strong> Dashboard is showing sample content due to NewsAPI limitations.
+              <div className="mt-1 text-sm opacity-80">Articles marked with [DEMO] are placeholder content.</div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Dashboard Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">{isUsingDemo ? "Demo Dashboard" : "Your News Dashboard"}</h1>
+          <p className="text-gray-400">
+            {isUsingDemo
+              ? "Sample personalized news experience"
+              : "Personalized news feed based on your reading preferences"}
+          </p>
+        </div>
+
+        {/* Analytics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-[#1a1a1a] border-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <BookOpen className="h-8 w-8 text-blue-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-400">Articles Read</p>
+                  <p className="text-2xl font-bold">{userAnalytics.articlesRead}</p>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1a1a1a] border-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Clock className="h-8 w-8 text-green-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-400">Time Spent</p>
+                  <p className="text-2xl font-bold">{userAnalytics.timeSpent}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1a1a1a] border-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Heart className="h-8 w-8 text-red-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-400">Reading Streak</p>
+                  <p className="text-2xl font-bold">{userAnalytics.readingStreak} days</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#1a1a1a] border-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <BarChart3 className="h-8 w-8 text-purple-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-400">Top Category</p>
+                  <p className="text-2xl font-bold">{userAnalytics.favoriteCategories[0]}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 bg-[#1a1a1a] border-gray-800">
+            <TabsTrigger value="trending" className="data-[state=active]:bg-primary">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              {isUsingDemo ? "Demo Trending" : "Trending"}
+            </TabsTrigger>
+            <TabsTrigger value="personalized" className="data-[state=active]:bg-primary">
+              <User className="h-4 w-4 mr-2" />
+              {isUsingDemo ? "Demo Personal" : "For You"}
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-primary">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Trending Tab */}
+          <TabsContent value="trending" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">{isUsingDemo ? "Demo Trending News" : "Trending News"}</h2>
               <div className="flex items-center gap-2">
-                <Button onClick={handleRefresh} disabled={loading} variant="outline">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                  Refresh
+                <Button variant="outline" size="sm" className="border-gray-700 bg-transparent">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
                 </Button>
-                <Button variant="outline" size="icon">
-                  <Settings className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="border-gray-700 bg-transparent">
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
                 </Button>
               </div>
             </div>
 
-            {/* Error State */}
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* Personalization Status */}
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-full">
-                      <Brain className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-blue-900">AI Personalization Active</h3>
-                      <p className="text-sm text-blue-700">Learning from your reading patterns</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="bg-green-100 text-green-700">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-1" />
-                      Online
-                    </Badge>
-                    {userId && (
-                      <Badge variant="outline" className="text-xs">
-                        ID: {userId.slice(-6)}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Tabs for different views */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="personalized" className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Personalized
-                </TabsTrigger>
-                <TabsTrigger value="trending" className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Trending
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Analytics
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="personalized" className="space-y-6">
-                <PersonalizedFeed userId={userId} articles={articles} />
-                {process.env.NODE_ENV === "development" && userId && (
-                  <RecommendationDebug personalizedFeed={null} userId={userId} />
-                )}
-              </TabsContent>
-
-              <TabsContent value="trending" className="space-y-6">
-                {/* Loading State */}
-                {loading && (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                      <p className="text-muted-foreground">Loading trending news...</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Trending News Grid */}
-                {!loading && articles.length > 0 && (
-                  <div className="masonry-grid">
-                    {articles.map((article) => (
-                      <div key={article.id} className="masonry-item">
-                        <NewsCard article={article} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* No Articles State */}
-                {!loading && articles.length === 0 && !error && (
-                  <div className="text-center py-12">
-                    <TrendingUp className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-muted-foreground mb-4">No trending articles available</p>
-                    <Button onClick={() => loadNews(true)}>Try Again</Button>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="analytics" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">Reading Time Today</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">12m 34s</div>
-                      <p className="text-xs text-muted-foreground">+2m from yesterday</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">Articles Read</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">8</div>
-                      <p className="text-xs text-muted-foreground">+3 from yesterday</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">Personalization Score</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">87%</div>
-                      <p className="text-xs text-muted-foreground">Excellent match</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Interest Categories</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {[
-                        { category: "Technology", percentage: 35, color: "bg-blue-500" },
-                        { category: "Business", percentage: 28, color: "bg-green-500" },
-                        { category: "Science", percentage: 20, color: "bg-purple-500" },
-                        { category: "Politics", percentage: 17, color: "bg-red-500" },
-                      ].map((item) => (
-                        <div key={item.category} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>{item.category}</span>
-                            <span>{item.percentage}%</span>
+            {trendingNews.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {trendingNews.map((article, index) => (
+                  <Card
+                    key={article.id}
+                    className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-700 transition-all"
+                  >
+                    <Link href={article.url} target="_blank" rel="noopener noreferrer">
+                      <div className="relative aspect-video overflow-hidden">
+                        <Image
+                          src={article.urlToImage || "/placeholder.svg?height=200&width=300"}
+                          alt={article.title}
+                          fill
+                          className="object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute top-2 left-2">
+                          <Badge className="bg-primary text-white text-xs">#{index + 1} Trending</Badge>
+                        </div>
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-[#121212]/80 backdrop-blur-sm text-white text-xs">
+                            {article.source.name}
+                          </Badge>
+                        </div>
+                        {article.credibilityScore && (
+                          <div className="absolute bottom-2 right-2">
+                            {renderCredibilityBadge(article.credibilityScore)}
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${item.color}`}
-                              style={{ width: `${item.percentage}%` }}
-                            />
+                        )}
+                      </div>
+                      <CardContent className="p-4">
+                        <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                          {article.title}
+                        </h3>
+                        <p className="text-gray-400 text-xs mb-3 line-clamp-2">{article.description}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-xs text-gray-500">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {formatDistanceToNow(new Date(article.publishedAt))} ago
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                            </button>
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <Bookmark className="h-3 w-3" />
+                            </button>
+                            <button
+                              className="text-gray-500 hover:text-primary"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                            >
+                              <Share2 className="h-3 w-3" />
+                            </button>
                           </div>
                         </div>
-                      ))}
+                      </CardContent>
+                    </Link>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="bg-[#1a1a1a] border-gray-800">
+                <CardContent className="p-8 text-center">
+                  <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Trending News Available</h3>
+                  <p className="text-gray-400 mb-4">
+                    {isUsingDemo
+                      ? "Demo content is not available at the moment."
+                      : "Unable to load trending news. Please check your connection and try again."}
+                  </p>
+                  <Button onClick={refreshDashboard} disabled={refreshing}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                    Try Again
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Personalized Tab */}
+          <TabsContent value="personalized" className="space-y-6">
+            <PersonalizedFeed />
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-[#1a1a1a] border-gray-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <BarChart3 className="h-5 w-5 mr-2" />
+                    Reading Analytics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Technology</span>
+                        <span>45%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div className="bg-blue-500 h-2 rounded-full" style={{ width: "45%" }}></div>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Business</span>
+                        <span>30%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: "30%" }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Science</span>
+                        <span>25%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div className="bg-purple-500 h-2 rounded-full" style={{ width: "25%" }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1a1a] border-gray-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Eye className="h-5 w-5 mr-2" />
+                    Reading Habits
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-400">Average read time</span>
+                      <span className="text-sm font-medium">3.2 minutes</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-400">Articles per day</span>
+                      <span className="text-sm font-medium">8.5</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-400">Most active time</span>
+                      <span className="text-sm font-medium">9:00 AM</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-400">Completion rate</span>
+                      <span className="text-sm font-medium">78%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recommendation Debug Component */}
+            <RecommendationDebug />
+          </TabsContent>
+        </Tabs>
       </main>
-
-      <style jsx>{`
-        .masonry-grid {
-          column-count: 1;
-          column-gap: 1.5rem;
-          margin: 0;
-        }
-
-        @media (min-width: 640px) {
-          .masonry-grid {
-            column-count: 2;
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .masonry-grid {
-            column-count: 3;
-          }
-        }
-
-        @media (min-width: 1280px) {
-          .masonry-grid {
-            column-count: 4;
-          }
-        }
-
-        .masonry-item {
-          break-inside: avoid;
-          margin-bottom: 1.5rem;
-          display: inline-block;
-          width: 100%;
-        }
-      `}</style>
     </div>
   )
 }

@@ -1,45 +1,79 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
   try {
     const { topCategories, recommendationCount, userInterests, timeOfDay } = await request.json()
 
-    const greeting = timeOfDay < 12 ? "Good morning" : timeOfDay < 18 ? "Good afternoon" : "Good evening"
+    // Try to use OpenAI for message generation if API key is available
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const prompt = `
+Create a personalized greeting message for a news feed user with these characteristics:
+- Top interests: ${topCategories?.join(", ") || "general news"}
+- Number of recommendations: ${recommendationCount || 0}
+- Time of day: ${timeOfDay || 12} (24-hour format)
+- Other interests: ${userInterests?.join(", ") || "current events"}
 
-    try {
-      const { text: message } = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt: `
-          Create a personalized greeting message for a news reader with these preferences:
-          
-          Time: ${greeting}
-          Top categories: ${topCategories?.join(", ") || "general news"}
-          Number of recommendations: ${recommendationCount}
-          User interests: ${userInterests?.join(", ") || "various topics"}
-          
-          Create a warm, engaging message that mentions their interests. Keep it under 150 characters.
-          Only return the message, nothing else.
-        `,
-        maxTokens: 50,
-      })
+Create a warm, engaging message that acknowledges their interests and the time of day. Keep it concise (1-2 sentences).
+`
 
-      return NextResponse.json({
-        message: message || `${greeting}! Here are ${recommendationCount} articles tailored for you.`,
-      })
-    } catch (aiError) {
-      console.error("AI message generation failed:", aiError)
-      // Fallback message
-      const fallbackMessage =
-        topCategories?.length > 0
-          ? `${greeting}! Here's the latest on ${topCategories[0]} and other topics you follow:`
-          : `${greeting}! Here are today's top stories curated for you:`
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 100,
+            temperature: 0.7,
+          }),
+        })
 
-      return NextResponse.json({ message: fallbackMessage })
+        if (response.ok) {
+          const data = await response.json()
+          const message = data.choices[0].message.content.trim()
+
+          return NextResponse.json({ message })
+        }
+      } catch (error) {
+        console.error("OpenAI API error:", error)
+      }
     }
+
+    // Fallback to simple message generation
+    const message = generateSimpleMessage(topCategories, recommendationCount, timeOfDay)
+
+    return NextResponse.json({ message })
   } catch (error) {
-    console.error("Error personalizing message:", error)
-    return NextResponse.json({ error: "Failed to personalize message" }, { status: 500 })
+    console.error("Message generation error:", error)
+    return NextResponse.json({ message: "Here are your personalized news recommendations!" })
   }
+}
+
+function generateSimpleMessage(categories: string[] = [], count = 0, timeOfDay = 12): string {
+  const greetings = {
+    morning: ["Good morning", "Rise and shine", "Start your day"],
+    afternoon: ["Good afternoon", "Hope your day is going well", "Afternoon update"],
+    evening: ["Good evening", "Evening briefing", "End your day informed"],
+  }
+
+  let timeGreeting = "Hello"
+  if (timeOfDay < 12) {
+    const morningGreetings = greetings.morning
+    timeGreeting = morningGreetings[Math.floor(Math.random() * morningGreetings.length)]
+  } else if (timeOfDay < 18) {
+    const afternoonGreetings = greetings.afternoon
+    timeGreeting = afternoonGreetings[Math.floor(Math.random() * afternoonGreetings.length)]
+  } else {
+    const eveningGreetings = greetings.evening
+    timeGreeting = eveningGreetings[Math.floor(Math.random() * eveningGreetings.length)]
+  }
+
+  if (categories.length > 0) {
+    return `${timeGreeting}! Here's the latest on ${categories[0]} and other topics you follow.`
+  }
+
+  return `${timeGreeting}! We've curated ${count} articles based on your interests.`
 }

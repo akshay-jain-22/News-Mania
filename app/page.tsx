@@ -25,7 +25,7 @@ import {
   Briefcase,
   Monitor,
   Wifi,
-  WifiOff,
+  Info,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -35,7 +35,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isUsingFallback, setIsUsingFallback] = useState(false)
+  const [isUsingDemo, setIsUsingDemo] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
 
@@ -54,7 +54,7 @@ export default function Home() {
       try {
         setLoading(true)
         setError(null)
-        setIsUsingFallback(false)
+        setIsUsingDemo(false)
         console.log("Loading mixed news from all categories...")
 
         // Try to fetch news with reduced API calls to avoid rate limiting
@@ -66,15 +66,16 @@ export default function Home() {
 
         const [generalNews, businessNews, techNews] = await Promise.all(newsPromises)
 
-        // Check if we got any real data
-        const hasRealData =
-          generalNews.some((article) => !article.id.includes("fallback")) ||
-          businessNews.some((article) => !article.id.includes("fallback")) ||
-          techNews.some((article) => !article.id.includes("fallback"))
+        // Check if we got demo data
+        const hasDemoData =
+          generalNews.some((article) => article.id.includes("demo")) ||
+          businessNews.some((article) => article.id.includes("demo")) ||
+          techNews.some((article) => article.id.includes("demo"))
 
-        if (!hasRealData) {
-          setIsUsingFallback(true)
-          console.log("Using fallback data due to API limitations")
+        if (hasDemoData) {
+          setIsUsingDemo(true)
+          setError("NewsAPI is currently unavailable. Showing demo content to demonstrate the interface.")
+          console.log("Using demo data due to API limitations")
         }
 
         // Mix all articles together
@@ -93,17 +94,8 @@ export default function Home() {
         console.log(`Loaded ${shuffledArticles.length} mixed articles`)
       } catch (error) {
         console.error("Failed to load news:", error)
-        setError("Unable to load news at the moment. Showing sample content.")
-        setIsUsingFallback(true)
-
-        // Load fallback data
-        try {
-          const fallbackNews = await fetchNews({ category: "general", pageSize: 20 })
-          setNewsArticles(fallbackNews)
-          setTrendingNews(fallbackNews.slice(0, 5))
-        } catch (fallbackError) {
-          console.error("Even fallback failed:", fallbackError)
-        }
+        setError("Unable to load news at the moment. Please check your internet connection and try again.")
+        setIsUsingDemo(true)
       } finally {
         setLoading(false)
       }
@@ -182,9 +174,9 @@ export default function Home() {
             ))}
           </div>
           <div className="flex items-center space-x-4">
-            {isUsingFallback && (
+            {isUsingDemo && (
               <div className="flex items-center text-xs text-yellow-400">
-                <WifiOff className="h-3 w-3 mr-1" />
+                <Info className="h-3 w-3 mr-1" />
                 Demo Mode
               </div>
             )}
@@ -237,16 +229,24 @@ export default function Home() {
           <Alert className="mb-6 bg-yellow-900/20 border-yellow-600">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-yellow-200">
-              {error} {isUsingFallback && "Displaying sample news content."}
+              {error}
+              {isUsingDemo && (
+                <div className="mt-2 text-sm">
+                  <strong>Note:</strong> This is demo content to showcase the interface. In production, this would show
+                  real news from NewsAPI.org.
+                </div>
+              )}
             </AlertDescription>
           </Alert>
         )}
 
-        {isUsingFallback && !error && (
+        {isUsingDemo && !error && (
           <Alert className="mb-6 bg-blue-900/20 border-blue-600">
-            <WifiOff className="h-4 w-4" />
+            <Info className="h-4 w-4" />
             <AlertDescription className="text-blue-200">
-              Currently in demo mode. Some features may be limited.
+              <strong>Demo Mode:</strong> NewsAPI.org is currently unavailable. Showing sample content to demonstrate
+              the interface.
+              <div className="mt-1 text-sm opacity-80">Articles marked with [DEMO] are placeholder content.</div>
             </AlertDescription>
           </Alert>
         )}
@@ -262,8 +262,12 @@ export default function Home() {
             <div className="lg:col-span-3">
               {/* Hero Section */}
               <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2">Live News Feed</h1>
-                <p className="text-gray-400">Real-time news from around the world</p>
+                <h1 className="text-4xl font-bold mb-2">{isUsingDemo ? "Demo News Feed" : "Live News Feed"}</h1>
+                <p className="text-gray-400">
+                  {isUsingDemo
+                    ? "Sample news content demonstrating the interface"
+                    : "Real-time news from around the world"}
+                </p>
               </div>
 
               {/* Featured Article */}
@@ -280,7 +284,11 @@ export default function Home() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                         <div className="absolute bottom-0 left-0 right-0 p-6">
-                          <Badge className="mb-3 bg-red-600 hover:bg-red-700">BREAKING</Badge>
+                          <Badge
+                            className={`mb-3 ${isUsingDemo ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"}`}
+                          >
+                            {isUsingDemo ? "DEMO" : "BREAKING"}
+                          </Badge>
                           <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 line-clamp-2">
                             {newsArticles[0].title}
                           </h2>
@@ -375,7 +383,7 @@ export default function Home() {
                 <div className="flex justify-center">
                   <Button
                     variant="outline"
-                    className="border-gray-700 hover:bg-gray-800"
+                    className="border-gray-700 hover:bg-gray-800 bg-transparent"
                     onClick={loadMoreNews}
                     disabled={loadingMore}
                   >
@@ -404,19 +412,19 @@ export default function Home() {
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
                   <div className="flex items-center">
-                    {isUsingFallback ? (
-                      <WifiOff className="h-5 w-5 mr-2 text-yellow-500" />
+                    {isUsingDemo ? (
+                      <Info className="h-5 w-5 mr-2 text-blue-500" />
                     ) : (
                       <Wifi className="h-5 w-5 mr-2 text-green-500" />
                     )}
-                    <h3 className="font-bold">{isUsingFallback ? "Demo Mode" : "Live Feed"}</h3>
+                    <h3 className="font-bold">{isUsingDemo ? "Demo Mode" : "Live Feed"}</h3>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-gray-400">
-                    {isUsingFallback
-                      ? "Showing sample content due to API limitations"
-                      : "Connected to live news sources"}
+                    {isUsingDemo
+                      ? "Showing demo content - NewsAPI.org unavailable"
+                      : "Connected to NewsAPI.org live sources"}
                   </p>
                 </CardContent>
               </Card>
@@ -426,7 +434,7 @@ export default function Home() {
                 <CardHeader>
                   <div className="flex items-center">
                     <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                    <h3 className="font-bold">Trending Now</h3>
+                    <h3 className="font-bold">{isUsingDemo ? "Demo Trending" : "Trending Now"}</h3>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -536,6 +544,11 @@ export default function Home() {
               <p className="text-sm text-gray-400 mb-4">
                 Your trusted source for breaking news, in-depth reporting, and fact-checked journalism.
               </p>
+              {isUsingDemo && (
+                <p className="text-xs text-yellow-400">
+                  Currently in demo mode - NewsAPI.org integration available in production.
+                </p>
+              )}
             </div>
             <div>
               <h3 className="text-lg font-bold mb-4">Quick Links</h3>
