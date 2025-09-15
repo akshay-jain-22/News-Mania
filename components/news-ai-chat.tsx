@@ -1,188 +1,202 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Send, Bot, User, AlertCircle } from "lucide-react"
-import type { NewsArticle } from "@/types/news"
+import { Send, Bot, User, Loader2 } from "lucide-react"
 import { askAIAboutArticle } from "@/lib/ai-context"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useToast } from "@/components/ui/use-toast"
+import type { NewsArticle } from "@/types/news"
+
+interface Message {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  timestamp: Date
+}
 
 interface NewsAIChatProps {
   article: NewsArticle
 }
 
-interface Message {
-  role: "user" | "assistant" | "system"
-  content: string
-  isLoading?: boolean
-  isError?: boolean
-}
-
 export function NewsAIChat({ article }: NewsAIChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
+      id: "welcome",
       role: "assistant",
-      content: `Hello! I'm your AI assistant. Ask me anything about "${article.title}".`,
+      content: `Hi! I'm here to help you understand this article: "${article.title}". What would you like to know about it?`,
+      timestamp: new Date(),
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { toast } = useToast()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  const suggestedQuestions = [
+    "What is this article about?",
+    "Who are the key people mentioned?",
+    "What are the main points?",
+    "Why is this news important?",
+    "What happened and when?",
+  ]
 
   useEffect(() => {
-    scrollToBottom()
+    // Scroll to bottom when new messages are added
+    if (scrollAreaRef.current) {
+      const viewport = scrollAreaRef.current.querySelector("[data-radix-scroll-area-viewport]")
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    }
   }, [messages])
 
-  // Focus input on mount
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus()
+  const handleSendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim()
+    if (!text || isLoading) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: text,
+      timestamp: new Date(),
     }
-  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!input.trim() || isLoading) return
-
-    const userMessage = input.trim()
+    setMessages((prev) => [...prev, userMessage])
     setInput("")
-
-    // Add user message to chat
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }])
-
-    // Add loading message
-    setMessages((prev) => [...prev, { role: "assistant", content: "Thinking...", isLoading: true }])
-
     setIsLoading(true)
 
     try {
-      console.log("Sending question to AI:", userMessage)
+      const response = await askAIAboutArticle(article.title, article.description || "", article.content || "", text)
 
-      // Get AI response based on article context
-      const response = await askAIAboutArticle(
-        article.title,
-        article.description || "",
-        article.content || "",
-        userMessage,
-      )
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: response,
+        timestamp: new Date(),
+      }
 
-      console.log("Received AI response:", response)
-
-      // Remove loading message and add AI response
-      setMessages((prev) => {
-        const newMessages = prev.filter((msg) => !msg.isLoading)
-        return [...newMessages, { role: "assistant", content: response }]
-      })
+      setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error("Error getting AI response:", error)
-
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to get a response from the AI. Please try again.",
-      })
-
-      // Remove loading message and add error message
-      setMessages((prev) => {
-        const newMessages = prev.filter((msg) => !msg.isLoading)
-        return [
-          ...newMessages,
-          {
-            role: "system",
-            content:
-              "I'm sorry, I encountered an error processing your request. Please try again with a different question.",
-            isError: true,
-          },
-        ]
-      })
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content:
+          "I'm having trouble analyzing this article right now. Could you try asking your question in a different way?",
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
-
-      // Focus the input again after response
-      if (inputRef.current) {
-        inputRef.current.focus()
-      }
+      // Focus back on input
+      setTimeout(() => inputRef.current?.focus(), 100)
     }
   }
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
   return (
-    <div className="flex flex-col h-[500px] max-h-[calc(80vh-120px)]">
-      <ScrollArea className="flex-grow p-4 border rounded-md mb-4">
+    <div className="flex flex-col h-[500px] bg-gray-900 rounded-lg border border-gray-700">
+      {/* Messages */}
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message, index) => (
-            <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              {message.isError ? (
-                <Alert variant="destructive" className="max-w-[80%]">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{message.content}</AlertDescription>
-                </Alert>
-              ) : (
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex items-start gap-3 ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+            >
+              <div
+                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                  message.role === "user" ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-300"
+                }`}
+              >
+                {message.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              </div>
+
+              <div className={`flex-1 max-w-[80%] ${message.role === "user" ? "text-right" : "text-left"}`}>
                 <div
-                  className={`flex items-start gap-2 max-w-[80%] ${
-                    message.role === "user" ? "flex-row-reverse" : "flex-row"
+                  className={`inline-block p-3 rounded-lg ${
+                    message.role === "user" ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-100"
                   }`}
                 >
-                  <div className={`p-1 rounded-full ${message.role === "user" ? "bg-primary" : "bg-muted"}`}>
-                    {message.role === "user" ? (
-                      <User className="h-5 w-5 text-primary-foreground" />
-                    ) : message.isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Bot className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div
-                    className={`p-3 rounded-lg ${
-                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                    }`}
-                  >
-                    {message.isLoading ? (
-                      <div className="flex items-center">
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        <span>{message.content}</span>
-                      </div>
-                    ) : (
-                      message.content.split("\n").map((paragraph, i) => (
-                        <p key={i} className={i > 0 ? "mt-2" : ""}>
-                          {paragraph}
-                        </p>
-                      ))
-                    )}
-                  </div>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 </div>
-              )}
+                <p className="text-xs text-gray-500 mt-1">{formatTime(message.timestamp)}</p>
+              </div>
             </div>
           ))}
-          <div ref={messagesEndRef} />
+
+          {isLoading && (
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="inline-block p-3 rounded-lg bg-gray-800 text-gray-100">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about this article..."
-          disabled={isLoading}
-          className="flex-grow"
-        />
-        <Button type="submit" disabled={isLoading || !input.trim()}>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          <span className="sr-only">Send</span>
-        </Button>
-      </form>
+      {/* Suggested Questions */}
+      {messages.length === 1 && (
+        <div className="px-4 py-2 border-t border-gray-700">
+          <p className="text-xs text-gray-400 mb-2">Try asking:</p>
+          <div className="flex flex-wrap gap-2">
+            {suggestedQuestions.map((question, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                size="sm"
+                onClick={() => handleSendMessage(question)}
+                className="text-xs bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700"
+                disabled={isLoading}
+              >
+                {question}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="p-4 border-t border-gray-700">
+        <div className="flex gap-2">
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask a question about this article..."
+            className="flex-1 bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+            disabled={isLoading}
+          />
+          <Button
+            onClick={() => handleSendMessage()}
+            disabled={!input.trim() || isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

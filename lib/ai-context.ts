@@ -1,53 +1,48 @@
-/**
- * Get additional context for a news article using AI
- */
+import { generateText } from "ai"
+import { xai } from "@ai-sdk/xai"
+
+interface NewsArticle {
+  title: string
+  description?: string
+  content?: string
+  source?: string
+  url?: string
+  publishedAt?: string
+}
+
 export async function getNewsContext(title: string, description: string, content: string): Promise<string> {
   try {
-    console.log("Requesting context for article:", title)
+    const prompt = `
+You are a news analysis expert. Provide helpful background context for this news article.
 
-    // Add a timeout to the fetch to prevent hanging requests
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+Article Details:
+- Title: ${title}
+- Description: ${description || "No description available"}
+- Content Preview: ${content?.substring(0, 500) || "No content available"}
 
-    const response = await fetch("/api/news-context", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        content,
-      }),
-      signal: controller.signal,
+Please provide:
+1. Background information about the main topic
+2. Key context that readers should know
+3. Related events or trends
+4. Why this story matters
+5. Any important background about organizations/people mentioned
+
+Keep the response informative but concise (2-3 paragraphs).
+`
+
+    const { text } = await generateText({
+      model: xai("grok-beta"),
+      prompt,
+      maxTokens: 300,
     })
 
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      console.error(`Failed to fetch news context: ${response.status}`)
-      throw new Error(`API Error: ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    // Check if we got a valid context response
-    if (!data.context || data.context.trim() === "") {
-      throw new Error("Empty context received")
-    }
-
-    return data.context
+    return text
   } catch (error) {
-    console.error("Error getting news context:", error)
-
-    // Create intelligent fallback based on article content
-    return createIntelligentFallback(title, description, content)
+    console.error("Error generating AI context:", error)
+    return generateSmartFallback({ title, description, content })
   }
 }
 
-/**
- * Ask AI a question about a specific news article
- */
 export async function askAIAboutArticle(
   title: string,
   description: string,
@@ -55,238 +50,147 @@ export async function askAIAboutArticle(
   question: string,
 ): Promise<string> {
   try {
-    console.log("Asking AI about article:", title)
-    console.log("Question:", question)
+    const prompt = `
+You are a helpful news assistant. Answer the user's question about this article.
 
-    // Add a timeout to the fetch to prevent hanging requests
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+Article Information:
+- Title: ${title}
+- Description: ${description || ""}
+- Content: ${content?.substring(0, 1000) || "Limited content available"}
 
-    const response = await fetch("/api/news-chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        content,
-        question,
-      }),
-      signal: controller.signal,
+User Question: ${question}
+
+Provide a helpful, accurate answer based on the article information. If the article doesn't contain enough information to answer the question, say so and suggest what additional information might be helpful.
+`
+
+    const { text } = await generateText({
+      model: xai("grok-beta"),
+      prompt,
+      maxTokens: 200,
     })
 
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      console.error(`Failed to get AI response: ${response.status}`)
-      throw new Error(`API Error: ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (!data.response || data.response.trim() === "") {
-      throw new Error("Empty response received")
-    }
-
-    return data.response
+    return text
   } catch (error) {
-    console.error("Error getting AI response:", error)
-
-    // Create intelligent response based on the question and article
-    return createIntelligentResponse(title, description, content, question)
+    console.error("Error generating chat response:", error)
+    return generateChatFallback({ title, description, content }, question)
   }
 }
 
-/**
- * Create an intelligent fallback context based on article content
- */
-function createIntelligentFallback(title: string, description: string, content: string): string {
-  const articleText = (title + " " + description + " " + content).toLowerCase()
+export async function generateNewsInsight(article: NewsArticle, question: string): Promise<string> {
+  return askAIAboutArticle(article.title, article.description || "", article.content || "", question)
+}
 
-  // Extract key topics and entities
-  const topics = extractTopics(articleText)
-  const entities = extractEntities(articleText)
+function generateSmartFallback(article: NewsArticle): string {
+  const title = article.title || "this article"
+  const topics = detectTopics(article)
+  const entities = extractEntities(article)
 
-  let context = `Here's additional context about "${title}":\n\n`
+  let context = `This article covers `
 
-  // Add topic-based context
   if (topics.length > 0) {
-    context += `📋 Key Topics: This article covers ${topics.join(", ")}.\n\n`
+    context += `${topics.join(", ")} topics. `
+  } else {
+    context += `current news developments. `
   }
 
-  // Add entity-based context
   if (entities.length > 0) {
-    context += `🏢 Key Entities: The story involves ${entities.join(", ")}.\n\n`
+    context += `Key entities mentioned include ${entities.slice(0, 3).join(", ")}. `
   }
 
-  // Add general context based on content analysis
-  if (articleText.includes("breaking") || articleText.includes("urgent")) {
-    context += `⚡ Breaking News: This appears to be a developing story that may have ongoing updates.\n\n`
-  }
-
-  if (articleText.includes("study") || articleText.includes("research")) {
-    context += `🔬 Research-Based: This article references scientific studies or research findings.\n\n`
-  }
-
-  if (articleText.includes("government") || articleText.includes("policy")) {
-    context += `🏛️ Government/Policy: This story involves government actions or policy decisions.\n\n`
-  }
-
-  if (articleText.includes("market") || articleText.includes("stock") || articleText.includes("economy")) {
-    context += `📈 Economic Impact: This news may have economic or market implications.\n\n`
-  }
-
-  context += `💡 For More Information: Consider checking multiple reliable news sources for comprehensive coverage of this topic. You can also ask specific questions about this article using the chat feature.`
+  context += `For the most comprehensive understanding of this story, consider looking at related coverage from multiple news sources and checking for any recent updates or developments.`
 
   return context
 }
 
-/**
- * Create an intelligent response based on the question and article content
- */
-function createIntelligentResponse(title: string, description: string, content: string, question: string): string {
-  const articleText = (title + " " + description + " " + content).toLowerCase()
-  const questionLower = question.toLowerCase()
+function generateChatFallback(article: NewsArticle, question: string): string {
+  const questionType = detectQuestionType(question)
+  const title = article.title || "this article"
 
-  // Question type detection and response generation
-  if (questionLower.includes("what") && questionLower.includes("about")) {
-    return `Based on the article "${title}", this story discusses ${description || "the topic mentioned in the headline"}. ${content ? "The article provides details about " + content.substring(0, 200) + "..." : "For complete details, I recommend reading the full article."}`
+  switch (questionType) {
+    case "what":
+      return `Based on the article "${title}", this appears to be about ${extractMainTopic(article)}. For more specific details, you might want to read the full article or check additional sources.`
+
+    case "when":
+      if (article.publishedAt) {
+        return `This article was published on ${new Date(article.publishedAt).toLocaleDateString()}. For specific timing of events mentioned in the article, please refer to the full text.`
+      }
+      return `The timing details would be found in the full article content. Please check the original source for specific dates and times.`
+
+    case "who":
+      const entities = extractEntities(article)
+      if (entities.length > 0) {
+        return `The article mentions ${entities.slice(0, 3).join(", ")}. For more details about the people or organizations involved, please read the full article.`
+      }
+      return `The article discusses various people and organizations. For specific details about who is involved, please refer to the full article content.`
+
+    case "where":
+      const locations = extractLocations(article)
+      if (locations.length > 0) {
+        return `This story appears to involve ${locations.join(", ")}. For more specific location details, please check the full article.`
+      }
+      return `Location details would be found in the full article. Please refer to the original source for specific geographic information.`
+
+    case "why":
+      return `The reasons and motivations behind this story are explained in the full article. For a complete understanding of the "why," I'd recommend reading the entire piece.`
+
+    case "how":
+      return `The process and methods are detailed in the full article. For step-by-step information about how this happened or works, please refer to the complete article content.`
+
+    default:
+      return `I'd be happy to help answer your question about "${title}". For the most accurate and detailed information, I recommend reading the full article from the original source.`
   }
-
-  if (questionLower.includes("when") || questionLower.includes("time")) {
-    const timeInfo = extractTimeInfo(articleText)
-    return timeInfo
-      ? `According to the article, ${timeInfo}`
-      : `The article doesn't specify exact timing, but you can find more details in the full article about "${title}".`
-  }
-
-  if (questionLower.includes("who")) {
-    const people = extractPeople(articleText)
-    return people.length > 0
-      ? `The article mentions several key people: ${people.join(", ")}. For more details about their roles, please refer to the full article.`
-      : `The article "${title}" discusses various parties, but specific individuals aren't clearly identified in the available excerpt.`
-  }
-
-  if (questionLower.includes("where")) {
-    const locations = extractLocations(articleText)
-    return locations.length > 0
-      ? `This story takes place in or involves: ${locations.join(", ")}. The full article may contain more specific location details.`
-      : `The article doesn't specify clear locations in the available excerpt. Check the full article for geographic details.`
-  }
-
-  if (questionLower.includes("why") || questionLower.includes("reason")) {
-    return `The article "${title}" explains the reasoning behind this story. ${description || "The main points are covered in the article content."} For a complete understanding of the motivations and reasons, I recommend reading the full article.`
-  }
-
-  if (questionLower.includes("how")) {
-    return `The article provides details on how this situation developed. ${content ? "According to the content: " + content.substring(0, 200) + "..." : "The full article contains the step-by-step details."}`
-  }
-
-  // Default intelligent response
-  return `That's an interesting question about "${title}". While I can see this article covers ${description || "the topic in the headline"}, I'd recommend reading the full article for the most accurate and complete information. You can also try asking more specific questions about particular aspects of the story.`
 }
 
-/**
- * Extract topics from article text
- */
-function extractTopics(text: string): string[] {
-  const topicKeywords = {
-    technology: ["tech", "ai", "artificial intelligence", "software", "app", "digital", "cyber", "internet"],
-    politics: ["government", "election", "vote", "policy", "congress", "senate", "president"],
-    business: ["company", "business", "market", "stock", "economy", "financial", "revenue", "profit"],
-    health: ["health", "medical", "doctor", "hospital", "disease", "treatment", "vaccine"],
-    sports: ["game", "team", "player", "sport", "championship", "league", "match"],
-    science: ["research", "study", "scientist", "discovery", "experiment", "data"],
-  }
+function detectTopics(article: NewsArticle): string[] {
+  const text = `${article.title} ${article.description} ${article.content}`.toLowerCase()
+  const topics: string[] = []
 
-  const foundTopics: string[] = []
+  const topicKeywords = {
+    technology: ["ai", "artificial intelligence", "tech", "software", "computer", "digital", "internet", "app"],
+    politics: ["government", "election", "policy", "congress", "senate", "president", "political"],
+    business: ["company", "business", "market", "stock", "economy", "financial", "revenue", "profit"],
+    health: ["health", "medical", "doctor", "hospital", "disease", "treatment", "medicine"],
+    sports: ["game", "team", "player", "sport", "championship", "league", "match"],
+    science: ["research", "study", "scientist", "discovery", "experiment", "scientific"],
+    entertainment: ["movie", "music", "celebrity", "entertainment", "film", "show", "actor"],
+  }
 
   for (const [topic, keywords] of Object.entries(topicKeywords)) {
     if (keywords.some((keyword) => text.includes(keyword))) {
-      foundTopics.push(topic)
+      topics.push(topic)
     }
   }
 
-  return foundTopics
+  return topics
 }
 
-/**
- * Extract entities (companies, organizations) from text
- */
-function extractEntities(text: string): string[] {
-  const commonEntities = [
-    "apple",
-    "google",
-    "microsoft",
-    "amazon",
-    "facebook",
-    "meta",
-    "twitter",
-    "tesla",
-    "nasa",
-    "fda",
-    "cdc",
-    "who",
-    "un",
-    "eu",
-    "nato",
-    "congress",
-    "senate",
-    "white house",
-    "supreme court",
-  ]
+function extractEntities(article: NewsArticle): string[] {
+  const text = `${article.title} ${article.description}`.toLowerCase()
+  const entities: string[] = []
 
-  return commonEntities.filter((entity) => text.includes(entity))
-}
+  const fullText = `${article.title} ${article.description}`
+  const orgPattern = /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g
+  const matches = fullText.match(orgPattern)
 
-/**
- * Extract time-related information
- */
-function extractTimeInfo(text: string): string | null {
-  const timePatterns = [
-    /(\d{1,2}:\d{2})/g,
-    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi,
-    /(january|february|march|april|may|june|july|august|september|october|november|december)/gi,
-    /(today|tomorrow|yesterday|next week|last week)/gi,
-  ]
-
-  for (const pattern of timePatterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return `the timing mentioned includes ${match[0]}`
-    }
+  if (matches) {
+    entities.push(...matches.slice(0, 3))
   }
 
-  return null
+  return [...new Set(entities)]
 }
 
-/**
- * Extract people names (basic pattern matching)
- */
-function extractPeople(text: string): string[] {
-  // This is a simplified approach - in a real app you'd use NLP
-  const words = text.split(" ")
-  const people: string[] = []
+function extractLocations(article: NewsArticle): string[] {
+  const text = `${article.title} ${article.description}`.toLowerCase()
+  const locations: string[] = []
 
-  for (let i = 0; i < words.length - 1; i++) {
-    const word = words[i]
-    const nextWord = words[i + 1]
-
-    // Look for capitalized words that might be names
-    if (word.match(/^[A-Z][a-z]+$/) && nextWord.match(/^[A-Z][a-z]+$/)) {
-      people.push(`${word} ${nextWord}`)
-    }
-  }
-
-  return people.slice(0, 3) // Return max 3 names
-}
-
-/**
- * Extract locations (basic pattern matching)
- */
-function extractLocations(text: string): string[] {
-  const commonLocations = [
+  const locationKeywords = [
+    "united states",
+    "usa",
+    "america",
+    "china",
+    "russia",
+    "europe",
+    "asia",
     "new york",
     "california",
     "texas",
@@ -294,15 +198,38 @@ function extractLocations(text: string): string[] {
     "washington",
     "london",
     "paris",
-    "tokyo",
-    "china",
-    "usa",
-    "america",
-    "europe",
-    "asia",
-    "africa",
-    "australia",
   ]
 
-  return commonLocations.filter((location) => text.includes(location))
+  locationKeywords.forEach((location) => {
+    if (text.includes(location)) {
+      locations.push(location)
+    }
+  })
+
+  return locations
+}
+
+function extractMainTopic(article: NewsArticle): string {
+  const topics = detectTopics(article)
+  if (topics.length > 0) {
+    return topics[0]
+  }
+
+  const title = article.title?.toLowerCase() || ""
+  if (title.includes("break") || title.includes("news")) {
+    return "breaking news"
+  }
+
+  return "current events"
+}
+
+function detectQuestionType(question: string): string {
+  const q = question.toLowerCase()
+  if (q.startsWith("what")) return "what"
+  if (q.startsWith("when")) return "when"
+  if (q.startsWith("who")) return "who"
+  if (q.startsWith("where")) return "where"
+  if (q.startsWith("why")) return "why"
+  if (q.startsWith("how")) return "how"
+  return "general"
 }
