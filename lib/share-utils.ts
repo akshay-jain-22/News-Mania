@@ -1,201 +1,208 @@
-export interface ShareContent {
+export interface ShareData {
   title: string
-  description: string
+  text: string
   url: string
-  source?: string
 }
 
 export interface SharePlatform {
-  id: string
   name: string
   icon: string
-  available: boolean
+  url: string
+  color: string
 }
 
 /**
- * Share content using the Web Share API or fallback to clipboard
+ * Share content using Web Share API or fallback to platform-specific sharing
  */
-export async function shareContent(content: ShareContent): Promise<boolean> {
+export async function shareContent(data: ShareData): Promise<boolean> {
   try {
-    // Check if Web Share API is available
-    if (navigator.share) {
-      await navigator.share({
-        title: content.title,
-        text: content.description,
-        url: content.url,
-      })
+    // Check if Web Share API is supported
+    if (navigator.share && navigator.canShare && navigator.canShare(data)) {
+      await navigator.share(data)
       return true
+    } else {
+      // Fallback to opening share dialog with available platforms
+      return openShareDialog(data)
     }
-
-    // Fallback to clipboard
-    const shareText = `${content.title}\n\n${content.description}\n\nRead more: ${content.url}`
-
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(shareText)
-      return true
-    }
-
-    // Final fallback for older browsers
-    const textArea = document.createElement("textarea")
-    textArea.value = shareText
-    document.body.appendChild(textArea)
-    textArea.select()
-    document.execCommand("copy")
-    document.body.removeChild(textArea)
-
-    return true
   } catch (error) {
     console.error("Error sharing content:", error)
-    return false
+
+    // If Web Share API fails, try fallback
+    return openShareDialog(data)
   }
 }
 
 /**
  * Open platform-specific share dialog
  */
-export function openPlatformShare(platform: string, content: ShareContent): void {
-  const encodedTitle = encodeURIComponent(content.title)
-  const encodedDescription = encodeURIComponent(content.description)
-  const encodedUrl = encodeURIComponent(content.url)
+function openShareDialog(data: ShareData): boolean {
+  try {
+    const platforms = getAvailableSharePlatforms(data)
 
-  let shareUrl = ""
+    if (platforms.length === 0) {
+      // Copy to clipboard as last resort
+      return copyToClipboard(data.url)
+    }
 
-  switch (platform) {
-    case "twitter":
-      shareUrl = `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`
-      break
-    case "facebook":
-      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedTitle}`
-      break
-    case "linkedin":
-      shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&title=${encodedTitle}&summary=${encodedDescription}`
-      break
-    case "reddit":
-      shareUrl = `https://reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`
-      break
-    case "whatsapp":
-      shareUrl = `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`
-      break
-    case "telegram":
-      shareUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`
-      break
-    case "email":
-      shareUrl = `mailto:?subject=${encodedTitle}&body=${encodedDescription}%0A%0ARead more: ${encodedUrl}`
-      break
-    case "copy":
-      copyToClipboard(content)
-      return
-    default:
-      console.error("Unknown share platform:", platform)
-      return
-  }
+    // For now, default to Twitter sharing
+    const twitterPlatform = platforms.find((p) => p.name === "Twitter")
+    if (twitterPlatform) {
+      window.open(twitterPlatform.url, "_blank", "width=600,height=400")
+      return true
+    }
 
-  if (shareUrl) {
-    window.open(shareUrl, "_blank", "width=600,height=400,scrollbars=yes,resizable=yes")
+    // Fallback to first available platform
+    window.open(platforms[0].url, "_blank", "width=600,height=400")
+    return true
+  } catch (error) {
+    console.error("Error opening share dialog:", error)
+    return copyToClipboard(data.url)
   }
 }
 
 /**
- * Copy content to clipboard
+ * Get available share platforms with URLs
  */
-async function copyToClipboard(content: ShareContent): Promise<void> {
-  const shareText = `${content.title}\n\n${content.description}\n\nRead more: ${content.url}`
+export function getAvailableSharePlatforms(data: ShareData): SharePlatform[] {
+  const encodedTitle = encodeURIComponent(data.title)
+  const encodedText = encodeURIComponent(data.text)
+  const encodedUrl = encodeURIComponent(data.url)
 
+  const platforms: SharePlatform[] = [
+    {
+      name: "Twitter",
+      icon: "🐦",
+      url: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
+      color: "#1DA1F2",
+    },
+    {
+      name: "Facebook",
+      icon: "📘",
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedTitle}`,
+      color: "#4267B2",
+    },
+    {
+      name: "LinkedIn",
+      icon: "💼",
+      url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&title=${encodedTitle}&summary=${encodedText}`,
+      color: "#0077B5",
+    },
+    {
+      name: "Reddit",
+      icon: "🔴",
+      url: `https://reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`,
+      color: "#FF4500",
+    },
+    {
+      name: "WhatsApp",
+      icon: "💬",
+      url: `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`,
+      color: "#25D366",
+    },
+    {
+      name: "Telegram",
+      icon: "✈️",
+      url: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`,
+      color: "#0088CC",
+    },
+    {
+      name: "Email",
+      icon: "📧",
+      url: `mailto:?subject=${encodedTitle}&body=${encodedText}%0A%0A${encodedUrl}`,
+      color: "#666666",
+    },
+  ]
+
+  // Filter platforms based on device capabilities
+  return platforms.filter((platform) => {
+    // All platforms are available on web
+    return true
+  })
+}
+
+/**
+ * Open platform-specific share URL
+ */
+export function openPlatformShare(platform: SharePlatform): void {
   try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(shareText)
+    if (platform.name === "Email") {
+      // Email opens in default mail client
+      window.location.href = platform.url
+    } else {
+      // Other platforms open in new window
+      window.open(platform.url, "_blank", "width=600,height=400,scrollbars=yes,resizable=yes")
+    }
+  } catch (error) {
+    console.error(`Error opening ${platform.name} share:`, error)
+  }
+}
+
+/**
+ * Copy text to clipboard
+ */
+function copyToClipboard(text: string): boolean {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+      return true
     } else {
       // Fallback for older browsers
       const textArea = document.createElement("textarea")
-      textArea.value = shareText
+      textArea.value = text
+      textArea.style.position = "fixed"
+      textArea.style.left = "-999999px"
+      textArea.style.top = "-999999px"
       document.body.appendChild(textArea)
+      textArea.focus()
       textArea.select()
-      document.execCommand("copy")
+
+      const successful = document.execCommand("copy")
       document.body.removeChild(textArea)
+
+      return successful
     }
   } catch (error) {
     console.error("Error copying to clipboard:", error)
+    return false
   }
 }
 
 /**
- * Get available share platforms
- */
-export function getAvailableSharePlatforms(): SharePlatform[] {
-  return [
-    {
-      id: "twitter",
-      name: "Twitter",
-      icon: "🐦",
-      available: true,
-    },
-    {
-      id: "facebook",
-      name: "Facebook",
-      icon: "📘",
-      available: true,
-    },
-    {
-      id: "linkedin",
-      name: "LinkedIn",
-      icon: "💼",
-      available: true,
-    },
-    {
-      id: "reddit",
-      name: "Reddit",
-      icon: "🤖",
-      available: true,
-    },
-    {
-      id: "whatsapp",
-      name: "WhatsApp",
-      icon: "💬",
-      available: true,
-    },
-    {
-      id: "telegram",
-      name: "Telegram",
-      icon: "✈️",
-      available: true,
-    },
-    {
-      id: "email",
-      name: "Email",
-      icon: "📧",
-      available: true,
-    },
-    {
-      id: "copy",
-      name: "Copy Link",
-      icon: "📋",
-      available: true,
-    },
-  ]
-}
-
-/**
- * Check if Web Share API is available
+ * Check if Web Share API is supported
  */
 export function isWebShareSupported(): boolean {
   return typeof navigator !== "undefined" && "share" in navigator
 }
 
 /**
- * Share article with smart fallbacks
+ * Check if a specific share data can be shared
  */
-export async function shareArticle(article: {
-  title: string
-  description?: string
-  url: string
-  source?: { name: string }
-}): Promise<boolean> {
-  const content: ShareContent = {
-    title: article.title,
-    description: article.description || "Check out this news article",
-    url: article.url,
-    source: article.source?.name,
+export function canShare(data: ShareData): boolean {
+  if (typeof navigator === "undefined") return false
+
+  return navigator.canShare ? navigator.canShare(data) : isWebShareSupported()
+}
+
+/**
+ * Generate share text for news articles
+ */
+export function generateNewsShareText(title: string, source?: string): string {
+  let shareText = `Check out this news: ${title}`
+
+  if (source) {
+    shareText += ` (via ${source})`
   }
 
-  return await shareContent(content)
+  return shareText
+}
+
+/**
+ * Generate share data for news articles
+ */
+export function generateNewsShareData(title: string, url: string, source?: string, description?: string): ShareData {
+  return {
+    title,
+    text: description || generateNewsShareText(title, source),
+    url,
+  }
 }
