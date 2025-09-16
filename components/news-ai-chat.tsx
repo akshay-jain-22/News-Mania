@@ -1,46 +1,65 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Send, Bot, User, MessageCircle } from "lucide-react"
-import { generateChatResponse, type ChatMessage, type NewsItem } from "@/lib/ai-context"
+import { Loader2, Send, Bot, User, Sparkles } from "lucide-react"
+import { askAIAboutArticle, type NewsArticle } from "@/lib/ai-context"
 
-interface NewsAIChatProps {
-  article: NewsItem
-  className?: string
+interface Message {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  timestamp: Date
 }
 
-export function NewsAIChat({ article, className = "" }: NewsAIChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+interface NewsAIChatProps {
+  article: NewsArticle
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
-  // Auto-scroll to bottom when new messages are added
+  useEffect(() => {
+    if (isOpen && !isInitialized) {
+      initializeChat()
+      setIsInitialized(true)
+    }
+  }, [isOpen, isInitialized])
+
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
 
-  // Focus input when chat opens
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus()
+  const initializeChat = () => {
+    const welcomeMessage: Message = {
+      id: `msg_${Date.now()}`,
+      role: "assistant",
+      content: `Hi! I'm here to help you understand this article: "${article.title}". You can ask me questions about the content, request summaries, or discuss the implications. What would you like to know?`,
+      timestamp: new Date(),
     }
-  }, [isOpen])
+    setMessages([welcomeMessage])
+  }
 
-  const handleSendMessage = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    const userMessage: ChatMessage = {
+    const userMessage: Message = {
+      id: `msg_${Date.now()}_user`,
       role: "user",
       content: input.trim(),
       timestamp: new Date(),
@@ -51,21 +70,23 @@ export function NewsAIChat({ article, className = "" }: NewsAIChatProps) {
     setIsLoading(true)
 
     try {
-      const response = await generateChatResponse(input.trim(), article, messages)
+      const response = await askAIAboutArticle(article, userMessage.content)
 
-      const assistantMessage: ChatMessage = {
+      const assistantMessage: Message = {
+        id: `msg_${Date.now()}_assistant`,
         role: "assistant",
-        content: response,
+        content: response.response,
         timestamp: new Date(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
-      console.error("Error generating chat response:", error)
+      console.error("Error getting AI response:", error)
 
-      const errorMessage: ChatMessage = {
+      const errorMessage: Message = {
+        id: `msg_${Date.now()}_error`,
         role: "assistant",
-        content: `I apologize, but I'm having trouble processing your question about "${article.title}". The article discusses ${article.description || "important news topics"}. Could you try rephrasing your question?`,
+        content: `I'm sorry, I'm having trouble processing your question right now. Based on the article "${article.title}", I can tell you that it discusses ${article.description || "important news topics"}. Please try asking a different question.`,
         timestamp: new Date(),
       }
 
@@ -75,150 +96,124 @@ export function NewsAIChat({ article, className = "" }: NewsAIChatProps) {
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  const startNewConversation = () => {
-    setMessages([])
-    setInput("")
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
-  }
-
   const suggestedQuestions = [
-    "What is this article about?",
-    "Can you summarize the key points?",
-    "What are the main topics discussed?",
-    "Who are the key people mentioned?",
+    "Can you summarize this article?",
+    "What are the key points?",
+    "Who are the main people involved?",
+    "What are the implications?",
   ]
 
-  if (!isOpen) {
-    return (
-      <Button onClick={() => setIsOpen(true)} variant="outline" size="sm" className={`gap-2 ${className}`}>
-        <MessageCircle className="h-4 w-4" />
-        AI Chat
-      </Button>
-    )
-  }
+  if (!isOpen) return null
 
   return (
-    <Card className={`w-full max-w-md ${className}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            AI Assistant
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button onClick={startNewConversation} variant="ghost" size="sm" disabled={messages.length === 0}>
-              New Chat
-            </Button>
-            <Button onClick={() => setIsOpen(false)} variant="ghost" size="sm">
-              ×
-            </Button>
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground">Ask questions about: {article.title}</p>
-      </CardHeader>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-blue-500" />
+            AI News Assistant
+          </DialogTitle>
+        </DialogHeader>
 
-      <CardContent className="space-y-4">
-        <ScrollArea className="h-64 w-full pr-4" ref={scrollAreaRef}>
-          <div className="space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center text-muted-foreground py-8">
-                <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Start a conversation about this article!</p>
-                <div className="mt-4 space-y-2">
-                  {suggestedQuestions.map((question, index) => (
-                    <Button
-                      key={index}
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-auto p-2 text-left justify-start"
-                      onClick={() => setInput(question)}
+        <div className="flex-1 flex flex-col min-h-0">
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-sm line-clamp-2 mb-2">{article.title}</h4>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-xs">
+                      {article.source}
+                    </Badge>
+                    <span>•</span>
+                    <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <Sparkles className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div className={`flex gap-3 max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                    <div className="flex-shrink-0">
+                      {message.role === "user" ? (
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                          <User className="h-4 w-4 text-primary-foreground" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                          <Bot className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className={`rounded-lg p-3 ${
+                        message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                      }`}
                     >
-                      {question}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((message, index) => (
-              <div key={index} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`flex gap-2 max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                  <div className="flex-shrink-0">
-                    {message.role === "user" ? (
-                      <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                        <User className="h-3 w-3 text-primary-foreground" />
-                      </div>
-                    ) : (
-                      <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                        <Bot className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    className={`rounded-lg px-3 py-2 text-sm ${
-                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                    <p className="text-xs opacity-70 mt-1">
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex gap-3 justify-start">
-                <div className="flex gap-2">
-                  <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center">
-                    <Bot className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="text-muted-foreground">Thinking...</span>
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      <p className="text-xs opacity-70 mt-1">{message.timestamp.toLocaleTimeString()}</p>
                     </div>
                   </div>
                 </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="bg-muted rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          {messages.length <= 1 && (
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground mb-2">Try asking:</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedQuestions.map((question, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setInput(question)}
+                    className="text-xs"
+                  >
+                    {question}
+                  </Button>
+                ))}
               </div>
-            )}
-          </div>
-        </ScrollArea>
+            </div>
+          )}
 
-        <div className="flex gap-2">
-          <Input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask about this article..."
-            disabled={isLoading}
-            className="flex-1"
-          />
-          <Button onClick={handleSendMessage} disabled={!input.trim() || isLoading} size="sm">
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask me anything about this article..."
+              disabled={isLoading}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={isLoading || !input.trim()} size="icon">
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
         </div>
-
-        <div className="text-xs text-muted-foreground text-center">
-          AI responses are generated and may not always be accurate.
-        </div>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-export default NewsAIChat

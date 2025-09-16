@@ -5,15 +5,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Create a singleton client function
 export function createSupabaseClient() {
   return supabase
 }
 
-// Export the default client
 export { supabase as default }
 
-// Auth helpers
 export async function getCurrentUser() {
   try {
     const {
@@ -103,7 +100,6 @@ export async function resetPassword(email: string) {
   }
 }
 
-// Database helpers
 export async function insertData(table: string, data: any) {
   try {
     const { data: result, error } = await supabase.from(table).insert(data).select()
@@ -176,7 +172,6 @@ export async function deleteData(table: string, id: string) {
   }
 }
 
-// Real-time subscription helpers
 export function subscribeToTable(table: string, callback: (payload: any) => void) {
   try {
     const subscription = supabase
@@ -209,7 +204,6 @@ export function unsubscribe(subscription: any) {
   }
 }
 
-// Storage helpers
 export async function uploadFile(bucket: string, path: string, file: File) {
   try {
     const { data, error } = await supabase.storage.from(bucket).upload(path, file)
@@ -245,7 +239,6 @@ export async function downloadFile(bucket: string, path: string) {
 export function getPublicUrl(bucket: string, path: string) {
   try {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-
     return data.publicUrl
   } catch (error) {
     console.error(`Error getting public URL for ${bucket}/${path}:`, error)
@@ -253,7 +246,6 @@ export function getPublicUrl(bucket: string, path: string) {
   }
 }
 
-// Utility function to check if Supabase is properly configured
 export function isSupabaseConfigured() {
   return !!(
     supabaseUrl &&
@@ -263,7 +255,6 @@ export function isSupabaseConfigured() {
   )
 }
 
-// Health check function
 export async function checkSupabaseConnection() {
   try {
     const { data, error } = await supabase.from("user_notes").select("count").limit(1)

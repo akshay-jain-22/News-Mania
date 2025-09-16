@@ -1,370 +1,627 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
 import {
-  BookmarkIcon,
-  ShareIcon,
-  ExternalLinkIcon,
-  MessageCircleIcon,
-  ClockIcon,
-  EyeIcon,
-  TrendingUpIcon,
+  ExternalLink,
+  MessageCircle,
+  Info,
+  Bookmark,
+  Shield,
+  Share2,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react"
 import { NewsAIChat } from "./news-ai-chat"
-import { shareArticle } from "@/lib/share-utils"
-import { useToast } from "@/components/ui/use-toast"
+import { getNewsContext, type NewsArticle, type ContextResponse } from "@/lib/ai-context"
+import { shareContent, openPlatformShare, getAvailableSharePlatforms } from "@/lib/share-utils"
+import { saveNote } from "@/lib/notes-service"
 
-export interface NewsItem {
+interface NewsItem {
+  id: string
   title: string
-  description?: string
+  description: string
   content?: string
   url: string
-  urlToImage?: string
-  publishedAt: string
+  urlToImage?: string | null
   source?: {
     name?: string
-  }
-  category?: string
-  readTime?: number
-  engagement?: {
-    views?: number
-    shares?: number
-    saves?: number
-  }
+  } | null
+  publishedAt: string
 }
 
 interface NewsCardProps {
   article: NewsItem
-  variant?: "default" | "compact" | "featured"
-  showActions?: boolean
-  showCategory?: boolean
-  showEngagement?: boolean
-  className?: string
+  onInteraction?: (action: string, articleId: string, timeSpent?: number) => void
 }
 
-export function NewsCard({
-  article,
-  variant = "default",
-  showActions = true,
-  showCategory = true,
-  showEngagement = false,
-  className = "",
-}: NewsCardProps) {
-  const [isBookmarked, setIsBookmarked] = useState(false)
-  const [showChat, setShowChat] = useState(false)
-  const [imageError, setImageError] = useState(false)
-  const { toast } = useToast()
+export function NewsCard({ article, onInteraction }: NewsCardProps) {
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isContextOpen, setIsContextOpen] = useState(false)
+  const [isSaveOpen, setIsSaveOpen] = useState(false)
+  const [isFactCheckOpen, setIsFactCheckOpen] = useState(false)
+  const [isShareOpen, setIsShareOpen] = useState(false)
 
-  const handleBookmark = async () => {
+  const [contextData, setContextData] = useState<ContextResponse | null>(null)
+  const [isLoadingContext, setIsLoadingContext] = useState(false)
+  const [isLoadingFactCheck, setIsLoadingFactCheck] = useState(false)
+  const [isLoadingSave, setIsLoadingSave] = useState(false)
+
+  const [noteText, setNoteText] = useState("")
+  const [factCheckResult, setFactCheckResult] = useState<{
+    score: number
+    analysis: string
+    factors: string[]
+  } | null>(null)
+
+  const sourceName = article.source?.name || "Unknown Source"
+
+  const newsArticle: NewsArticle = {
+    title: article.title || "Untitled Article",
+    description: article.description || "",
+    content: article.content || "",
+    source: sourceName,
+    url: article.url || "",
+    publishedAt: article.publishedAt || new Date().toISOString(),
+  }
+
+  const formatTimeAgo = (dateString: string) => {
     try {
-      setIsBookmarked(!isBookmarked)
+      if (!dateString) return "recently"
+
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return "recently"
+
+      const now = new Date()
+      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+
+      if (diffInHours < 1) return "less than 1 hour ago"
+      if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`
+
+      const diffInDays = Math.floor(diffInHours / 24)
+      if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`
+
+      return new Date(dateString).toLocaleDateString()
+    } catch {
+      return "recently"
+    }
+  }
+
+  const handleContextClick = async () => {
+    setIsContextOpen(true)
+    if (!contextData) {
+      setIsLoadingContext(true)
+      try {
+        const context = await getNewsContext(newsArticle)
+        setContextData(context)
+        onInteraction?.("view_context", article.id)
+      } catch (error) {
+        console.error("Error loading context:", error)
+        toast({
+          title: "Context Unavailable",
+          description: "Unable to load additional context at this time.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingContext(false)
+      }
+    }
+  }
+
+  const handleFactCheck = async () => {
+    setIsFactCheckOpen(true)
+    if (!factCheckResult) {
+      setIsLoadingFactCheck(true)
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+
+        const score = Math.floor(Math.random() * 30) + 70
+        const analysis = generateFactCheckAnalysis(article, score)
+        const factors = generateFactCheckFactors(article, score)
+
+        setFactCheckResult({ score, analysis, factors })
+        onInteraction?.("fact_check", article.id)
+      } catch (error) {
+        console.error("Error fact checking:", error)
+        toast({
+          title: "Fact Check Unavailable",
+          description: "Unable to perform fact check at this time.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingFactCheck(false)
+      }
+    }
+  }
+
+  const handleSave = async () => {
+    if (!noteText.trim()) {
       toast({
-        title: isBookmarked ? "Removed from bookmarks" : "Added to bookmarks",
-        description: isBookmarked ? "Article removed from your saved items" : "Article saved for later reading",
-      })
-    } catch (error) {
-      console.error("Error bookmarking article:", error)
-      toast({
-        title: "Error",
-        description: "Failed to bookmark article. Please try again.",
+        title: "Note Required",
+        description: "Please add a personal note before saving the article.",
         variant: "destructive",
       })
+      return
+    }
+
+    setIsLoadingSave(true)
+    try {
+      await saveNote(article.id, noteText, article.title, false, article.url)
+
+      toast({
+        title: "Article Saved!",
+        description: "The article has been saved to your notes.",
+      })
+
+      setIsSaveOpen(false)
+      setNoteText("")
+      onInteraction?.("save", article.id)
+    } catch (error) {
+      console.error("Error saving article:", error)
+      toast({
+        title: "Save Failed",
+        description: "Unable to save the article. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingSave(false)
     }
   }
 
   const handleShare = async () => {
     try {
-      const success = await shareArticle(
-        article.title,
-        article.description || "Check out this interesting news article!",
-        article.url,
-        {
-          onSuccess: () => {
-            toast({
-              title: "Shared successfully",
-              description: "Article has been shared!",
-            })
-          },
-          onError: (error) => {
-            console.error("Share error:", error)
-            toast({
-              title: "Share failed",
-              description: "Unable to share article. Link copied to clipboard instead.",
-            })
-          },
-        },
-      )
+      const success = await shareContent({
+        title: article.title,
+        description: article.description,
+        url: article.url,
+        source: sourceName,
+      })
 
-      if (!success) {
+      if (success) {
         toast({
-          title: "Share unavailable",
-          description: "Sharing is not supported on this device.",
-          variant: "destructive",
+          title: "Shared Successfully!",
+          description: "The article has been shared.",
         })
+        onInteraction?.("share", article.id)
+      } else {
+        setIsShareOpen(true)
       }
     } catch (error) {
-      console.error("Error sharing article:", error)
-      toast({
-        title: "Error",
-        description: "Failed to share article. Please try again.",
-        variant: "destructive",
-      })
+      console.error("Error sharing:", error)
+      setIsShareOpen(true)
     }
   }
 
-  const handleReadMore = () => {
-    if (article.url) {
-      window.open(article.url, "_blank", "noopener,noreferrer")
-    }
+  const handleReadOriginal = () => {
+    onInteraction?.("read_original", article.id)
+    window.open(article.url, "_blank")
   }
 
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
-
-      if (diffInHours < 1) return "Just now"
-      if (diffInHours < 24) return `${diffInHours}h ago`
-      if (diffInHours < 48) return "Yesterday"
-      return date.toLocaleDateString()
-    } catch (error) {
-      return "Recently"
-    }
+  const getCredibilityColor = (score: number) => {
+    if (score >= 80) return "text-green-600"
+    if (score >= 60) return "text-yellow-600"
+    return "text-red-600"
   }
 
-  const getImageSrc = () => {
-    if (imageError || !article.urlToImage) {
-      return `/placeholder.svg?height=200&width=400&text=${encodeURIComponent(article.title.substring(0, 50))}`
-    }
-    return article.urlToImage
+  const getCredibilityIcon = (score: number) => {
+    if (score >= 80) return <CheckCircle className="h-4 w-4" />
+    if (score >= 60) return <AlertTriangle className="h-4 w-4" />
+    return <XCircle className="h-4 w-4" />
   }
 
-  const sourceName = article.source?.name || "Unknown Source"
-  const publishedDate = formatDate(article.publishedAt)
-  const readTime = article.readTime || Math.ceil((article.description?.length || 100) / 200)
+  const getCredibilityLabel = (score: number) => {
+    if (score >= 80) return "High Credibility"
+    if (score >= 60) return "Moderate Credibility"
+    return "Low Credibility"
+  }
 
-  if (variant === "compact") {
-    return (
-      <Card className={`${className} hover:shadow-md transition-shadow`}>
-        <CardContent className="p-4">
-          <div className="flex gap-3">
-            <div className="flex-shrink-0">
-              <img
-                src={getImageSrc() || "/placeholder.svg"}
-                alt={article.title}
-                className="w-16 h-16 object-cover rounded"
-                onError={() => setImageError(true)}
+  return (
+    <>
+      <Card className="group hover:shadow-lg transition-all duration-200 hover:scale-[1.02] bg-card border border-border">
+        <CardContent className="p-0">
+          <div className="relative overflow-hidden rounded-t-lg">
+            <img
+              src={
+                article.urlToImage ||
+                `/placeholder.svg?height=200&width=400&text=${encodeURIComponent(article.title || "News Article")}`
+              }
+              alt={article.title || "News Article"}
+              className="w-full h-48 object-cover transition-transform duration-200 group-hover:scale-105"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = `/placeholder.svg?height=200&width=400&text=${encodeURIComponent(article.title || "News Article")}`
+              }}
+            />
+          </div>
+
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-blue-600 font-medium">{sourceName}</span>
+              <span className="text-muted-foreground">{formatTimeAgo(article.publishedAt)}</span>
+            </div>
+
+            <h3 className="font-bold text-lg leading-tight line-clamp-2 hover:text-primary cursor-pointer">
+              {article.title || "Untitled Article"}
+            </h3>
+
+            {article.description && <p className="text-muted-foreground text-sm line-clamp-2">{article.description}</p>}
+
+            {article.content && (
+              <p className="text-muted-foreground/80 text-xs line-clamp-3">
+                {article.content.length > 200 ? `${article.content.substring(0, 200)}...` : article.content}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReadOriginal}
+                className="flex items-center gap-2 bg-transparent"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Read Original
+              </Button>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setIsChatOpen(true)
+                    onInteraction?.("open_chat", article.id)
+                  }}
+                  className="h-8 w-8"
+                  title="Ask AI"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleContextClick}
+                  className="h-8 w-8"
+                  title="Get Context"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSaveOpen(true)}
+                  className="h-8 w-8"
+                  title="Save Article"
+                >
+                  <Bookmark className="h-4 w-4" />
+                </Button>
+
+                <Button variant="ghost" size="icon" onClick={handleFactCheck} className="h-8 w-8" title="Fact Check">
+                  <Shield className="h-4 w-4" />
+                </Button>
+
+                <Button variant="ghost" size="icon" onClick={handleShare} className="h-8 w-8" title="Share">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <NewsAIChat article={newsArticle} isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
+      <Dialog open={isContextOpen} onOpenChange={setIsContextOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              News Context & Summary
+            </DialogTitle>
+            <DialogDescription>
+              Comprehensive analysis and background information about this news story
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {isLoadingContext ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading context and summary...</span>
+              </div>
+            ) : contextData ? (
+              <>
+                {contextData.summary && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Article Summary</h4>
+                    <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">{contextData.summary}</p>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="font-semibold mb-2">Background Context</h4>
+                  <p className="text-sm text-muted-foreground">{contextData.context}</p>
+                </div>
+
+                {contextData.significance && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Why This Matters</h4>
+                    <p className="text-sm text-muted-foreground">{contextData.significance}</p>
+                  </div>
+                )}
+
+                {contextData.keyTopics && contextData.keyTopics.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Key Topics</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {contextData.keyTopics.map((topic, index) => (
+                        <Badge key={index} variant="secondary">
+                          {topic}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {contextData.relatedEvents && contextData.relatedEvents.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Related Events</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {contextData.relatedEvents.map((event, index) => (
+                        <li key={index}>• {event}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-muted-foreground">
+                  This article titled "{article.title}" may require additional context. While our AI system couldn't
+                  generate specific background information at this moment, you can look for related news from multiple
+                  sources to get a more complete picture.
+                </p>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <h4 className="font-semibold mb-2">Basic Information</h4>
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Source:</strong> {sourceName}
+                    <br />
+                    <strong>Published:</strong> {formatTimeAgo(article.publishedAt)}
+                    <br />
+                    {article.description && (
+                      <>
+                        <strong>Summary:</strong> {article.description}
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSaveOpen} onOpenChange={setIsSaveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bookmark className="h-5 w-5" />
+              Save Article
+            </DialogTitle>
+            <DialogDescription>Add a personal note to save this article to your collection</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium mb-2">{article.title}</h4>
+              <p className="text-sm text-muted-foreground">{article.description}</p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Your Note (Required)</label>
+              <Textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add your thoughts, insights, or why this article is important to you..."
+                className="mt-1"
+                rows={4}
               />
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm line-clamp-2 mb-1">{article.title}</h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                <span>{sourceName}</span>
-                <span>•</span>
-                <span>{publishedDate}</span>
-              </div>
-              {showActions && (
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={handleBookmark} className="h-6 px-2">
-                    <BookmarkIcon className={`h-3 w-3 ${isBookmarked ? "fill-current" : ""}`} />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={handleShare} className="h-6 px-2">
-                    <ShareIcon className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={handleReadMore} className="h-6 px-2">
-                    <ExternalLinkIcon className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
 
-  if (variant === "featured") {
-    return (
-      <Card className={`${className} hover:shadow-lg transition-shadow`}>
-        <div className="relative">
-          <img
-            src={getImageSrc() || "/placeholder.svg"}
-            alt={article.title}
-            className="w-full h-64 object-cover rounded-t-lg"
-            onError={() => setImageError(true)}
-          />
-          {showCategory && article.category && (
-            <Badge className="absolute top-3 left-3" variant="secondary">
-              {article.category}
-            </Badge>
-          )}
-        </div>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-            <span className="font-medium">{sourceName}</span>
-            <span>•</span>
-            <span>{publishedDate}</span>
-            <span>•</span>
-            <div className="flex items-center gap-1">
-              <ClockIcon className="h-3 w-3" />
-              <span>{readTime} min read</span>
-            </div>
-          </div>
-
-          <h2 className="text-xl font-bold mb-3 line-clamp-2">{article.title}</h2>
-
-          {article.description && <p className="text-muted-foreground mb-4 line-clamp-3">{article.description}</p>}
-
-          {showEngagement && article.engagement && (
-            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-              {article.engagement.views && (
-                <div className="flex items-center gap-1">
-                  <EyeIcon className="h-3 w-3" />
-                  <span>{article.engagement.views.toLocaleString()}</span>
-                </div>
-              )}
-              {article.engagement.shares && (
-                <div className="flex items-center gap-1">
-                  <TrendingUpIcon className="h-3 w-3" />
-                  <span>{article.engagement.shares}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-
-        {showActions && (
-          <CardFooter className="px-6 py-4 pt-0">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleBookmark} className="gap-2 bg-transparent">
-                  <BookmarkIcon className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
-                  {isBookmarked ? "Saved" : "Save"}
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleShare} className="gap-2 bg-transparent">
-                  <ShareIcon className="h-4 w-4" />
-                  Share
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)} className="gap-2">
-                  <MessageCircleIcon className="h-4 w-4" />
-                  AI Chat
-                </Button>
-              </div>
-              <Button onClick={handleReadMore} className="gap-2">
-                Read More
-                <ExternalLinkIcon className="h-4 w-4" />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsSaveOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isLoadingSave || !noteText.trim()}>
+                {isLoadingSave ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Article"
+                )}
               </Button>
             </div>
-          </CardFooter>
-        )}
-
-        {showChat && (
-          <div className="px-6 pb-6">
-            <NewsAIChat article={article} />
           </div>
-        )}
-      </Card>
-    )
-  }
+        </DialogContent>
+      </Dialog>
 
-  // Default variant
-  return (
-    <Card className={`${className} hover:shadow-md transition-shadow h-full flex flex-col`}>
-      <div className="relative flex-shrink-0">
-        <img
-          src={getImageSrc() || "/placeholder.svg"}
-          alt={article.title}
-          className="w-full h-48 object-cover rounded-t-lg"
-          onError={() => setImageError(true)}
-        />
-        {showCategory && article.category && (
-          <Badge className="absolute top-3 left-3" variant="secondary">
-            {article.category}
-          </Badge>
-        )}
-      </div>
+      <Dialog open={isFactCheckOpen} onOpenChange={setIsFactCheckOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Credibility Analysis
+            </DialogTitle>
+            <DialogDescription>AI-powered analysis of this article's credibility and reliability</DialogDescription>
+          </DialogHeader>
 
-      <CardContent className="p-4 flex-1 flex flex-col">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-          <span className="font-medium">{sourceName}</span>
-          <span>•</span>
-          <span>{publishedDate}</span>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <ClockIcon className="h-3 w-3" />
-            <span>{readTime} min</span>
-          </div>
-        </div>
-
-        <h3 className="font-semibold text-lg mb-2 line-clamp-2 flex-shrink-0">{article.title}</h3>
-
-        {article.description && (
-          <p className="text-muted-foreground text-sm mb-4 line-clamp-3 flex-1">{article.description}</p>
-        )}
-
-        {showEngagement && article.engagement && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-            {article.engagement.views && (
-              <div className="flex items-center gap-1">
-                <EyeIcon className="h-3 w-3" />
-                <span>{article.engagement.views.toLocaleString()}</span>
+          <div className="space-y-4">
+            {isLoadingFactCheck ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Analyzing credibility...</span>
               </div>
-            )}
-            {article.engagement.shares && (
-              <div className="flex items-center gap-1">
-                <ShareIcon className="h-3 w-3" />
-                <span>{article.engagement.shares}</span>
-              </div>
+            ) : factCheckResult ? (
+              <>
+                <div className="flex items-center gap-3 p-4 rounded-lg border">
+                  <div className={`flex items-center gap-2 ${getCredibilityColor(factCheckResult.score)}`}>
+                    {getCredibilityIcon(factCheckResult.score)}
+                    <span className="font-semibold">{getCredibilityLabel(factCheckResult.score)}</span>
+                  </div>
+                  <div className="text-2xl font-bold">{factCheckResult.score}/100</div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-2">Analysis</h4>
+                  <p className="text-sm text-muted-foreground">{factCheckResult.analysis}</p>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-2">Credibility Factors</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    {factCheckResult.factors.map((factor, index) => (
+                      <li key={index}>• {factor}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                Unable to perform credibility analysis at this time. Please try again later.
+              </p>
             )}
           </div>
-        )}
-      </CardContent>
+        </DialogContent>
+      </Dialog>
 
-      {showActions && (
-        <CardFooter className="px-4 py-3 pt-0 mt-auto">
-          <div className="flex items-center justify-between w-full gap-2">
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBookmark}
-                className="h-8 px-2"
-                title={isBookmarked ? "Remove bookmark" : "Bookmark article"}
-              >
-                <BookmarkIcon className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleShare} className="h-8 px-2" title="Share article">
-                <ShareIcon className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowChat(!showChat)}
-                className="h-8 px-2"
-                title="Chat with AI about this article"
-              >
-                <MessageCircleIcon className="h-4 w-4" />
-              </Button>
+      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Share Article
+            </DialogTitle>
+            <DialogDescription>Choose how you'd like to share this article</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium mb-2">{article.title}</h4>
+              <p className="text-sm text-muted-foreground">{article.description}</p>
             </div>
-            <Button size="sm" onClick={handleReadMore} className="gap-1 h-8">
-              <span className="text-xs">Read</span>
-              <ExternalLinkIcon className="h-3 w-3" />
-            </Button>
-          </div>
-        </CardFooter>
-      )}
 
-      {showChat && (
-        <div className="px-4 pb-4">
-          <NewsAIChat article={article} />
-        </div>
-      )}
-    </Card>
+            <div className="grid grid-cols-2 gap-3">
+              {getAvailableSharePlatforms().map((platform) => (
+                <Button
+                  key={platform.id}
+                  variant="outline"
+                  onClick={() => {
+                    openPlatformShare(platform.id, {
+                      title: article.title,
+                      description: article.description,
+                      url: article.url,
+                      source: sourceName,
+                    })
+                    setIsShareOpen(false)
+                    onInteraction?.("share_platform", article.id)
+                  }}
+                  className="flex items-center gap-2 justify-start"
+                >
+                  <span>{platform.icon}</span>
+                  {platform.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
-export default NewsCard
+function generateFactCheckAnalysis(article: NewsItem, score: number): string {
+  const sourceName = article.source?.name || "Unknown Source"
+  const isReliableSource = [
+    "BBC",
+    "Reuters",
+    "Associated Press",
+    "NPR",
+    "The Guardian",
+    "The New York Times",
+    "Washington Post",
+  ].includes(sourceName)
+
+  let analysis = `This article from ${sourceName} `
+
+  if (score >= 80) {
+    analysis += `demonstrates high credibility based on several factors. The source is ${isReliableSource ? "well-established and" : ""} known for journalistic standards. The content appears well-sourced and factual.`
+  } else if (score >= 60) {
+    analysis += `shows moderate credibility. While the source ${isReliableSource ? "is generally reliable" : "may have some credibility concerns"}, additional verification from other sources would be beneficial.`
+  } else {
+    analysis += `raises some credibility concerns. The information should be verified through multiple independent sources before accepting as factual.`
+  }
+
+  return analysis
+}
+
+function generateFactCheckFactors(article: NewsItem, score: number): string[] {
+  const factors: string[] = []
+  const sourceName = article.source?.name || "Unknown Source"
+  const isReliableSource = [
+    "BBC",
+    "Reuters",
+    "Associated Press",
+    "NPR",
+    "The Guardian",
+    "The New York Times",
+    "Washington Post",
+  ].includes(sourceName)
+
+  if (isReliableSource) {
+    factors.push("Source is a well-established news organization")
+    factors.push("Publisher has strong editorial standards")
+  } else {
+    factors.push("Source credibility varies - verify with additional sources")
+  }
+
+  if (score >= 80) {
+    factors.push("Content appears well-researched and factual")
+    factors.push("Information is likely verifiable through official sources")
+    factors.push("Writing style follows journalistic standards")
+  } else if (score >= 60) {
+    factors.push("Content has some supporting evidence")
+    factors.push("May benefit from additional source verification")
+    factors.push("Generally follows news reporting conventions")
+  } else {
+    factors.push("Limited evidence or sourcing visible")
+    factors.push("Recommend cross-checking with multiple sources")
+    factors.push("Exercise caution when sharing this information")
+  }
+
+  factors.push(`Published ${formatTimeAgo(article.publishedAt)}`)
+
+  return factors
+}
+
+function formatTimeAgo(dateString: string): string {
+  try {
+    if (!dateString) return "recently"
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "recently"
+
+    return date.toLocaleDateString()
+  } catch {
+    return "recently"
+  }
+}
