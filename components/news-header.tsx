@@ -1,223 +1,236 @@
 "use client"
 
+import type React from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Search, Menu, X, Sparkles } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { UserNav } from "@/components/user-nav"
-import { Brain, Sparkles, Search, Menu, X } from "lucide-react"
-import { useState } from "react"
 
 export function NewsHeader() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const router = useRouter()
 
-  const categories = [
-    { id: "business", name: "BUSINESS" },
-    { id: "technology", name: "TECH" },
-    { id: "health", name: "HEALTH" },
-    { id: "sports", name: "SPORTS" },
-    { id: "science", name: "SCIENCE" },
-    { id: "entertainment", name: "ENTERTAINMENT" },
-  ]
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+      setIsMenuOpen(false)
+    }
+  }
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen)
+  }
+
+  const closeMenu = () => {
+    setIsMenuOpen(false)
+  }
 
   return (
-    <header className="bg-[#121212] border-b border-gray-800 sticky top-0 z-50">
-      {/* Top Row - Categories and Dashboard/For You */}
-      <div className="bg-[#1a1a1a] py-2 px-4 hidden md:block">
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-8 text-xs font-medium">
-            {categories.map((category) => (
-              <Link
-                key={category.id}
-                href={`/topics/${category.id}`}
-                className="text-gray-300 hover:text-white transition-colors tracking-wide"
-              >
-                {category.name}
-              </Link>
-            ))}
-          </div>
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="text-xs font-medium text-gray-300 hover:text-white" asChild>
-              <Link href="/dashboard">DASHBOARD</Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs font-medium bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700"
-              asChild
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {/* Top Row - Categories and Right Actions */}
+      <div className="border-b border-border/40">
+        <div className="container flex h-12 items-center justify-between">
+          {/* Left - Topic Categories */}
+          <nav className="hidden md:flex items-center space-x-8 text-sm font-medium">
+            <Link href="/topics/business" className="text-muted-foreground hover:text-foreground transition-colors">
+              BUSINESS
+            </Link>
+            <Link href="/topics/technology" className="text-muted-foreground hover:text-foreground transition-colors">
+              TECH
+            </Link>
+            <Link href="/topics/health" className="text-muted-foreground hover:text-foreground transition-colors">
+              HEALTH
+            </Link>
+            <Link href="/topics/sports" className="text-muted-foreground hover:text-foreground transition-colors">
+              SPORTS
+            </Link>
+            <Link href="/topics/science" className="text-muted-foreground hover:text-foreground transition-colors">
+              SCIENCE
+            </Link>
+            <Link
+              href="/topics/entertainment"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Link href="/ai-personalized" className="flex items-center gap-1">
-                <Brain className="h-3 w-3" />
+              ENTERTAINMENT
+            </Link>
+          </nav>
+
+          {/* Right - Dashboard and For You */}
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="text-sm font-medium">
+                DASHBOARD
+              </Button>
+            </Link>
+            <Link href="/ai-personalized">
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium"
+              >
+                <Sparkles className="w-4 h-4 mr-1" />
                 FOR YOU
-              </Link>
-            </Button>
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
 
       {/* Bottom Row - Main Navigation */}
-      <div className="container mx-auto flex items-center justify-between h-16 px-4">
-        {/* Left Side - Logo and Navigation */}
-        <div className="flex items-center gap-8">
+      <div className="container flex h-16 items-center">
+        {/* Left - Logo and Navigation */}
+        <div className="flex items-center space-x-8">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold text-white">NewsMania</span>
+            <span className="text-2xl font-bold">NewsMania</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/" className="text-blue-400 font-medium text-sm hover:text-blue-300 transition-colors">
+          <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
+            <Link href="/" className="text-blue-600 hover:text-blue-700 transition-colors font-medium">
               Latest
             </Link>
-            <Link href="/topics" className="text-gray-300 hover:text-white transition-colors text-sm">
+            <Link href="/topics" className="text-muted-foreground hover:text-foreground transition-colors">
               Topics
             </Link>
-            <Link href="/fact-check" className="text-gray-300 hover:text-white transition-colors text-sm">
+            <Link href="/fact-check" className="text-muted-foreground hover:text-foreground transition-colors">
               Fact Check
             </Link>
-            <Link href="/extract" className="text-gray-300 hover:text-white transition-colors text-sm">
+            <Link href="/extract" className="text-muted-foreground hover:text-foreground transition-colors">
               Extract News
             </Link>
-            <Link href="/notes" className="text-gray-300 hover:text-white transition-colors text-sm">
+            <Link href="/notes" className="text-muted-foreground hover:text-foreground transition-colors">
               My Notes
             </Link>
             <Link
               href="/ai-personalized"
-              className="text-purple-400 hover:text-purple-300 transition-colors font-medium flex items-center gap-1 text-sm"
+              className="text-purple-600 hover:text-purple-700 transition-colors font-medium flex items-center"
             >
-              <Brain className="h-4 w-4" />
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="w-4 h-4 mr-1" />
               For You
-              <Badge variant="secondary" className="ml-1 text-xs bg-purple-600 text-white">
-                NEW
-              </Badge>
+              <span className="ml-2 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full font-bold">NEW</span>
             </Link>
           </nav>
         </div>
 
-        {/* Right Side - Search, Theme, Dashboard, Sign In */}
-        <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              type="search"
-              placeholder="Search articles..."
-              className="pl-10 pr-4 py-2 w-64 bg-[#2a2a2a] border-gray-700 text-white placeholder-gray-400 focus:border-purple-500"
-            />
-          </div>
+        {/* Mobile Menu Button */}
+        <Button variant="ghost" size="icon" className="md:hidden ml-auto mr-4" onClick={toggleMenu}>
+          {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          <span className="sr-only">Toggle Menu</span>
+        </Button>
 
+        {/* Right - Search, Theme, Dashboard, Sign In */}
+        <div className="hidden md:flex flex-1 items-center justify-end space-x-4">
+          <form onSubmit={handleSearch} className="w-full max-w-[300px]">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search articles..."
+                className="w-full pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </form>
           <ThemeToggle />
-
-          <Button variant="outline" size="sm" asChild className="hidden md:flex bg-transparent">
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
-
+          <Link href="/dashboard">
+            <Button size="sm" className="font-medium">
+              Dashboard
+            </Button>
+          </Link>
           <UserNav />
-
-          {/* Mobile Menu Button */}
-          <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
         </div>
       </div>
 
       {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-[#1a1a1a] border-t border-gray-800">
-          <div className="container mx-auto px-4 py-4 space-y-4">
-            {/* Mobile Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                type="search"
-                placeholder="Search articles..."
-                className="pl-10 pr-4 py-2 w-full bg-[#2a2a2a] border-gray-700 text-white placeholder-gray-400"
-              />
-            </div>
+      {isMenuOpen && (
+        <div className="container pb-4 md:hidden border-t">
+          <div className="flex flex-col space-y-3 pt-4">
+            {/* Search */}
+            <form onSubmit={handleSearch} className="w-full">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search articles..."
+                  className="w-full pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </form>
 
-            {/* Mobile Navigation Links */}
+            {/* Navigation Links */}
             <div className="grid grid-cols-2 gap-2">
-              <Link
-                href="/"
-                className="text-blue-400 font-medium p-2 rounded hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/" className="text-sm font-medium p-2" onClick={closeMenu}>
                 Latest
               </Link>
-              <Link
-                href="/topics"
-                className="text-gray-300 p-2 rounded hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/topics" className="text-sm font-medium p-2" onClick={closeMenu}>
                 Topics
               </Link>
-              <Link
-                href="/fact-check"
-                className="text-gray-300 p-2 rounded hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/fact-check" className="text-sm font-medium p-2" onClick={closeMenu}>
                 Fact Check
               </Link>
-              <Link
-                href="/extract"
-                className="text-gray-300 p-2 rounded hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/extract" className="text-sm font-medium p-2" onClick={closeMenu}>
                 Extract News
               </Link>
-              <Link
-                href="/notes"
-                className="text-gray-300 p-2 rounded hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/notes" className="text-sm font-medium p-2" onClick={closeMenu}>
                 My Notes
               </Link>
-              <Link
-                href="/ai-personalized"
-                className="text-purple-400 p-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Brain className="h-4 w-4" />
-                For You
-                <Badge variant="secondary" className="ml-1 text-xs bg-purple-600 text-white">
-                  NEW
-                </Badge>
+              <Link href="/ai-personalized" className="text-sm font-medium p-2 text-purple-600" onClick={closeMenu}>
+                For You (NEW)
               </Link>
             </div>
 
-            {/* Mobile Categories */}
-            <div className="border-t border-gray-700 pt-4">
-              <h3 className="text-sm font-medium text-gray-400 mb-2">Categories</h3>
+            {/* Topic Categories */}
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">CATEGORIES</p>
               <div className="grid grid-cols-2 gap-2">
-                {categories.map((category) => (
-                  <Link
-                    key={category.id}
-                    href={`/topics/${category.id}`}
-                    className="text-gray-300 p-2 rounded hover:bg-gray-800 transition-colors text-sm"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {category.name}
-                  </Link>
-                ))}
+                <Link href="/topics/business" className="text-sm p-2" onClick={closeMenu}>
+                  Business
+                </Link>
+                <Link href="/topics/technology" className="text-sm p-2" onClick={closeMenu}>
+                  Technology
+                </Link>
+                <Link href="/topics/health" className="text-sm p-2" onClick={closeMenu}>
+                  Health
+                </Link>
+                <Link href="/topics/sports" className="text-sm p-2" onClick={closeMenu}>
+                  Sports
+                </Link>
+                <Link href="/topics/science" className="text-sm p-2" onClick={closeMenu}>
+                  Science
+                </Link>
+                <Link href="/topics/entertainment" className="text-sm p-2" onClick={closeMenu}>
+                  Entertainment
+                </Link>
               </div>
             </div>
 
-            {/* Mobile Action Buttons */}
-            <div className="border-t border-gray-700 pt-4 space-y-2">
-              <Button asChild className="w-full" onClick={() => setMobileMenuOpen(false)}>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
-              <Button
-                asChild
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Link href="/ai-personalized">
-                  <Brain className="h-4 w-4 mr-2" />
-                  For You - AI Feed
-                </Link>
-              </Button>
+            {/* Action Buttons */}
+            <div className="flex flex-col space-y-2 pt-3 border-t">
+              <div className="flex items-center justify-between">
+                <ThemeToggle />
+                <UserNav />
+              </div>
+              <Link href="/dashboard" onClick={closeMenu}>
+                <Button size="sm" className="w-full">
+                  Dashboard
+                </Button>
+              </Link>
+              <Link href="/ai-personalized" onClick={closeMenu}>
+                <Button
+                  size="sm"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  For You
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

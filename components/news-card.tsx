@@ -3,8 +3,9 @@
 import type React from "react"
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MessageCircle, Info, Bookmark, Shield, Share2, Loader2, BookmarkCheck, Clock } from "lucide-react"
+import { ExternalLink, Shield, Loader2, Share2, Clock, Bookmark, MessageSquare, BookmarkCheck } from "lucide-react"
 import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
 import { factCheckArticle } from "@/lib/news-api"
@@ -31,13 +32,16 @@ interface NewsCardProps {
 
 // Function to get a category-specific placeholder image
 function getCategoryPlaceholder(article: NewsArticle): string {
+  const idParts = article.id.split("-")
+  const possibleCategory = idParts[0]
+
   const categoryImages: Record<string, string[]> = {
     business: [
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=500&fit=crop",
       "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&h=500&fit=crop",
     ],
     technology: [
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=500&fit=crop",
+      "https://images.unsplash.com/photo-1518770660439-afdab827c52f?w=800&h=500&fit=crop",
       "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=500&fit=crop",
     ],
     sports: [
@@ -62,8 +66,23 @@ function getCategoryPlaceholder(article: NewsArticle): string {
     ],
   }
 
+  if (possibleCategory in categoryImages) {
+    const images = categoryImages[possibleCategory]
+    const hash = article.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return images[hash % images.length]
+  }
+
   const defaultImages = categoryImages.general
   return defaultImages[Math.floor(Math.random() * defaultImages.length)]
+}
+
+function createSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim()
 }
 
 export function NewsCard({ article: initialArticle, onInteraction }: NewsCardProps) {
@@ -82,6 +101,8 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
   const { toast } = useToast()
 
   const imageUrl = article.urlToImage || getCategoryPlaceholder(article)
+  const slug = createSlug(article.title)
+  const dynamicArticleUrl = article.url && article.url !== "#" ? article.url : `/article/${article.id}/${slug}`
 
   const handleClick = () => {
     const timeSpent = Math.floor((Date.now() - startTime) / 1000)
@@ -155,7 +176,6 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
 
         setSaveDialogOpen(false)
         setNoteText("")
-        setIsSaved(true)
         onInteraction?.("save", article.id)
       } else {
         throw new Error("Failed to save note")
@@ -204,7 +224,7 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
   const handleSave = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setSaveDialogOpen(true)
+    setIsSaved(!isSaved)
     onInteraction?.("save", article.id || article.url)
   }
 
@@ -221,132 +241,105 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
       })
     } else {
       navigator.clipboard.writeText(article.url)
-      toast({
-        title: "Link copied",
-        description: "Article link has been copied to clipboard.",
-      })
+    }
+  }
+
+  const renderCredibilityBadge = (score: number) => {
+    if (score >= 85) {
+      return (
+        <Badge className="bg-green-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
+    } else if (score >= 70) {
+      return (
+        <Badge className="bg-yellow-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
+    } else {
+      return (
+        <Badge className="bg-red-600 text-white text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {score}%
+        </Badge>
+      )
     }
   }
 
   return (
     <>
-      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-600 transition-all">
-        {/* Large Image at Top */}
-        <div className="relative aspect-[16/10] overflow-hidden">
-          <Image
-            src={imageUrl || "/placeholder.svg?height=300&width=400"}
-            alt={article.title}
-            fill
-            className="object-cover transition-transform group-hover:scale-105"
-          />
-        </div>
-
-        <CardContent className="p-4 space-y-3">
-          {/* Source and Timestamp */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-400">{article.source.name}</span>
-            <span className="text-sm text-gray-400 flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatDistanceToNow(new Date(article.publishedAt))} ago
-            </span>
-          </div>
-
-          {/* Headline */}
-          <h3 className="text-lg font-bold text-white leading-tight line-clamp-3">{article.title}</h3>
-
-          {/* Description */}
-          <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">{article.description}</p>
-
-          {/* Content Preview */}
-          {article.content && (
-            <p className="text-gray-400 text-sm leading-relaxed line-clamp-3">
-              {article.content.length > 200 ? `${article.content.substring(0, 200)}...` : article.content}
-            </p>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-700">
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="bg-transparent border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500"
-              onClick={handleClick}
-            >
-              <Link href={article.url} target="_blank" rel="noopener noreferrer">
-                Read Original
-              </Link>
-            </Button>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
-                title="Ask AI about this article"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setChatDialogOpen(true)
-                  onInteraction?.("chat", article.id)
-                }}
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
-                title="Get background context"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setContextDialogOpen(true)
-                  if (!newsContext) {
-                    handleGetContext()
-                  }
-                  onInteraction?.("context", article.id)
-                }}
-              >
-                <Info className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`transition-colors w-8 h-8 ${
-                  isSaved ? "text-blue-400 hover:text-blue-300" : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-                title="Save article with note"
-                onClick={handleSave}
-              >
-                {isSaved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
-                onClick={handleFactCheck}
-                disabled={isFactChecking}
-                title={article.isFactChecked ? "View fact check details" : "Run fact check analysis"}
-              >
-                {isFactChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white hover:bg-gray-800 w-8 h-8"
-                title="Share article"
-                onClick={handleShare}
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
+      <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-600 transition-all hover:shadow-lg">
+        <Link href={article.url} target="_blank" rel="noopener noreferrer" onClick={handleClick} className="block">
+          <div className="relative aspect-video overflow-hidden">
+            <Image
+              src={imageUrl || "/placeholder.svg?height=200&width=300"}
+              alt={article.title}
+              fill
+              className="object-cover transition-transform group-hover:scale-105"
+            />
+            <div className="absolute top-2 left-2">
+              <Badge className="bg-background/80 backdrop-blur-sm text-foreground text-xs">{article.source.name}</Badge>
             </div>
+            <div className="absolute top-2 right-2">
+              <ExternalLink className="h-4 w-4 text-white/70" />
+            </div>
+            {(article as any).credibilityScore && (
+              <div className="absolute bottom-2 right-2">
+                {renderCredibilityBadge((article as any).credibilityScore)}
+              </div>
+            )}
           </div>
-        </CardContent>
+          <CardContent className="p-4">
+            <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+              {article.title}
+            </h3>
+            <p className="text-muted-foreground text-xs mb-3 line-clamp-2">{article.description}</p>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1" />
+                {formatDistanceToNow(new Date(article.publishedAt))} ago
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
+                  title="Ask AI about this article"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setChatDialogOpen(true)
+                    onInteraction?.("chat", article.id)
+                  }}
+                >
+                  <MessageSquare className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`transition-colors ${
+                    isSaved ? "text-primary" : "text-muted-foreground hover:text-primary"
+                  }`}
+                  onClick={handleSave}
+                >
+                  {isSaved ? <BookmarkCheck className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800 w-7 h-7"
+                  onClick={handleShare}
+                >
+                  <Share2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Link>
       </Card>
 
       {/* Fact Check Results Dialog */}
@@ -383,6 +376,61 @@ export function NewsCard({ article: initialArticle, onInteraction }: NewsCardPro
               <div className="space-y-2">
                 <span className="font-medium">Summary</span>
                 <p className="text-sm text-muted-foreground">{article.factCheckResult}</p>
+              </div>
+            )}
+
+            {article.analysisFactors && article.analysisFactors.length > 0 && (
+              <div className="space-y-2">
+                <span className="font-medium">Analysis Factors</span>
+                <div className="space-y-1">
+                  {article.analysisFactors.map((factor, index) => (
+                    <div key={index} className="text-sm p-2 bg-muted/30 rounded">
+                      {factor}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {article.claimsAnalyzed && article.claimsAnalyzed.length > 0 && (
+              <div className="space-y-2">
+                <span className="font-medium">Claims Analyzed</span>
+                <div className="space-y-2">
+                  {article.claimsAnalyzed.map((claim, index) => (
+                    <div key={index} className="p-3 border rounded-md">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{claim.claim}</span>
+                        <Badge
+                          variant={
+                            claim.verdict === "true"
+                              ? "default"
+                              : claim.verdict === "false"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
+                          {claim.verdict}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{claim.explanation}</p>
+                      {claim.sources && claim.sources.length > 0 && (
+                        <div className="mt-2">
+                          {claim.sources.map((source, sourceIndex) => (
+                            <a
+                              key={sourceIndex}
+                              href={source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline mr-2"
+                            >
+                              Source {sourceIndex + 1}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
