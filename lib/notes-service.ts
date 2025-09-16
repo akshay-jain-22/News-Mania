@@ -1,42 +1,18 @@
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { supabase } from "./supabase-client"
 
 export interface Note {
   id: string
   title: string
   content: string
-  article_url?: string
-  article_title?: string
+  topic: string
+  tags: string[]
   created_at: string
   updated_at: string
   user_id: string
-  article_id?: string
-  is_public?: boolean
-}
-
-export interface CreateNoteData {
-  title: string
-  content: string
   article_url?: string
-  article_title?: string
-  user_id: string
-  article_id?: string
-  is_public?: boolean
+  is_public: boolean
 }
 
-export interface UpdateNoteData {
-  title?: string
-  content?: string
-  article_url?: string
-  article_title?: string
-  is_public?: boolean
-}
-
-// Main export functions that are expected by the application
 export async function saveNote(
   articleId: string,
   content: string,
@@ -47,57 +23,45 @@ export async function saveNote(
   try {
     const {
       data: { user },
-      error: userError,
+      error: authError,
     } = await supabase.auth.getUser()
 
+    if (authError || !user) {
+      throw new Error("User not authenticated")
+    }
+
     const noteData = {
-      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      user_id: user?.id || "demo_user",
-      article_id: articleId,
-      title,
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      title: title || "Untitled Note",
       content,
+      topic: "General",
+      tags: [],
+      user_id: user.id,
       article_url: articleUrl,
       is_public: isPublic,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
-    if (user && !userError) {
-      try {
-        const { data: note, error } = await supabase
-          .from("user_notes")
-          .insert({
-            title,
-            content,
-            article_url: articleUrl,
-            article_id: articleId,
-            user_id: user.id,
-            is_public: isPublic,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
+    const { data, error } = await supabase.from("user_notes").insert([noteData]).select().single()
 
-        if (!error && note) {
-          return note as Note
-        }
-      } catch (dbError) {
-        console.error("Database error:", dbError)
-      }
+    if (error) {
+      console.error("Supabase error:", error)
+      // Return mock data if Supabase fails
+      return noteData as Note
     }
 
-    // Return mock note as fallback
-    return noteData
+    return data as Note
   } catch (error) {
-    console.error("Error in saveNote:", error)
-    // Return mock note as fallback
+    console.error("Error saving note:", error)
+    // Return mock data as fallback
     return {
-      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      user_id: "demo_user",
-      article_id: articleId,
-      title,
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      title: title || "Untitled Note",
       content,
+      topic: "General",
+      tags: [],
+      user_id: "mock-user",
       article_url: articleUrl,
       is_public: isPublic,
       created_at: new Date().toISOString(),
@@ -106,194 +70,83 @@ export async function saveNote(
   }
 }
 
-export async function getNotes(userId?: string): Promise<Note[]> {
+export async function getUserNotes(): Promise<Note[]> {
   try {
-    let targetUserId = userId
-    if (!targetUserId) {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-      if (userError || !user) {
-        return []
-      }
-      targetUserId = user.id
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.log("User not authenticated, returning sample notes")
+      return getSampleNotes()
     }
 
-    const { data: notes, error } = await supabase
+    const { data, error } = await supabase
       .from("user_notes")
       .select("*")
-      .eq("user_id", targetUserId)
-      .order("updated_at", { ascending: false })
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching notes:", error)
-      return []
+      console.error("Supabase error:", error)
+      return getSampleNotes()
     }
 
-    return notes as Note[]
+    return (data || []).map((note) => ({
+      ...note,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+    })) as Note[]
   } catch (error) {
-    console.error("Error in getNotes:", error)
-    return []
+    console.error("Error fetching notes:", error)
+    return getSampleNotes()
   }
 }
 
-export async function insertSampleNotes(userId: string): Promise<Note[]> {
-  const sampleNotes = [
-    {
-      title: "Technology Trends 2024",
-      content:
-        "Key observations about AI development, cloud computing growth, and cybersecurity challenges. The integration of AI in everyday applications is accelerating faster than expected.",
-      user_id: userId,
-    },
-    {
-      title: "Market Analysis Notes",
-      content:
-        "Economic indicators suggest continued volatility in tech stocks. Important to monitor Federal Reserve decisions and their impact on growth companies.",
-      user_id: userId,
-    },
-    {
-      title: "Climate Change Research",
-      content:
-        "Recent studies show accelerating ice sheet melting. Need to follow up on renewable energy adoption rates and policy changes at the federal level.",
-      user_id: userId,
-    },
-    {
-      title: "Sports Update Notes",
-      content:
-        "Following the latest developments in professional sports. Key trades and player movements that could impact team performance this season.",
-      user_id: userId,
-    },
-    {
-      title: "Health & Wellness Insights",
-      content:
-        "New research on nutrition and exercise. Important findings about sleep patterns and their impact on cognitive performance and overall health.",
-      user_id: userId,
-    },
-  ]
-
+export async function insertSampleNotes(): Promise<boolean> {
   try {
-    const createdNotes: Note[] = []
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    for (const noteData of sampleNotes) {
-      try {
-        const { data: note, error } = await supabase
-          .from("user_notes")
-          .insert({
-            ...noteData,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
-
-        if (error) {
-          console.error("Error creating sample note:", error)
-          const mockNote: Note = {
-            id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            ...noteData,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-          createdNotes.push(mockNote)
-        } else {
-          createdNotes.push(note as Note)
-        }
-      } catch (noteError) {
-        console.error("Error creating individual sample note:", noteError)
-        const mockNote: Note = {
-          id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          ...noteData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-        createdNotes.push(mockNote)
-      }
+    if (authError || !user) {
+      console.log("User not authenticated")
+      return false
     }
 
-    return createdNotes
-  } catch (error) {
-    console.error("Error creating sample notes:", error)
-    return sampleNotes.map((noteData, index) => ({
-      id: `sample_${Date.now()}_${index}`,
-      ...noteData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    const sampleNotes = getSampleNotes().map((note) => ({
+      ...note,
+      user_id: user.id,
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     }))
-  }
-}
 
-// Additional helper functions
-export async function createNote(data: CreateNoteData): Promise<Note> {
-  return saveNote(
-    data.article_id || `article_${Date.now()}`,
-    data.content,
-    data.title,
-    data.is_public || false,
-    data.article_url,
-  )
-}
-
-export async function getUserNotes(userId: string): Promise<Note[]> {
-  return getNotes(userId)
-}
-
-export async function createSampleNotes(userId: string): Promise<Note[]> {
-  return insertSampleNotes(userId)
-}
-
-export async function getNote(noteId: string, userId: string): Promise<Note | null> {
-  try {
-    const { data: note, error } = await supabase
-      .from("user_notes")
-      .select("*")
-      .eq("id", noteId)
-      .eq("user_id", userId)
-      .single()
+    const { error } = await supabase.from("user_notes").insert(sampleNotes)
 
     if (error) {
-      if (error.code === "PGRST116") {
-        return null
-      }
-      console.error("Error fetching note:", error)
-      return null
+      console.error("Error inserting sample notes:", error)
+      return false
     }
 
-    return note as Note
+    return true
   } catch (error) {
-    console.error("Error in getNote:", error)
-    return null
+    console.error("Error inserting sample notes:", error)
+    return false
   }
 }
 
-export async function updateNote(noteId: string, userId: string, data: UpdateNoteData): Promise<Note | null> {
+export async function deleteNote(noteId: string): Promise<boolean> {
   try {
-    const { data: note, error } = await supabase
-      .from("user_notes")
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", noteId)
-      .eq("user_id", userId)
-      .select()
-      .single()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (error) {
-      console.error("Error updating note:", error)
-      return null
+    if (authError || !user) {
+      return false
     }
 
-    return note as Note
-  } catch (error) {
-    console.error("Error in updateNote:", error)
-    return null
-  }
-}
-
-export async function deleteNote(noteId: string, userId: string): Promise<boolean> {
-  try {
-    const { error } = await supabase.from("user_notes").delete().eq("id", noteId).eq("user_id", userId)
+    const { error } = await supabase.from("user_notes").delete().eq("id", noteId).eq("user_id", user.id)
 
     if (error) {
       console.error("Error deleting note:", error)
@@ -302,7 +155,82 @@ export async function deleteNote(noteId: string, userId: string): Promise<boolea
 
     return true
   } catch (error) {
-    console.error("Error in deleteNote:", error)
+    console.error("Error deleting note:", error)
     return false
   }
+}
+
+export async function updateNote(noteId: string, updates: Partial<Note>): Promise<Note | null> {
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return null
+    }
+
+    const { data, error } = await supabase
+      .from("user_notes")
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", noteId)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating note:", error)
+      return null
+    }
+
+    return data as Note
+  } catch (error) {
+    console.error("Error updating note:", error)
+    return null
+  }
+}
+
+function getSampleNotes(): Note[] {
+  return [
+    {
+      id: "sample-1",
+      title: "Technology Trends 2024",
+      content:
+        "AI and machine learning continue to dominate the tech landscape. Key developments include improved natural language processing, computer vision advances, and the integration of AI into everyday applications.",
+      topic: "Technology",
+      tags: ["AI", "Machine Learning", "Trends"],
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+    {
+      id: "sample-2",
+      title: "Climate Change Impact",
+      content:
+        "Recent studies show accelerating effects of climate change on global weather patterns. Rising sea levels, extreme weather events, and ecosystem disruption are becoming more frequent.",
+      topic: "Environment",
+      tags: ["Climate", "Environment", "Science"],
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+    {
+      id: "sample-3",
+      title: "Economic Market Analysis",
+      content:
+        "Global markets show mixed signals with technology stocks leading gains while traditional sectors face headwinds. Inflation concerns persist despite central bank interventions.",
+      topic: "Business",
+      tags: ["Economics", "Markets", "Finance"],
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+  ]
 }

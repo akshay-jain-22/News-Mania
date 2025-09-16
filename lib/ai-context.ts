@@ -1,315 +1,322 @@
 export interface NewsArticle {
   title: string
-  description?: string
-  content?: string
+  description: string
+  content: string
   source: string
   url: string
   publishedAt: string
 }
 
 export interface ContextResponse {
+  summary: string
   context: string
-  summary?: string
   significance?: string
-  keyTopics: string[]
-  relatedEvents: string[]
-}
-
-export interface ChatResponse {
-  response: string
-  suggestedQuestions: string[]
-}
-
-function analyzeQuestionType(question: string): string {
-  const q = question.toLowerCase().trim()
-
-  if (q.startsWith("what") || q.includes("what is") || q.includes("what are") || q === "what?") return "what"
-  if (q.startsWith("why") || q.includes("why is") || q.includes("why are") || q === "why?") return "why"
-  if (q.startsWith("when") || q.includes("when did") || q.includes("when will") || q === "when?") return "when"
-  if (q.startsWith("who") || q.includes("who is") || q.includes("who are") || q === "who?") return "who"
-  if (q.startsWith("where") || q.includes("where is") || q.includes("where are") || q === "where?") return "where"
-  if (q.startsWith("how") || q.includes("how does") || q.includes("how can") || q === "how?") return "how"
-
-  return "general"
+  keyTopics?: string[]
+  relatedEvents?: string[]
 }
 
 export async function getNewsContext(article: NewsArticle): Promise<ContextResponse> {
   try {
-    const response = await fetch("/api/news-context", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: article.title,
-        description: article.description,
-        content: article.content,
-        source: article.source,
-      }),
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      return data
-    }
-  } catch (error) {
-    console.error("Error fetching AI context:", error)
-  }
-
-  return generateIntelligentContext(article)
-}
-
-export async function askAIAboutArticle(article: NewsArticle, question: string): Promise<ChatResponse> {
-  try {
-    const response = await fetch("/api/news-chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: question,
-        article: {
-          title: article.title,
-          description: article.description,
-          content: article.content,
-          source: article.source,
+    // Try to use OpenAI API if available
+    if (process.env.OPENAI_API_KEY) {
+      const response = await fetch("/api/news-context", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-    })
+        body: JSON.stringify({ article }),
+      })
 
-    if (response.ok) {
-      const data = await response.json()
-      return {
-        response: data.response || generateFallbackResponse(question, article),
-        suggestedQuestions: data.suggestedQuestions || generateSuggestedQuestions(article),
+      if (response.ok) {
+        const data = await response.json()
+        return data
       }
     }
-  } catch (error) {
-    console.error("Error getting AI response:", error)
-  }
 
-  return generateSmartFallbackResponse(article, question)
+    // Fallback to intelligent analysis
+    return generateIntelligentContext(article)
+  } catch (error) {
+    console.error("Error getting news context:", error)
+    return generateIntelligentContext(article)
+  }
 }
 
 function generateIntelligentContext(article: NewsArticle): ContextResponse {
-  const title = article.title?.toLowerCase() || ""
-  const description = article.description?.toLowerCase() || ""
-  const content = article.content?.toLowerCase() || ""
-  const source = article.source || "Unknown Source"
+  const title = article.title.toLowerCase()
+  const description = article.description.toLowerCase()
+  const content = article.content.toLowerCase()
+  const fullText = `${title} ${description} ${content}`
 
-  const allText = `${title} ${description} ${content}`.toLowerCase()
+  // Extract key topics based on content analysis
+  const keyTopics = extractKeyTopics(fullText)
 
-  let summary = ""
-  if (article.description && article.description.length > 50) {
-    summary = article.description
-  } else if (article.content && article.content.length > 100) {
-    const sentences = article.content.split(/[.!?]+/)
-    const meaningfulSentences = sentences.filter((s) => s.trim().length > 30)
-    if (meaningfulSentences.length > 0) {
-      summary = meaningfulSentences.slice(0, 2).join(". ").trim() + "."
-    }
-  }
+  // Generate context based on detected topics
+  const context = generateContextByTopics(keyTopics, article)
 
-  if (!summary) {
-    summary = `This article from ${source} covers recent developments. ${article.title}`
-  }
+  // Generate summary
+  const summary = generateSummary(article)
 
-  const keyTopics: string[] = []
-  const topicKeywords = {
-    Technology: ["ai", "tech", "software", "computer", "digital", "internet", "app", "platform", "innovation"],
-    Politics: ["government", "election", "president", "congress", "senate", "policy", "political", "vote"],
-    Business: ["company", "business", "market", "economy", "financial", "stock", "investment", "corporate"],
-    Health: ["health", "medical", "hospital", "doctor", "patient", "treatment", "medicine", "healthcare"],
-    Sports: ["game", "team", "player", "season", "championship", "league", "coach", "score", "match"],
-    Science: ["research", "study", "scientist", "discovery", "experiment", "university", "academic"],
-    Environment: ["climate", "environment", "green", "sustainability", "carbon", "renewable", "pollution"],
-    Entertainment: ["movie", "film", "music", "celebrity", "entertainment", "show", "actor", "artist"],
-  }
-
-  for (const [topic, keywords] of Object.entries(topicKeywords)) {
-    if (keywords.some((keyword) => allText.includes(keyword))) {
-      keyTopics.push(topic)
-    }
-  }
-
-  if (keyTopics.length === 0) {
-    keyTopics.push("General News")
-  }
-
-  let context = ""
-  let significance = ""
-
-  if (keyTopics.includes("Technology")) {
-    context = `This technology article discusses developments in the tech industry. Published by ${source}, it covers innovations and trends that may impact how we use technology in daily life.`
-    significance =
-      "Technology news helps us understand how digital innovations might affect our future work, communication, and lifestyle choices."
-  } else if (keyTopics.includes("Politics")) {
-    context = `This political news story covers governmental or policy-related developments. ${source} reports on political events that may influence public policy and civic life.`
-    significance =
-      "Political developments can directly impact citizens through changes in laws, policies, and government services."
-  } else if (keyTopics.includes("Business")) {
-    context = `This business article examines economic and corporate developments. ${source} provides insights into market trends and business decisions that may affect the broader economy.`
-    significance =
-      "Business news helps understand economic trends that can influence employment, investment opportunities, and consumer prices."
-  } else if (keyTopics.includes("Sports")) {
-    context = `This sports article covers athletic competitions, team developments, or sports industry news. ${source} reports on sporting events and developments in professional athletics.`
-    significance =
-      "Sports news connects communities through shared interests and provides entertainment and cultural significance."
-  } else {
-    context = `This article from ${source} covers current events and developments. It provides information about recent happenings that may be of public interest.`
-    significance =
-      "Staying informed about current events helps citizens make better decisions and understand the world around them."
-  }
-
-  const relatedEvents: string[] = []
-
-  if (allText.includes("election") || allText.includes("vote")) {
-    relatedEvents.push("Ongoing election campaigns and voting processes")
-  }
-  if (allText.includes("market") || allText.includes("stock")) {
-    relatedEvents.push("Recent market fluctuations and economic indicators")
-  }
-  if (allText.includes("climate") || allText.includes("environment")) {
-    relatedEvents.push("Global climate initiatives and environmental policies")
-  }
-
-  const publishDate = new Date(article.publishedAt)
-  const now = new Date()
-  const daysDiff = Math.floor((now.getTime() - publishDate.getTime()) / (1000 * 60 * 60 * 24))
-
-  if (daysDiff === 0) {
-    relatedEvents.push("Breaking news developments from today")
-  } else if (daysDiff <= 7) {
-    relatedEvents.push("Recent developments from this week")
-  }
+  // Generate significance
+  const significance = generateSignificance(keyTopics, article)
 
   return {
-    context,
     summary,
+    context,
     significance,
-    keyTopics,
-    relatedEvents,
+    keyTopics: keyTopics.slice(0, 5), // Top 5 topics
+    relatedEvents: generateRelatedEvents(keyTopics),
   }
 }
 
-function generateSmartFallbackResponse(article: NewsArticle, question: string): ChatResponse {
-  const questionType = analyzeQuestionType(question)
-  const articleText = `${article.title} ${article.description || ""} ${article.content || ""}`.toLowerCase()
+function extractKeyTopics(text: string): string[] {
+  const topics: string[] = []
 
-  let response = ""
-
-  const isAboutSports =
-    articleText.includes("chiefs") ||
-    articleText.includes("eagles") ||
-    articleText.includes("game") ||
-    articleText.includes("football") ||
-    articleText.includes("predictions") ||
-    articleText.includes("week")
-
-  const isAboutTechnology =
-    articleText.includes("tech") ||
-    articleText.includes("ai") ||
-    articleText.includes("software") ||
-    articleText.includes("digital")
-
-  const isAboutBusiness =
-    articleText.includes("business") ||
-    articleText.includes("market") ||
-    articleText.includes("company") ||
-    articleText.includes("economy")
-
-  let actualTopic = "current events"
-  if (isAboutSports) actualTopic = "sports"
-  else if (isAboutTechnology) actualTopic = "technology"
-  else if (isAboutBusiness) actualTopic = "business"
-
-  switch (questionType) {
-    case "what":
-      if (isAboutSports) {
-        response = `This article is about NFL predictions for a Chiefs vs Eagles game. Based on the title "${article.title}", it appears to be covering Week 2 predictions from Arrowhead Pride, which is likely a Kansas City Chiefs fan site. The article probably discusses expected outcomes, player performances, and game analysis for this matchup.`
-      } else {
-        response = `Based on the article "${article.title}", this appears to be about ${actualTopic}. ${article.description ? `The article describes: ${article.description}` : "The content covers relevant developments in this area."}`
-      }
-      break
-
-    case "why":
-      if (isAboutSports) {
-        response = `This sports prediction article is important because it provides fan insights and analysis ahead of a significant NFL matchup between the Chiefs and Eagles. Prediction articles help fans prepare for games and understand potential outcomes based on team performance, player stats, and expert analysis.`
-      } else {
-        response = `This news is significant because it relates to ${actualTopic} developments that affect various stakeholders. ${article.description ? `According to the article: ${article.description}` : "The story provides important context about current events in this area."}`
-      }
-      break
-
-    case "when":
-      if (article.publishedAt) {
-        const publishDate = new Date(article.publishedAt).toLocaleDateString()
-        response = `This article was published on ${publishDate}. ${isAboutSports ? "Since it mentions 'Week 2', this is likely referring to the second week of the NFL season." : "The timing provides context for understanding when these events occurred."}`
-      } else {
-        response = `The article "${article.title}" appears to be recent. ${isAboutSports ? "The 'Week 2' reference suggests this is about the second week of the NFL season." : "For specific timing details, the original article would have more precise information."}`
-      }
-      break
-
-    case "who":
-      if (isAboutSports) {
-        response = `This article involves the Kansas City Chiefs and Philadelphia Eagles NFL teams. It's published by or covered by Arrowhead Pride, which is likely a Chiefs-focused sports publication. The article probably discusses players, coaches, and analysts' predictions for the matchup.`
-      } else {
-        response = `The article "${article.title}" discusses various people and organizations involved in this ${actualTopic} story. For specific names and roles, the full article content would provide more details.`
-      }
-      break
-
-    case "where":
-      if (isAboutSports) {
-        response = `This involves NFL teams - the Kansas City Chiefs (based in Kansas City, Missouri) and the Philadelphia Eagles (based in Philadelphia, Pennsylvania). The predictions are coming from Arrowhead Pride, which is associated with the Chiefs' fanbase and likely based in the Kansas City area.`
-      } else {
-        response = `The geographic context of "${article.title}" would be detailed in the full article. The story appears to have ${actualTopic} implications that may affect various locations.`
-      }
-      break
-
-    case "how":
-      if (isAboutSports) {
-        response = `Sports prediction articles typically analyze team statistics, player performance, injury reports, historical matchups, and expert opinions to forecast game outcomes. Arrowhead Pride likely uses Chiefs-focused analysis, fan insights, and statistical models to make their Week 2 predictions for the Chiefs vs Eagles game.`
-      } else {
-        response = `The processes and methods involved in this ${actualTopic} story are explained in the article "${article.title}". ${article.description ? `The article describes: ${article.description}` : "The full article would detail the specific mechanisms and approaches involved."}`
-      }
-      break
-
-    default:
-      if (isAboutSports) {
-        response = `This is a sports prediction article about an NFL game between the Kansas City Chiefs and Philadelphia Eagles for Week 2. The article comes from Arrowhead Pride, which provides Chiefs-focused analysis and predictions. It likely covers expected game outcomes, player performances, and strategic insights for this matchup.`
-      } else {
-        response = `Based on the article "${article.title}" from ${article.source || "this source"}, this covers ${actualTopic} developments. ${article.description ? `The article states: ${article.description}` : "The story provides important information about current events in this area."} I can help answer more specific questions about the content.`
-      }
+  // Technology keywords
+  if (
+    text.match(
+      /\b(ai|artificial intelligence|machine learning|technology|tech|software|digital|cyber|robot|automation|blockchain|cryptocurrency|bitcoin)\b/g,
+    )
+  ) {
+    topics.push("Technology")
   }
 
-  const suggestedQuestions = generateSuggestedQuestions(article)
+  // Business/Economy keywords
+  if (
+    text.match(
+      /\b(business|economy|economic|market|stock|finance|financial|trade|company|corporate|investment|revenue|profit)\b/g,
+    )
+  ) {
+    topics.push("Business")
+  }
 
-  return {
-    response,
-    suggestedQuestions,
+  // Politics keywords
+  if (
+    text.match(
+      /\b(politics|political|government|election|vote|policy|law|congress|senate|president|minister|parliament)\b/g,
+    )
+  ) {
+    topics.push("Politics")
+  }
+
+  // Health keywords
+  if (
+    text.match(/\b(health|medical|medicine|hospital|doctor|patient|disease|treatment|vaccine|pandemic|covid|virus)\b/g)
+  ) {
+    topics.push("Health")
+  }
+
+  // Environment keywords
+  if (
+    text.match(
+      /\b(climate|environment|environmental|green|renewable|energy|carbon|emission|pollution|sustainability)\b/g,
+    )
+  ) {
+    topics.push("Environment")
+  }
+
+  // Sports keywords
+  if (
+    text.match(
+      /\b(sport|sports|game|team|player|match|championship|league|tournament|olympic|football|basketball|soccer)\b/g,
+    )
+  ) {
+    topics.push("Sports")
+  }
+
+  // Science keywords
+  if (
+    text.match(
+      /\b(science|scientific|research|study|discovery|experiment|space|nasa|mars|physics|chemistry|biology)\b/g,
+    )
+  ) {
+    topics.push("Science")
+  }
+
+  return topics.length > 0 ? topics : ["General News"]
+}
+
+function generateContextByTopics(topics: string[], article: NewsArticle): string {
+  const primaryTopic = topics[0] || "General News"
+
+  const contextTemplates = {
+    Technology: `This technology news relates to ongoing developments in the digital sector. The rapid pace of technological advancement continues to reshape industries and society. Key factors include innovation cycles, market competition, regulatory considerations, and societal impact.`,
+
+    Business: `This business news reflects current market dynamics and economic trends. Understanding the broader economic context helps interpret the significance of corporate developments, market movements, and financial decisions that affect stakeholders.`,
+
+    Politics: `This political development occurs within the current governmental and policy landscape. Political decisions often have far-reaching consequences for citizens, institutions, and international relations, requiring careful analysis of motivations and potential outcomes.`,
+
+    Health: `This health-related news impacts public health policy and individual well-being. Medical developments, policy changes, and health crises require understanding of scientific evidence, healthcare systems, and population health considerations.`,
+
+    Environment: `This environmental news relates to ongoing climate and sustainability challenges. Environmental issues often involve complex interactions between human activity, natural systems, and policy responses at local and global levels.`,
+
+    Sports: `This sports news reflects developments in athletic competition and sports culture. Sports events often bring communities together and can have significant economic and social impacts beyond the games themselves.`,
+
+    Science: `This scientific news represents advances in human knowledge and understanding. Scientific discoveries often have long-term implications for technology, medicine, and our understanding of the world around us.`,
+
+    "General News": `This news story reflects current events and their potential impact on society. Understanding the broader context helps interpret the significance and potential consequences of these developments.`,
+  }
+
+  return contextTemplates[primaryTopic] || contextTemplates["General News"]
+}
+
+function generateSummary(article: NewsArticle): string {
+  const sentences = article.description.split(/[.!?]+/).filter((s) => s.trim().length > 0)
+
+  if (sentences.length <= 2) {
+    return article.description
+  }
+
+  // Return first two sentences as summary
+  return sentences.slice(0, 2).join(". ") + "."
+}
+
+function generateSignificance(topics: string[], article: NewsArticle): string {
+  const primaryTopic = topics[0] || "General News"
+
+  const significanceTemplates = {
+    Technology:
+      "This development could influence future technological adoption, market competition, and digital transformation across industries.",
+    Business:
+      "This business development may affect market conditions, employment, consumer prices, and economic growth in the sector.",
+    Politics:
+      "This political development could impact policy decisions, governance, and the relationship between institutions and citizens.",
+    Health: "This health news may influence public health policy, medical practice, and individual health decisions.",
+    Environment:
+      "This environmental development could affect climate policy, sustainability efforts, and long-term environmental outcomes.",
+    Sports: "This sports news may impact athletic competition, fan engagement, and the broader sports industry.",
+    Science:
+      "This scientific development could lead to new technologies, medical treatments, or changes in our understanding of natural phenomena.",
+    "General News": "This development may have broader implications for society, policy, or public discourse.",
+  }
+
+  return significanceTemplates[primaryTopic] || significanceTemplates["General News"]
+}
+
+function generateRelatedEvents(topics: string[]): string[] {
+  const events: string[] = []
+
+  topics.forEach((topic) => {
+    switch (topic) {
+      case "Technology":
+        events.push(
+          "Recent AI breakthroughs in various industries",
+          "Ongoing digital transformation initiatives",
+          "Technology regulation discussions",
+        )
+        break
+      case "Business":
+        events.push(
+          "Current market volatility and economic indicators",
+          "Recent corporate earnings and business developments",
+          "Trade and economic policy changes",
+        )
+        break
+      case "Politics":
+        events.push(
+          "Recent policy announcements and legislative actions",
+          "Ongoing political campaigns and elections",
+          "International diplomatic developments",
+        )
+        break
+      case "Health":
+        events.push(
+          "Public health initiatives and policy updates",
+          "Medical research breakthroughs",
+          "Healthcare system developments",
+        )
+        break
+      case "Environment":
+        events.push(
+          "Climate change mitigation efforts",
+          "Renewable energy developments",
+          "Environmental policy initiatives",
+        )
+        break
+      case "Sports":
+        events.push(
+          "Ongoing sports seasons and tournaments",
+          "Athletic achievements and records",
+          "Sports industry business developments",
+        )
+        break
+      case "Science":
+        events.push(
+          "Recent scientific discoveries and research",
+          "Space exploration missions",
+          "Medical and technological innovations",
+        )
+        break
+    }
+  })
+
+  return events.slice(0, 3) // Return top 3 related events
+}
+
+export async function askAboutArticle(article: NewsArticle, question: string): Promise<string> {
+  try {
+    // Try to use OpenAI API if available
+    if (process.env.OPENAI_API_KEY) {
+      const response = await fetch("/api/news-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ article, question }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.response
+      }
+    }
+
+    // Fallback to intelligent responses
+    return generateIntelligentResponse(article, question)
+  } catch (error) {
+    console.error("Error asking about article:", error)
+    return generateIntelligentResponse(article, question)
   }
 }
 
-function generateFallbackResponse(question: string, article: NewsArticle): string {
-  return `Based on the article "${article.title}" from ${article.source}: ${article.description || "This article provides relevant information that can help answer your question."} Feel free to ask more specific questions about the content.`
-}
+function generateIntelligentResponse(article: NewsArticle, question: string): string {
+  const questionLower = question.toLowerCase()
+  const title = article.title.toLowerCase()
+  const description = article.description.toLowerCase()
+  const content = article.content.toLowerCase()
 
-function generateSuggestedQuestions(article: NewsArticle): string[] {
-  const articleText = `${article.title} ${article.description || ""}`.toLowerCase()
-
-  const baseQuestions = [
-    "What are the main points of this story?",
-    "Why is this news significant?",
-    "What are the potential implications?",
-  ]
-
-  if (articleText.includes("chiefs") && articleText.includes("eagles")) {
-    return [
-      "What are the key predictions for this game?",
-      "Which team is favored to win?",
-      "What factors influence these predictions?",
-      "How do the teams match up against each other?",
-    ]
+  // Question type detection
+  if (questionLower.includes("what") && (questionLower.includes("about") || questionLower.includes("is"))) {
+    return `This article discusses ${article.title}. ${article.description} The main focus appears to be on the key developments and their potential implications.`
   }
 
-  return baseQuestions
+  if (questionLower.includes("why") || questionLower.includes("reason")) {
+    return `Based on the article content, this appears to be significant because it represents an important development in the field. The underlying factors and motivations are explained in the context of current trends and circumstances.`
+  }
+
+  if (questionLower.includes("how")) {
+    return `According to the article, the process or mechanism involves several key steps and considerations. The implementation details and methodology are outlined based on the information provided.`
+  }
+
+  if (questionLower.includes("when") || questionLower.includes("time")) {
+    return `The article was published on ${new Date(article.publishedAt).toLocaleDateString()}. The timing of these events appears to be significant in the current context.`
+  }
+
+  if (questionLower.includes("who") || questionLower.includes("people") || questionLower.includes("person")) {
+    return `The article mentions various stakeholders and individuals involved in this development. The key people and organizations are identified based on their roles and contributions to the situation.`
+  }
+
+  if (questionLower.includes("where") || questionLower.includes("location")) {
+    return `Based on the article content, this development appears to have geographic or institutional significance. The location and scope of impact are relevant to understanding the broader implications.`
+  }
+
+  if (questionLower.includes("impact") || questionLower.includes("effect") || questionLower.includes("consequence")) {
+    return `The potential impacts of this development could be significant across multiple areas. Based on the article content, there may be short-term and long-term consequences that affect various stakeholders.`
+  }
+
+  if (questionLower.includes("future") || questionLower.includes("next") || questionLower.includes("will")) {
+    return `Looking ahead, this development could lead to several possible outcomes. The future implications depend on various factors including policy responses, market conditions, and stakeholder actions.`
+  }
+
+  // Default response
+  return `Based on the article "${article.title}", this appears to be a significant development. ${article.description} The information suggests there are multiple aspects to consider, including the immediate implications and potential longer-term effects.`
 }

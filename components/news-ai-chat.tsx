@@ -1,81 +1,62 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Send, Bot, User, Sparkles } from "lucide-react"
-import { askAIAboutArticle, type NewsArticle } from "@/lib/ai-context"
+import { Loader2, Send, MessageCircle, Bot, User } from "lucide-react"
+import { askAboutArticle, type NewsArticle } from "@/lib/ai-context"
 
 interface Message {
   id: string
-  role: "user" | "assistant"
+  type: "user" | "assistant"
   content: string
   timestamp: Date
 }
 
 interface NewsAIChatProps {
   article: NewsArticle
-  isOpen?: boolean
-  onClose?: () => void
+  isOpen: boolean
+  onClose: () => void
 }
 
-export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps) {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isInitialized, setIsInitialized] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (isOpen && !isInitialized) {
-      initializeChat()
-      setIsInitialized(true)
-    }
-  }, [isOpen, isInitialized])
-
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
-    }
-  }, [messages])
-
-  const initializeChat = () => {
-    const welcomeMessage: Message = {
-      id: `msg_${Date.now()}`,
-      role: "assistant",
-      content: `Hi! I'm here to help you understand this article: "${article.title}". You can ask me questions about the content, request summaries, or discuss the implications. What would you like to know?`,
+export function NewsAIChat({ article, isOpen, onClose }: NewsAIChatProps) {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      type: "assistant",
+      content: `Hi! I'm here to help you understand this article: "${article.title}". What would you like to know about it?`,
       timestamp: new Date(),
-    }
-    setMessages([welcomeMessage])
-  }
+    },
+  ])
+  const [inputValue, setInputValue] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return
 
     const userMessage: Message = {
-      id: `msg_${Date.now()}_user`,
-      role: "user",
-      content: input.trim(),
+      id: `user-${Date.now()}`,
+      type: "user",
+      content: inputValue.trim(),
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setInput("")
+    setInputValue("")
     setIsLoading(true)
 
     try {
-      const response = await askAIAboutArticle(article, userMessage.content)
+      const response = await askAboutArticle(article, userMessage.content)
 
       const assistantMessage: Message = {
-        id: `msg_${Date.now()}_assistant`,
-        role: "assistant",
-        content: response.response,
+        id: `assistant-${Date.now()}`,
+        type: "assistant",
+        content: response,
         timestamp: new Date(),
       }
 
@@ -84,9 +65,10 @@ export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps
       console.error("Error getting AI response:", error)
 
       const errorMessage: Message = {
-        id: `msg_${Date.now()}_error`,
-        role: "assistant",
-        content: `I'm sorry, I'm having trouble processing your question right now. Based on the article "${article.title}", I can tell you that it discusses ${article.description || "important news topics"}. Please try asking a different question.`,
+        id: `error-${Date.now()}`,
+        type: "assistant",
+        content:
+          "I'm sorry, I'm having trouble processing your question right now. Could you try rephrasing it or ask something else about the article?",
         timestamp: new Date(),
       }
 
@@ -96,84 +78,86 @@ export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps
     }
   }
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
   const suggestedQuestions = [
-    "Can you summarize this article?",
+    "What is this article about?",
+    "Why is this important?",
     "What are the key points?",
-    "Who are the main people involved?",
-    "What are the implications?",
+    "What might happen next?",
+    "Who does this affect?",
   ]
 
-  if (!isOpen) return null
+  const handleSuggestedQuestion = (question: string) => {
+    setInputValue(question)
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl h-[600px] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-blue-500" />
-            AI News Assistant
+            <MessageCircle className="h-5 w-5" />
+            AI Chat - Article Discussion
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col min-h-0">
-          <Card className="mb-4">
+        <div className="flex-1 flex flex-col gap-4">
+          {/* Article Preview */}
+          <Card className="border-l-4 border-l-blue-500">
             <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-sm line-clamp-2 mb-2">{article.title}</h4>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-xs">
-                      {article.source}
-                    </Badge>
-                    <span>•</span>
-                    <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <Sparkles className="h-4 w-4 text-blue-500 flex-shrink-0" />
-              </div>
+              <h4 className="font-semibold text-sm mb-1">{article.title}</h4>
+              <p className="text-xs text-muted-foreground line-clamp-2">{article.description}</p>
             </CardContent>
           </Card>
 
-          <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
+          {/* Messages */}
+          <ScrollArea className="flex-1 pr-4">
             <div className="space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`flex gap-3 max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className="flex-shrink-0">
-                      {message.role === "user" ? (
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                          <User className="h-4 w-4 text-primary-foreground" />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                          <Bot className="h-4 w-4 text-white" />
-                        </div>
-                      )}
+                  {message.type === "assistant" && (
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-blue-600" />
                     </div>
-                    <div
-                      className={`rounded-lg p-3 ${
-                        message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-1">{message.timestamp.toLocaleTimeString()}</p>
-                    </div>
+                  )}
+
+                  <div
+                    className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                      message.type === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-xs opacity-70 mt-1">
+                      {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </p>
                   </div>
+
+                  {message.type === "user" && (
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-white" />
+                    </div>
+                  )}
                 </div>
               ))}
 
               {isLoading && (
                 <div className="flex gap-3 justify-start">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-white" />
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-blue-600" />
                   </div>
-                  <div className="bg-muted rounded-lg p-3">
+                  <div className="bg-gray-100 rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Thinking...</span>
+                      <span className="text-sm text-gray-600">Thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -181,16 +165,17 @@ export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps
             </div>
           </ScrollArea>
 
-          {messages.length <= 1 && (
-            <div className="mb-4">
-              <p className="text-sm text-muted-foreground mb-2">Try asking:</p>
+          {/* Suggested Questions */}
+          {messages.length === 1 && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Try asking:</p>
               <div className="flex flex-wrap gap-2">
                 {suggestedQuestions.map((question, index) => (
                   <Button
                     key={index}
                     variant="outline"
                     size="sm"
-                    onClick={() => setInput(question)}
+                    onClick={() => handleSuggestedQuestion(question)}
                     className="text-xs"
                   >
                     {question}
@@ -200,18 +185,20 @@ export function NewsAIChat({ article, isOpen = false, onClose }: NewsAIChatProps
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          {/* Input */}
+          <div className="flex gap-2">
             <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
               placeholder="Ask me anything about this article..."
               disabled={isLoading}
               className="flex-1"
             />
-            <Button type="submit" disabled={isLoading || !input.trim()} size="icon">
-              <Send className="h-4 w-4" />
+            <Button onClick={handleSendMessage} disabled={!inputValue.trim() || isLoading} size="icon">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
-          </form>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
