@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseClient } from "./supabase-client"
 
 // Types
 export interface Note {
@@ -28,24 +28,6 @@ export interface CreateNoteData {
 // In-memory storage for fallback
 let memoryNotes: Note[] = []
 let nextId = 1
-
-// Initialize Supabase client with fallback handling
-function getSupabaseClient() {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn("Supabase credentials not found, using fallback storage")
-      return null
-    }
-
-    return createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn("Failed to initialize Supabase client:", error)
-    return null
-  }
-}
 
 // Generate unique ID for fallback storage
 function generateId(): string {
@@ -164,29 +146,6 @@ export async function getUserNotes(userId?: string): Promise<Note[]> {
 // Get all notes (without user filtering) - REQUIRED EXPORT
 export async function getNotes(userId?: string): Promise<Note[]> {
   return getUserNotes(userId)
-}
-
-// Get all notes (alternative implementation)
-export async function getAllNotes(): Promise<Note[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.from("user_notes").select("*").order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      return (data || []).map((note) => ({
-        ...note,
-        tags: Array.isArray(note.tags) ? note.tags : [],
-      })) as Note[]
-    } catch (error) {
-      console.warn("Supabase getAllNotes failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  return memoryNotes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
 // Insert sample notes - REQUIRED EXPORT

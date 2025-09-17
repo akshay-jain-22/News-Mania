@@ -2,92 +2,43 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Send, Bot, User, Loader2, Lightbulb } from "lucide-react"
+import { Send, Bot, User } from "lucide-react"
 import type { NewsArticle } from "@/types/news"
-import { getArticleContext, askQuestionAboutArticle } from "@/lib/ai-context"
-import { useToast } from "@/hooks/use-toast"
-
-interface Message {
-  id: string
-  type: "user" | "ai" | "context"
-  content: string
-  timestamp: Date
-}
+import { askQuestionAboutArticle } from "@/lib/ai-context"
 
 interface NewsAIChatProps {
   article: NewsArticle
 }
 
+interface ChatMessage {
+  id: string
+  type: "user" | "assistant"
+  content: string
+  timestamp: Date
+}
+
 export function NewsAIChat({ article }: NewsAIChatProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      type: "assistant",
+      content: `Hi! I can help you understand this article about "${article.title}". What would you like to know?`,
+      timestamp: new Date(),
+    },
+  ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [hasContext, setHasContext] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { toast } = useToast()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  useEffect(() => {
-    // Load article context when component mounts
-    loadArticleContext()
-  }, [article])
-
-  const loadArticleContext = async () => {
-    if (hasContext) return
-
-    try {
-      setIsLoading(true)
-      const context = await getArticleContext(article)
-
-      const contextMessage: Message = {
-        id: `context-${Date.now()}`,
-        type: "context",
-        content: `📰 **Article Analysis**\n\n**Summary:** ${context.summary}\n\n**Key Points:**\n${context.keyPoints.map((point) => `• ${point}`).join("\n")}\n\n**Topics:** ${context.topics.join(", ")}\n\n💡 **Ask me anything about this article!**`,
-        timestamp: new Date(),
-      }
-
-      setMessages([contextMessage])
-      setHasContext(true)
-    } catch (error) {
-      console.error("Error loading article context:", error)
-      toast({
-        title: "Context loading failed",
-        description: "Using basic article information",
-        variant: "destructive",
-      })
-
-      // Fallback context message
-      const fallbackMessage: Message = {
-        id: `fallback-${Date.now()}`,
-        type: "context",
-        content: `📰 **Article: ${article.title}**\n\nSource: ${article.source?.name || "Unknown"}\n\nI'm ready to answer questions about this article! Ask me anything you'd like to know.`,
-        timestamp: new Date(),
-      }
-
-      setMessages([fallbackMessage])
-      setHasContext(true)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSendMessage = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
       type: "user",
       content: input.trim(),
       timestamp: new Date(),
@@ -98,167 +49,126 @@ export function NewsAIChat({ article }: NewsAIChatProps) {
     setIsLoading(true)
 
     try {
-      const answer = await askQuestionAboutArticle(article, input.trim())
+      const response = await askQuestionAboutArticle(article, input.trim())
 
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        type: "ai",
-        content: answer,
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: "assistant",
+        content: response,
         timestamp: new Date(),
       }
 
-      setMessages((prev) => [...prev, aiMessage])
+      setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error("Error getting AI response:", error)
 
-      const errorMessage: Message = {
-        id: `error-${Date.now()}`,
-        type: "ai",
-        content:
-          "I'm having trouble processing your question right now. Please try asking something else about the article.",
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: "assistant",
+        content: "I'm sorry, I couldn't process your question right now. Please try again later.",
         timestamp: new Date(),
       }
 
       setMessages((prev) => [...prev, errorMessage])
-
-      toast({
-        title: "AI response failed",
-        description: "Please try your question again",
-        variant: "destructive",
-      })
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  const suggestedQuestions = [
-    "What are the main points?",
-    "Is this source reliable?",
-    "What's the significance?",
-    "Any potential concerns?",
-  ]
-
-  const handleSuggestedQuestion = (question: string) => {
-    setInput(question)
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
   return (
-    <Card className="bg-gray-800 border-gray-600">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Bot className="h-5 w-5 text-purple-400" />
-          <h4 className="font-semibold text-white">AI Article Assistant</h4>
-          <Badge variant="outline" className="text-xs border-purple-500 text-purple-300">
-            Beta
-          </Badge>
-        </div>
-
-        {/* Messages */}
-        <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}>
-              {message.type !== "user" && (
-                <div className="flex-shrink-0">
-                  {message.type === "context" ? (
-                    <Lightbulb className="h-6 w-6 text-yellow-400 mt-1" />
-                  ) : (
-                    <Bot className="h-6 w-6 text-purple-400 mt-1" />
-                  )}
-                </div>
-              )}
-
-              <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.type === "user"
-                    ? "bg-blue-600 text-white ml-auto"
-                    : message.type === "context"
-                      ? "bg-yellow-900/30 border border-yellow-600/30 text-yellow-100"
-                      : "bg-gray-700 text-gray-100"
-                }`}
-              >
-                <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-                <div className="text-xs opacity-70 mt-1">
-                  {message.timestamp.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
+    <div className="space-y-4">
+      {/* Chat Messages */}
+      <div className="max-h-64 overflow-y-auto space-y-3">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex items-start gap-2 ${message.type === "user" ? "justify-end" : "justify-start"}`}
+          >
+            {message.type === "assistant" && (
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                <Bot className="h-3 w-3 text-white" />
               </div>
+            )}
 
-              {message.type === "user" && (
-                <div className="flex-shrink-0">
-                  <User className="h-6 w-6 text-blue-400 mt-1" />
-                </div>
-              )}
-            </div>
-          ))}
+            <Card
+              className={`max-w-[80%] ${
+                message.type === "user" ? "bg-blue-500 text-white" : "bg-gray-800 border-gray-700"
+              }`}
+            >
+              <CardContent className="p-3">
+                <p className="text-sm">{message.content}</p>
+                <p className={`text-xs mt-1 ${message.type === "user" ? "text-blue-100" : "text-gray-400"}`}>
+                  {formatTime(message.timestamp)}
+                </p>
+              </CardContent>
+            </Card>
 
-          {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <Bot className="h-6 w-6 text-purple-400 mt-1" />
-              <div className="bg-gray-700 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-gray-300">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Thinking...</span>
-                </div>
+            {message.type === "user" && (
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <User className="h-3 w-3 text-white" />
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        ))}
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Suggested Questions */}
-        {messages.length <= 1 && (
-          <div className="mb-4">
-            <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestedQuestions.map((question, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSuggestedQuestion(question)}
-                  className="text-xs border-gray-600 text-gray-300 hover:bg-gray-700"
-                >
-                  {question}
-                </Button>
-              ))}
+        {isLoading && (
+          <div className="flex items-start gap-2">
+            <div className="flex-shrink-0 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+              <Bot className="h-3 w-3 text-white" />
             </div>
+            <Card className="bg-gray-800 border-gray-700">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
+      </div>
 
-        {/* Input */}
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask me anything about this article..."
-            className="flex-1 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-            disabled={isLoading}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!input.trim() || isLoading}
-            size="sm"
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </div>
+      {/* Input Form */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask a question about this article..."
+          disabled={isLoading}
+          className="flex-1 bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+        />
+        <Button
+          type="submit"
+          disabled={!input.trim() || isLoading}
+          size="sm"
+          className="bg-purple-600 hover:bg-purple-700"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </form>
 
-        <p className="text-xs text-gray-500 mt-2">
-          AI responses are generated and may not always be accurate. Please verify important information.
-        </p>
-      </CardContent>
-    </Card>
+      {/* Quick Questions */}
+      <div className="flex flex-wrap gap-2">
+        {["What's the main point?", "Who is involved?", "When did this happen?", "Why is this important?"].map(
+          (question) => (
+            <Button
+              key={question}
+              variant="outline"
+              size="sm"
+              onClick={() => setInput(question)}
+              disabled={isLoading}
+              className="text-xs border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              {question}
+            </Button>
+          ),
+        )}
+      </div>
+    </div>
   )
 }

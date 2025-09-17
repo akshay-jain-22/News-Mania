@@ -22,9 +22,26 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
   const [isSaved, setIsSaved] = useState(false)
   const { toast } = useToast()
 
+  // Ensure article has required properties with fallbacks
+  const safeArticle = {
+    id: article.id || Date.now().toString(),
+    title: article.title || "Untitled Article",
+    description: article.description || "No description available",
+    url: article.url || "#",
+    urlToImage: article.urlToImage || null,
+    publishedAt: article.publishedAt || new Date().toISOString(),
+    source: {
+      name: article.source?.name || "Unknown Source",
+    },
+    author: article.author || "Unknown Author",
+    credibilityScore: article.credibilityScore || 75,
+    isFactChecked: article.isFactChecked || false,
+    content: article.content || article.description || "",
+  }
+
   const handleLike = () => {
     setIsLiked(!isLiked)
-    onInteraction?.("like", article.id)
+    onInteraction?.("like", safeArticle.id)
     toast({
       title: isLiked ? "Removed from favorites" : "Added to favorites",
       description: isLiked ? "Article removed from your favorites" : "Article saved to your favorites",
@@ -33,8 +50,8 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
 
   const handleShare = async () => {
     try {
-      await shareArticle(article)
-      onInteraction?.("share", article.id)
+      await shareArticle(safeArticle)
+      onInteraction?.("share", safeArticle.id)
       toast({
         title: "Article shared",
         description: "Article has been shared successfully",
@@ -51,13 +68,15 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
   const handleSave = async () => {
     try {
       await saveNote({
-        title: `Saved: ${article.title}`,
-        content: `${article.description}\n\nSource: ${article.source?.name || "Unknown"}\nURL: ${article.url}`,
-        articleId: article.id,
+        title: `Saved: ${safeArticle.title}`,
+        content: `${safeArticle.description}\n\nSource: ${safeArticle.source.name}\nURL: ${safeArticle.url}`,
+        articleId: safeArticle.id,
+        articleUrl: safeArticle.url,
+        articleTitle: safeArticle.title,
         tags: ["saved-article"],
       })
       setIsSaved(true)
-      onInteraction?.("save", article.id)
+      onInteraction?.("save", safeArticle.id)
       toast({
         title: "Article saved",
         description: "Article has been saved to your notes",
@@ -73,23 +92,21 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
 
   const handleAIChat = () => {
     setShowAIChat(!showAIChat)
-    onInteraction?.("ai_chat", article.id)
+    onInteraction?.("ai_chat", safeArticle.id)
   }
 
   const handleReadMore = () => {
-    onInteraction?.("read_more", article.id)
-    window.open(article.url, "_blank", "noopener,noreferrer")
+    onInteraction?.("read_more", safeArticle.id)
+    window.open(safeArticle.url, "_blank", "noopener,noreferrer")
   }
 
-  const getCredibilityColor = (score?: number) => {
-    if (!score) return "bg-gray-500"
+  const getCredibilityColor = (score: number) => {
     if (score >= 80) return "bg-green-500"
     if (score >= 60) return "bg-yellow-500"
     return "bg-red-500"
   }
 
-  const getCredibilityText = (score?: number) => {
-    if (!score) return "Unverified"
+  const getCredibilityText = (score: number) => {
     if (score >= 80) return "High Credibility"
     if (score >= 60) return "Medium Credibility"
     return "Low Credibility"
@@ -117,17 +134,15 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
-                {article.source?.name || "Unknown Source"}
+                {safeArticle.source.name}
               </Badge>
-              {article.credibilityScore && (
-                <Badge className={`text-xs text-white ${getCredibilityColor(article.credibilityScore)}`}>
-                  {getCredibilityText(article.credibilityScore)}
-                </Badge>
-              )}
-              {article.isFactChecked && <CheckCircle className="h-4 w-4 text-green-500" />}
+              <Badge className={`text-xs text-white ${getCredibilityColor(safeArticle.credibilityScore)}`}>
+                {getCredibilityText(safeArticle.credibilityScore)}
+              </Badge>
+              {safeArticle.isFactChecked && <CheckCircle className="h-4 w-4 text-green-500" />}
             </div>
             <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2 group-hover:text-blue-400 transition-colors">
-              {article.title}
+              {safeArticle.title}
             </h3>
           </div>
         </div>
@@ -135,11 +150,11 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
 
       <CardContent className="pt-0 space-y-4">
         {/* Image */}
-        {article.urlToImage && (
+        {safeArticle.urlToImage && (
           <div className="aspect-video rounded-lg overflow-hidden bg-gray-800">
             <img
-              src={article.urlToImage || "/placeholder.svg"}
-              alt={article.title}
+              src={safeArticle.urlToImage || "/placeholder.svg"}
+              alt={safeArticle.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
@@ -150,17 +165,17 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
         )}
 
         {/* Description */}
-        <p className="text-gray-300 text-sm line-clamp-3 leading-relaxed">{article.description}</p>
+        <p className="text-gray-300 text-sm line-clamp-3 leading-relaxed">{safeArticle.description}</p>
 
         {/* Metadata */}
         <div className="flex items-center gap-4 text-xs text-gray-400">
           <div className="flex items-center gap-1">
             <User className="h-3 w-3" />
-            <span>{article.author || "Unknown Author"}</span>
+            <span>{safeArticle.author}</span>
           </div>
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            <span>{formatTimeAgo(article.publishedAt)}</span>
+            <span>{formatTimeAgo(safeArticle.publishedAt)}</span>
           </div>
         </div>
 
@@ -224,7 +239,7 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
         {/* AI Chat */}
         {showAIChat && (
           <div className="border-t border-gray-700 pt-4">
-            <NewsAIChat article={article} />
+            <NewsAIChat article={safeArticle} />
           </div>
         )}
       </CardContent>

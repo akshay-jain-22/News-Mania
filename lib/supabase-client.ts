@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js"
+
 // Fallback client for when Supabase is not available
 export interface SupabaseClient {
   from: (table: string) => any
@@ -6,6 +8,37 @@ export interface SupabaseClient {
     signInWithPassword: (credentials: any) => Promise<{ data: any; error: any }>
     signUp: (credentials: any) => Promise<{ data: any; error: any }>
     signOut: () => Promise<{ error: any }>
+  }
+}
+
+// Singleton pattern to prevent multiple instances
+let supabaseInstance: ReturnType<typeof createClient> | null = null
+
+export function getSupabaseClient() {
+  if (supabaseInstance) {
+    return supabaseInstance
+  }
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn("Supabase credentials not found")
+      return null
+    }
+
+    supabaseInstance = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+
+    return supabaseInstance
+  } catch (error) {
+    console.error("Failed to initialize Supabase client:", error)
+    return null
   }
 }
 
@@ -39,7 +72,7 @@ export function createSupabaseClient(): SupabaseClient {
   return mockSupabaseClient
 }
 
-export const supabase = createSupabaseClient()
+export const supabase = getSupabaseClient() || createSupabaseClient()
 
 // Helper functions for common operations
 export async function getCurrentUser() {
