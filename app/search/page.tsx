@@ -1,4 +1,4 @@
-import { NewsHeader } from "@/components/news-header"
+import { Header } from "@/components/header"
 import { NewsCard } from "@/components/news-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,23 +18,27 @@ export default async function SearchPage({
   // If no query is provided, show a message
   if (!query) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <NewsHeader />
+      <div className="flex min-h-screen flex-col bg-background">
+        <Header />
         <main className="flex-1 py-6">
           <div className="container px-4 md:px-6">
             <div className="grid gap-6">
-              <div>
+              <div className="text-center space-y-4">
                 <h1 className="text-3xl font-bold tracking-tight">Search News</h1>
-                <p className="text-muted-foreground">Enter a search term to find relevant news articles</p>
+                <p className="text-muted-foreground">Find the latest news articles on any topic</p>
               </div>
 
-              <form action="/search" method="GET" className="flex max-w-md gap-2">
-                <Input type="text" name="q" placeholder="Search news..." required />
+              <div className="flex gap-2">
+                <Input type="text" name="q" placeholder="Search for news articles..." className="flex-1" required />
                 <Button type="submit">
                   <Search className="h-4 w-4 mr-2" />
                   Search
                 </Button>
-              </form>
+              </div>
+
+              <div className="text-center text-muted-foreground">
+                Enter a search term to find relevant news articles
+              </div>
 
               <div className="mt-6">
                 <h2 className="text-xl font-semibold mb-4">Browse by Topic</h2>
@@ -94,24 +98,33 @@ export default async function SearchPage({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <NewsHeader />
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header />
 
-      <main className="flex-1 py-6">
+      <main className="flex-1 py-8">
         <div className="container px-4 md:px-6">
           <div className="grid gap-6">
-            <div>
+            <div className="text-center space-y-4">
               <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
               <p className="text-muted-foreground">Showing results for "{query}"</p>
             </div>
 
-            <form action="/search" method="GET" className="flex max-w-md gap-2">
-              <Input type="text" name="q" placeholder="Search news..." defaultValue={query} required />
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                name="q"
+                placeholder="Search for news articles..."
+                className="flex-1"
+                defaultValue={query}
+                required
+              />
               <Button type="submit">
                 <Search className="h-4 w-4 mr-2" />
                 Search
               </Button>
-            </form>
+            </div>
+
+            <div className="text-center text-muted-foreground">Enter a search term to find relevant news articles</div>
 
             <div className="mt-4">
               <h2 className="text-xl font-semibold mb-4">Browse by Topic</h2>

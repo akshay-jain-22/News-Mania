@@ -1,40 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
 import type { NewsArticle } from "@/types/news"
+import { fetchNews } from "@/lib/news-api"
 
-// Use the provided NewsAPI key
 const API_KEY = process.env.NEWS_API_KEY || "b8b7129df29d475db2853616351d7244"
 const BASE_URL = "https://newsapi.org/v2"
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const category = searchParams.get("category") || "general"
-    const query = searchParams.get("query") || ""
+    const category = searchParams.get("category")
+    const query = searchParams.get("query")
     const pageSize = Number.parseInt(searchParams.get("pageSize") || "50")
     const page = Number.parseInt(searchParams.get("page") || "1")
-    const country = searchParams.get("country") || "us"
-    const sources = searchParams.get("sources") || ""
+    const country = searchParams.get("country")
+    const sources = searchParams.get("sources")
     const forceRefresh = searchParams.get("forceRefresh") === "true"
 
     console.log(`Server: Fetching news for category: ${category}`)
 
-    // Always return fallback content to avoid external API issues
-    const fallbackArticles = generateFallbackNews(pageSize, category)
+    const articles = await fetchNews(category || undefined)
 
-    console.log(`Server: Returning ${fallbackArticles.length} fallback articles`)
-    return NextResponse.json({
-      status: "ok",
-      totalResults: fallbackArticles.length,
-      articles: fallbackArticles,
-    })
+    return NextResponse.json({ articles })
   } catch (error) {
-    console.error("Server: Error in news API route:", error)
-    const fallbackArticles = generateFallbackNews(50, "general")
-    return NextResponse.json({
-      status: "ok",
-      totalResults: fallbackArticles.length,
-      articles: fallbackArticles,
-    })
+    console.error("Error in news API:", error)
+    return NextResponse.json({ error: "Failed to fetch news" }, { status: 500 })
   }
 }
 
@@ -323,12 +312,12 @@ function getImageUrl(category: string, seed: number): string {
     "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1495106245177-55dc6f43e83f?w=800&h=500&fit=crop&auto=format",
-    "https://images.unsplash.com/photo-1557428894-56bcc97113fe?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=800&h=500&fit=crop&auto=format",
+    "https://images.unsplash.com/photo-1590736964899-f142ff2dc9b1?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&h=500&fit=crop&auto=format",
-    "https://images.unsplash.com/photo-1590736969955-71cc94901144?w=800&h=500&fit=crop&auto=format",
+    "https://images.unsplash.com/photo-1590736964899-f142ff2dc9b1?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1579952363873-27d3bfad9c0d?w=800&h=500&fit=crop&auto=format",
     "https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800&h=500&fit=crop&auto=format",

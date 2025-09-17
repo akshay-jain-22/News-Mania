@@ -1,4 +1,5 @@
 import type { UserBehavior, UserPreferences } from "@/types/user-profile"
+import type { UserProfile, UserInteraction, TimeBasedPreference } from "@/types/user-profile"
 
 /**
  * Mathematical Model 3: Behavioral Analysis System
@@ -7,50 +8,54 @@ import type { UserBehavior, UserPreferences } from "@/types/user-profile"
 
 export class BehavioralAnalyzer {
   /**
-   * Time-based preference analysis using weighted moving averages
-   * Formula: WMA(t) = Σ(weight_i * value_i) / Σ(weight_i)
+   * Time-Series Analysis for Reading Patterns
    */
-  analyzeTimeBasedPreferences(behaviors: UserBehavior[]): Record<string, Record<string, number>> {
-    const timePreferences: Record<string, Record<string, number>> = {}
+  analyzeTimeBasedPreferences(interactions: UserInteraction[]): TimeBasedPreference[] {
+    const timeSlots = ["00-06", "06-12", "12-18", "18-24"]
+    const preferences: TimeBasedPreference[] = []
 
-    // Initialize 24-hour structure
-    for (let hour = 0; hour < 24; hour++) {
-      timePreferences[hour.toString()] = {}
-    }
+    for (const slot of timeSlots) {
+      const slotInteractions = this.filterInteractionsByTimeSlot(interactions, slot)
 
-    // Group behaviors by hour and category
-    const hourlyBehaviors: Record<string, UserBehavior[]> = {}
-
-    for (const behavior of behaviors) {
-      const hour = behavior.time_of_day.toString()
-      if (!hourlyBehaviors[hour]) {
-        hourlyBehaviors[hour] = []
-      }
-      hourlyBehaviors[hour].push(behavior)
-    }
-
-    // Calculate weighted preferences for each hour
-    for (const [hour, hourBehaviors] of Object.entries(hourlyBehaviors)) {
-      const categoryWeights: Record<string, number> = {}
-      const categoryTotalWeight: Record<string, number> = {}
-
-      for (const behavior of hourBehaviors) {
-        const weight = this.calculateBehaviorWeight(behavior)
-        const timeDecay = this.calculateTimeDecay(behavior.timestamp)
-        const finalWeight = weight * timeDecay
-
-        categoryWeights[behavior.category] = (categoryWeights[behavior.category] || 0) + finalWeight
-        categoryTotalWeight[behavior.category] = (categoryTotalWeight[behavior.category] || 0) + 1
+      if (slotInteractions.length === 0) {
+        preferences.push({
+          timeSlot: slot,
+          categories: [],
+          avgReadTime: 0,
+          engagementScore: 0,
+        })
+        continue
       }
 
-      // Normalize weights
-      for (const [category, totalWeight] of Object.entries(categoryWeights)) {
-        timePreferences[hour][category] = totalWeight / (categoryTotalWeight[category] || 1)
+      // Calculate category preferences for this time slot
+      const categoryCount: Record<string, number> = {}
+      let totalReadTime = 0
+      let engagementActions = 0
+
+      for (const interaction of slotInteractions) {
+        categoryCount[interaction.category] = (categoryCount[interaction.category] || 0) + 1
+        totalReadTime += interaction.readTime || 0
+
+        if (["share", "save", "click"].includes(interaction.action)) {
+          engagementActions++
+        }
       }
+
+      // Get top categories for this time slot
+      const topCategories = Object.entries(categoryCount)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([category]) => category)
+
+      preferences.push({
+        timeSlot: slot,
+        categories: topCategories,
+        avgReadTime: totalReadTime / slotInteractions.length,
+        engagementScore: engagementActions / slotInteractions.length,
+      })
     }
 
-    // Apply smoothing using adjacent hours
-    return this.smoothTimePreferences(timePreferences)
+    return preferences
   }
 
   /**
@@ -91,7 +96,7 @@ export class BehavioralAnalyzer {
   }
 
   /**
-   * Predictive modeling for future behavior
+   * Predictive Modeling for Future Behavior
    * Uses exponential smoothing and trend analysis
    */
   predictFutureBehavior(
@@ -152,6 +157,55 @@ export class BehavioralAnalyzer {
   }
 
   /**
+   * Predictive Modeling for Future Preferences
+   */
+  predictFuturePreferences(
+    userProfile: UserProfile,
+    currentTime: Date,
+  ): {
+    nextHourCategories: string[]
+    todayRecommendations: string[]
+    weeklyTrend: string[]
+    confidence: number
+  } {
+    const currentHour = currentTime.getHours()
+    const timeSlot = this.getTimeSlot(currentHour)
+
+    // Find historical preferences for this time
+    const timePreference = userProfile.behaviorProfile.readingTimes.find((tp) => tp.timeSlot === timeSlot)
+
+    if (!timePreference) {
+      return {
+        nextHourCategories: ["world", "politics"],
+        todayRecommendations: ["business", "technology"],
+        weeklyTrend: ["entertainment", "sports"],
+        confidence: 0.3,
+      }
+    }
+
+    // Predict based on historical patterns
+    const nextHourCategories = timePreference.categories.slice(0, 2)
+
+    // Daily recommendations based on engagement scores
+    const todayRecommendations = userProfile.behaviorProfile.categoryPreferences
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((cp) => cp.category)
+
+    // Weekly trend analysis
+    const weeklyTrend = this.predictWeeklyTrend(userProfile)
+
+    const confidence = Math.min(timePreference.engagementScore + 0.3, 1.0)
+
+    return {
+      nextHourCategories,
+      todayRecommendations,
+      weeklyTrend,
+      confidence,
+    }
+  }
+
+  /**
    * Adaptive learning system that updates preferences based on new behavior
    * Uses online learning algorithms with concept drift detection
    */
@@ -199,6 +253,60 @@ export class BehavioralAnalyzer {
     updatedPreferences.last_updated = new Date().toISOString()
 
     return updatedPreferences
+  }
+
+  /**
+   * Adaptive Learning Algorithm
+   */
+  updateUserPreferences(userProfile: UserProfile, newInteractions: UserInteraction[]): UserProfile {
+    const updatedProfile = { ...userProfile }
+
+    // Update category preferences with exponential decay
+    const decayFactor = 0.95
+    const learningRate = 0.1
+
+    for (const interaction of newInteractions) {
+      const existingPref = updatedProfile.behaviorProfile.categoryPreferences.find(
+        (cp) => cp.category === interaction.category,
+      )
+
+      if (existingPref) {
+        // Apply exponential decay and update
+        existingPref.score = existingPref.score * decayFactor + this.getInteractionValue(interaction) * learningRate
+        existingPref.confidence = Math.min(existingPref.confidence + 0.01, 1.0)
+        existingPref.lastUpdated = new Date()
+      } else {
+        // Add new preference
+        updatedProfile.behaviorProfile.categoryPreferences.push({
+          category: interaction.category,
+          score: this.getInteractionValue(interaction) * learningRate,
+          confidence: 0.1,
+          lastUpdated: new Date(),
+        })
+      }
+    }
+
+    // Update time-based preferences
+    updatedProfile.behaviorProfile.readingTimes = this.analyzeTimeBasedPreferences([
+      ...updatedProfile.behaviorProfile.interactionHistory,
+      ...newInteractions,
+    ])
+
+    // Update engagement score
+    updatedProfile.behaviorProfile.engagementScore = this.calculateEngagementScore([
+      ...updatedProfile.behaviorProfile.interactionHistory,
+      ...newInteractions,
+    ])
+
+    // Add new interactions to history (keep last 1000)
+    updatedProfile.behaviorProfile.interactionHistory = [
+      ...updatedProfile.behaviorProfile.interactionHistory,
+      ...newInteractions,
+    ].slice(-1000)
+
+    updatedProfile.updatedAt = new Date()
+
+    return updatedProfile
   }
 
   /**
@@ -621,6 +729,119 @@ export class BehavioralAnalyzer {
       }
     }
     return null
+  }
+
+  private filterInteractionsByTimeSlot(interactions: UserInteraction[], timeSlot: string): UserInteraction[] {
+    const [start, end] = timeSlot.split("-").map(Number)
+
+    return interactions.filter((interaction) => {
+      const hour = new Date(interaction.timestamp).getHours()
+      return hour >= start && hour < end
+    })
+  }
+
+  private extractCategoryPattern(interactions: UserInteraction[]): string[] {
+    const categoryCount: Record<string, number> = {}
+
+    for (const interaction of interactions) {
+      categoryCount[interaction.category] = (categoryCount[interaction.category] || 0) + 1
+    }
+
+    return Object.entries(categoryCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([category]) => category)
+  }
+
+  private analyzeCategoryTrends(interactions: UserInteraction[]): {
+    trending: string[]
+    declining: string[]
+  } {
+    const recentInteractions = interactions
+      .filter((i) => Date.now() - i.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000) // Last 7 days
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+
+    const midpoint = Math.floor(recentInteractions.length / 2)
+    const firstHalf = recentInteractions.slice(0, midpoint)
+    const secondHalf = recentInteractions.slice(midpoint)
+
+    const firstHalfCounts = this.getCategoryCounts(firstHalf)
+    const secondHalfCounts = this.getCategoryCounts(secondHalf)
+
+    const trending: string[] = []
+    const declining: string[] = []
+
+    for (const category of Object.keys({ ...firstHalfCounts, ...secondHalfCounts })) {
+      const firstCount = firstHalfCounts[category] || 0
+      const secondCount = secondHalfCounts[category] || 0
+
+      if (secondCount > firstCount * 1.5) {
+        trending.push(category)
+      } else if (firstCount > secondCount * 1.5) {
+        declining.push(category)
+      }
+    }
+
+    return { trending, declining }
+  }
+
+  private getCategoryCounts(interactions: UserInteraction[]): Record<string, number> {
+    const counts: Record<string, number> = {}
+    for (const interaction of interactions) {
+      counts[interaction.category] = (counts[interaction.category] || 0) + 1
+    }
+    return counts
+  }
+
+  private getTimeSlot(hour: number): string {
+    if (hour >= 0 && hour < 6) return "00-06"
+    if (hour >= 6 && hour < 12) return "06-12"
+    if (hour >= 12 && hour < 18) return "12-18"
+    return "18-24"
+  }
+
+  private predictWeeklyTrend(userProfile: UserProfile): string[] {
+    // Simple trend prediction based on current preferences
+    return userProfile.behaviorProfile.categoryPreferences
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((cp) => cp.category)
+  }
+
+  private getInteractionValue(interaction: UserInteraction): number {
+    const values = {
+      view: 0.1,
+      click: 0.3,
+      share: 0.8,
+      save: 0.6,
+      skip: -0.2,
+    }
+
+    return values[interaction.action] || 0
+  }
+
+  private calculateEngagementScore(interactions: UserInteraction[]): number {
+    if (interactions.length === 0) return 0
+
+    let totalScore = 0
+    const weights = {
+      view: 1,
+      click: 2,
+      share: 4,
+      save: 3,
+      skip: -1,
+    }
+
+    for (const interaction of interactions) {
+      const baseScore = weights[interaction.action] || 0
+
+      // Time-based bonus
+      const readTimeBonus = interaction.readTime ? Math.min(interaction.readTime / 60, 2) : 0 // Max 2 points for read time
+
+      totalScore += baseScore + readTimeBonus
+    }
+
+    return Math.max(0, Math.min(totalScore / interactions.length, 10)) / 10
   }
 }
 

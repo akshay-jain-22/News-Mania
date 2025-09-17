@@ -1,15 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Heart, Share2, MessageCircle, ExternalLink, Clock, User, CheckCircle } from "lucide-react"
+import { Heart, Share2, MessageCircle, ExternalLink, Clock, User } from "lucide-react"
 import type { NewsArticle } from "@/types/news"
 import { NewsAIChat } from "@/components/news-ai-chat"
 import { shareArticle } from "@/lib/share-utils"
 import { saveNote } from "@/lib/notes-service"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 interface NewsCardProps {
   article: NewsArticle
@@ -28,15 +29,14 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
     title: article.title || "Untitled Article",
     description: article.description || "No description available",
     url: article.url || "#",
-    urlToImage: article.urlToImage || null,
+    imageUrl: article.imageUrl || null,
     publishedAt: article.publishedAt || new Date().toISOString(),
-    source: {
-      name: article.source?.name || "Unknown Source",
-    },
+    source: article.source || "Unknown Source",
     author: article.author || "Unknown Author",
     credibilityScore: article.credibilityScore || 75,
     isFactChecked: article.isFactChecked || false,
     content: article.content || article.description || "",
+    category: article.category || "General",
   }
 
   const handleLike = () => {
@@ -69,7 +69,7 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
     try {
       await saveNote({
         title: `Saved: ${safeArticle.title}`,
-        content: `${safeArticle.description}\n\nSource: ${safeArticle.source.name}\nURL: ${safeArticle.url}`,
+        content: `${safeArticle.description}\n\nSource: ${safeArticle.source}\nURL: ${safeArticle.url}`,
         articleId: safeArticle.id,
         articleUrl: safeArticle.url,
         articleTitle: safeArticle.title,
@@ -112,61 +112,45 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
     return "Low Credibility"
   }
 
-  const formatTimeAgo = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
-
-      if (diffInHours < 1) return "Just now"
-      if (diffInHours < 24) return `${diffInHours}h ago`
-      const diffInDays = Math.floor(diffInHours / 24)
-      return `${diffInDays}d ago`
-    } catch {
-      return "Recently"
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
   }
 
   return (
-    <Card className="bg-gray-900 border-gray-700 hover:border-gray-600 transition-all duration-200 group">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
-                {safeArticle.source.name}
-              </Badge>
-              <Badge className={`text-xs text-white ${getCredibilityColor(safeArticle.credibilityScore)}`}>
-                {getCredibilityText(safeArticle.credibilityScore)}
-              </Badge>
-              {safeArticle.isFactChecked && <CheckCircle className="h-4 w-4 text-green-500" />}
-            </div>
-            <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2 group-hover:text-blue-400 transition-colors">
-              {safeArticle.title}
-            </h3>
-          </div>
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow bg-gray-900 border-gray-700 hover:border-gray-600 transition-all duration-200 group">
+      {safeArticle.imageUrl && (
+        <div className="relative h-48 w-full">
+          <Image
+            src={safeArticle.imageUrl || "/placeholder.svg"}
+            alt={safeArticle.title}
+            fill
+            className="object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.src = "/placeholder.svg?height=200&width=300&text=News+Image"
+            }}
+          />
         </div>
+      )}
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between mb-2">
+          <Badge variant="secondary">{safeArticle.category}</Badge>
+          <span className="text-sm text-muted-foreground">{formatDate(safeArticle.publishedAt)}</span>
+        </div>
+        <CardTitle className="line-clamp-2 font-semibold text-white text-sm leading-tight group-hover:text-blue-400 transition-colors">
+          {safeArticle.title}
+        </CardTitle>
+        <CardDescription className="line-clamp-3 text-gray-300 text-sm leading-relaxed">
+          {safeArticle.description}
+        </CardDescription>
       </CardHeader>
-
       <CardContent className="pt-0 space-y-4">
-        {/* Image */}
-        {safeArticle.urlToImage && (
-          <div className="aspect-video rounded-lg overflow-hidden bg-gray-800">
-            <img
-              src={safeArticle.urlToImage || "/placeholder.svg"}
-              alt={safeArticle.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "/placeholder.svg?height=200&width=300&text=News+Image"
-              }}
-            />
-          </div>
-        )}
-
-        {/* Description */}
-        <p className="text-gray-300 text-sm line-clamp-3 leading-relaxed">{safeArticle.description}</p>
-
         {/* Metadata */}
         <div className="flex items-center gap-4 text-xs text-gray-400">
           <div className="flex items-center gap-1">
@@ -175,7 +159,7 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
           </div>
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            <span>{formatTimeAgo(safeArticle.publishedAt)}</span>
+            <span>{formatDate(safeArticle.publishedAt)}</span>
           </div>
         </div>
 
@@ -225,13 +209,14 @@ export function NewsCard({ article, onInteraction }: NewsCardProps) {
             </Button>
 
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={handleReadMore}
-              className="h-8 px-3 text-xs text-gray-400 hover:text-white"
+              asChild
+              className="h-8 px-3 text-xs text-gray-400 hover:text-white bg-transparent"
             >
-              Read More
-              <ExternalLink className="h-3 w-3 ml-1" />
+              <a href={safeArticle.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+              </a>
             </Button>
           </div>
         </div>

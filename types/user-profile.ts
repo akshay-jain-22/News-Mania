@@ -51,6 +51,61 @@ export interface UserPreferences {
   confidence_score: number // 0-1, how confident we are in these preferences
 }
 
+export interface UserProfile {
+  id: string
+  email: string
+  age: number
+  profession: string
+  gender: "male" | "female" | "other" | "prefer_not_to_say"
+  location: {
+    country: string
+    city: string
+    timezone: string
+    coordinates?: {
+      lat: number
+      lng: number
+    }
+  }
+  preferences: {
+    categories: string[]
+    languages: string[]
+    readingLevel: "basic" | "intermediate" | "advanced"
+    contentLength: "short" | "medium" | "long" | "mixed"
+  }
+  behaviorProfile: {
+    readingTimes: TimeBasedPreference[]
+    categoryPreferences: CategoryPreference[]
+    interactionHistory: UserInteraction[]
+    engagementScore: number
+  }
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface TimeBasedPreference {
+  timeSlot: string // '00-06', '06-12', '12-18', '18-24'
+  categories: string[]
+  avgReadTime: number
+  engagementScore: number
+}
+
+export interface CategoryPreference {
+  category: string
+  score: number
+  confidence: number
+  lastUpdated: Date
+}
+
+export interface UserInteraction {
+  articleId: string
+  action: "view" | "click" | "share" | "save" | "skip"
+  timestamp: Date
+  readTime?: number
+  category: string
+  timeOfDay: string
+  deviceType: string
+}
+
 export interface NewsArticle {
   id: string
   title: string
@@ -126,4 +181,12 @@ export interface UserSegment {
   }
   typical_preferences: UserPreferences
   size: number
+}
+
+export interface RecommendationScore {
+  articleId: string
+  score: number
+  reasons: string[]
+  confidence: number
+  pipeline: "collaborative" | "content" | "demographic" | "behavioral" | "cold_start"
 }

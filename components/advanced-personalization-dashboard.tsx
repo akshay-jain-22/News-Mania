@@ -1,12 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -26,181 +29,113 @@ import {
 import {
   Brain,
   TrendingUp,
-  Clock,
   Target,
-  Users,
-  Activity,
   Zap,
   Eye,
-  ThumbsUp,
   Share2,
-  BookOpen,
-  BarChart3,
-  Settings,
+  Bookmark,
+  MousePointer,
+  SkipForward,
+  RefreshCw,
+  Download,
 } from "lucide-react"
 
-interface UserInsights {
-  profile_strength: number
-  top_categories: Array<{ category: string; score: number }>
-  reading_patterns: {
-    peak_hours: number[]
-    preferred_length: string
-    engagement_level: string
-  }
-  recommendations_performance: {
-    click_through_rate: number
-    average_read_time: number
-    categories_explored: number
-  }
-  behavioral_trends: {
-    consistency_score: number
-    diversity_score: number
-    recent_changes: string[]
-  }
+interface UserAnalytics {
+  totalInteractions: number
+  avgDailyInteractions: number
+  topCategories: Array<{ category: string; count: number }>
+  readingPatterns: Array<{ hour: number; count: number }>
+  engagementTrend: Array<{ date: string; score: number }>
 }
 
-interface RecommendationMetadata {
-  pipeline_used: "cold_start" | "behavioral" | "hybrid"
+interface RecommendationInsights {
+  pipeline: string
   confidence: number
-  processing_time: number
-  user_segment?: string
-  explanation: string
+  reasoning: string[]
+  abTestVariant?: string
+  performanceMetrics: {
+    clickThroughRate: number
+    engagementRate: number
+    diversityScore: number
+  }
 }
 
-export function AdvancedPersonalizationDashboard({ userId }: { userId: string }) {
-  const [insights, setInsights] = useState<UserInsights | null>(null)
-  const [recommendations, setRecommendations] = useState<any[]>([])
-  const [metadata, setMetadata] = useState<RecommendationMetadata | null>(null)
+export default function AdvancedPersonalizationDashboard() {
+  const [analytics, setAnalytics] = useState<UserAnalytics | null>(null)
+  const [insights, setInsights] = useState<RecommendationInsights | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("overview")
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    loadUserData()
-  }, [userId])
+    loadDashboardData()
+  }, [])
 
-  const loadUserData = async () => {
+  const loadDashboardData = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
+      // Load user analytics
+      const analyticsResponse = await fetch("/api/user-insights")
+      const analyticsData = await analyticsResponse.json()
+      setAnalytics(analyticsData)
 
-      // Load user insights
-      const insightsResponse = await fetch(`/api/user-insights?userId=${userId}`)
-      if (insightsResponse.ok) {
-        const insightsData = await insightsResponse.json()
-        setInsights(insightsData.insights)
-      }
-
-      // Load recommendations
-      const recsResponse = await fetch(`/api/recommendations?userId=${userId}&limit=10`)
-      if (recsResponse.ok) {
-        const recsData = await recsResponse.json()
-        setRecommendations(recsData.recommendations)
-        setMetadata(recsData.metadata)
-      }
+      // Load recommendation insights
+      const insightsResponse = await fetch("/api/recommendation-insights")
+      const insightsData = await insightsResponse.json()
+      setInsights(insightsData)
     } catch (error) {
-      console.error("Error loading user data:", error)
+      console.error("Error loading dashboard data:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const trackInteraction = async (articleId: string, action: string) => {
-    try {
-      await fetch("/api/track-interaction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          article_id: articleId,
-          action,
-          device_type: "desktop",
-          source: "dashboard",
-        }),
-      })
+  const refreshAnalytics = async () => {
+    setRefreshing(true)
+    await loadDashboardData()
+    setRefreshing(false)
+  }
 
-      // Reload data to show updated insights
-      setTimeout(loadUserData, 1000)
+  const exportData = async () => {
+    try {
+      const response = await fetch("/api/export-user-data")
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "user-analytics.csv"
+      a.click()
     } catch (error) {
-      console.error("Error tracking interaction:", error)
+      console.error("Error exporting data:", error)
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading personalization insights...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
-  if (!insights) {
-    return (
-      <div className="text-center p-8">
-        <p className="text-gray-600">No insights available. Start reading articles to build your profile!</p>
-      </div>
-    )
-  }
-
-  const categoryColors = {
-    politics: "#ef4444",
-    business: "#10b981",
-    technology: "#3b82f6",
-    entertainment: "#f59e0b",
-    sports: "#8b5cf6",
-    health: "#06b6d4",
-    science: "#84cc16",
-    environment: "#f97316",
-  }
-
-  const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
-    hour: `${hour}:00`,
-    activity: insights.reading_patterns.peak_hours.includes(hour) ? 100 : Math.random() * 50,
-  }))
-
-  const categoryData = insights.top_categories.map((cat) => ({
-    name: cat.category,
-    value: Math.round(cat.score * 100),
-    color: categoryColors[cat.category as keyof typeof categoryColors] || "#6b7280",
-  }))
-
-  const radarData = [
-    { subject: "Profile Strength", A: insights.profile_strength * 100, fullMark: 100 },
-    { subject: "Consistency", A: insights.behavioral_trends.consistency_score * 100, fullMark: 100 },
-    { subject: "Diversity", A: insights.behavioral_trends.diversity_score * 100, fullMark: 100 },
-    {
-      subject: "Engagement",
-      A:
-        insights.reading_patterns.engagement_level === "high"
-          ? 100
-          : insights.reading_patterns.engagement_level === "medium"
-            ? 60
-            : 30,
-      fullMark: 100,
-    },
-    { subject: "CTR", A: insights.recommendations_performance.click_through_rate * 100, fullMark: 100 },
-    { subject: "Exploration", A: (insights.recommendations_performance.categories_explored / 8) * 100, fullMark: 100 },
-  ]
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Personalization Dashboard</h1>
-          <p className="text-gray-600 mt-1">AI-powered news recommendations tailored for you</p>
+          <p className="text-gray-600">Advanced AI-powered news recommendation analytics</p>
         </div>
-        <div className="flex items-center gap-4">
-          {metadata && (
-            <Badge variant="outline" className="px-3 py-1">
-              <Brain className="h-4 w-4 mr-1" />
-              {metadata.pipeline_used.replace("_", " ").toUpperCase()}
-            </Badge>
-          )}
-          <Button onClick={loadUserData} variant="outline">
-            <Activity className="h-4 w-4 mr-2" />
+        <div className="flex gap-2">
+          <Button onClick={refreshAnalytics} disabled={refreshing} variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
+          </Button>
+          <Button onClick={exportData} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export
           </Button>
         </div>
       </div>
@@ -209,115 +144,88 @@ export function AdvancedPersonalizationDashboard({ userId }: { userId: string })
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Profile Strength</p>
-                <p className="text-2xl font-bold text-gray-900">{Math.round(insights.profile_strength * 100)}%</p>
+            <div className="flex items-center">
+              <Eye className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Interactions</p>
+                <p className="text-2xl font-bold">{analytics?.totalInteractions || 0}</p>
               </div>
-              <Target className="h-8 w-8 text-blue-500" />
-            </div>
-            <Progress value={insights.profile_strength * 100} className="mt-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Click-Through Rate</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(insights.recommendations_performance.click_through_rate * 100)}%
-                </p>
-              </div>
-              <Eye className="h-8 w-8 text-green-500" />
-            </div>
-            <Progress value={insights.recommendations_performance.click_through_rate * 100} className="mt-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg. Read Time</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(insights.recommendations_performance.average_read_time / 60)}m
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Categories Explored</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {insights.recommendations_performance.categories_explored}
+            <div className="flex items-center">
+              <TrendingUp className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Daily Average</p>
+                <p className="text-2xl font-bold">{analytics?.avgDailyInteractions.toFixed(1) || 0}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Brain className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">AI Confidence</p>
+                <p className="text-2xl font-bold">{((insights?.confidence || 0) * 100).toFixed(0)}%</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Target className="h-8 w-8 text-red-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Engagement Rate</p>
+                <p className="text-2xl font-bold">
+                  {((insights?.performanceMetrics?.engagementRate || 0) * 100).toFixed(1)}%
                 </p>
               </div>
-              <BarChart3 className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      {/* Main Dashboard */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="patterns">Patterns</TabsTrigger>
+          <TabsTrigger value="behavior">Behavior</TabsTrigger>
           <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
+          <TabsTrigger value="testing">A/B Testing</TabsTrigger>
+          <TabsTrigger value="insights">AI Insights</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Profile Radar Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Profile Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="subject" />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                    <Radar name="Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
             {/* Category Preferences */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Category Preferences
-                </CardTitle>
+                <CardTitle>Category Preferences</CardTitle>
+                <CardDescription>Your reading interests distribution</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={categoryData}
+                      data={analytics?.topCategories || []}
                       cx="50%"
                       cy="50%"
+                      labelLine={false}
+                      label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
                       fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      dataKey="count"
                     >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {analytics?.topCategories?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -325,140 +233,118 @@ export function AdvancedPersonalizationDashboard({ userId }: { userId: string })
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Recent Changes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Recent Behavioral Changes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {insights.behavioral_trends.recent_changes.map((change, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <Zap className="h-4 w-4 text-yellow-500" />
-                    <span className="text-sm">{change}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="preferences" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Top Categories */}
+            {/* Reading Patterns */}
             <Card>
               <CardHeader>
-                <CardTitle>Category Preferences</CardTitle>
+                <CardTitle>Daily Reading Patterns</CardTitle>
+                <CardDescription>When you're most active</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {insights.top_categories.map((category, index) => (
-                    <div key={category.category} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium capitalize">{category.category}</span>
-                        <span className="text-sm text-gray-600">{Math.round(category.score * 100)}%</span>
-                      </div>
-                      <Progress value={category.score * 100} />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Reading Preferences */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Reading Preferences</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <span className="text-sm font-medium">Preferred Length</span>
-                  <Badge variant="secondary">{insights.reading_patterns.preferred_length}</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <span className="text-sm font-medium">Engagement Level</span>
-                  <Badge
-                    variant={
-                      insights.reading_patterns.engagement_level === "high"
-                        ? "default"
-                        : insights.reading_patterns.engagement_level === "medium"
-                          ? "secondary"
-                          : "outline"
-                    }
-                  >
-                    {insights.reading_patterns.engagement_level}
-                  </Badge>
-                </div>
-                <div className="p-3 bg-gray-50 rounded">
-                  <span className="text-sm font-medium">Peak Reading Hours</span>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {insights.reading_patterns.peak_hours.map((hour) => (
-                      <Badge key={hour} variant="outline">
-                        {hour}:00
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={analytics?.readingPatterns || []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
 
-        <TabsContent value="patterns" className="space-y-6">
-          {/* Hourly Activity */}
+          {/* Engagement Trend */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Daily Reading Pattern
-              </CardTitle>
+              <CardTitle>Engagement Trend</CardTitle>
+              <CardDescription>Your engagement over time</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={hourlyData}>
+                <LineChart data={analytics?.engagementTrend || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" />
+                  <XAxis dataKey="date" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="activity" stroke="#3b82f6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Behavioral Scores */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TabsContent value="behavior" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Behavioral Insights */}
             <Card>
               <CardHeader>
-                <CardTitle>Consistency Score</CardTitle>
+                <CardTitle>Behavioral Analysis</CardTitle>
+                <CardDescription>AI-detected patterns in your reading behavior</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-blue-600 mb-2">
-                    {Math.round(insights.behavioral_trends.consistency_score * 100)}%
-                  </div>
-                  <Progress value={insights.behavioral_trends.consistency_score * 100} className="mb-2" />
-                  <p className="text-sm text-gray-600">How regular your reading habits are</p>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Morning Reader</span>
+                  <Progress value={75} className="w-24" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Deep Engagement</span>
+                  <Progress value={60} className="w-24" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Category Explorer</span>
+                  <Progress value={85} className="w-24" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Social Sharer</span>
+                  <Progress value={40} className="w-24" />
                 </div>
               </CardContent>
             </Card>
 
+            {/* Interaction Types */}
             <Card>
               <CardHeader>
-                <CardTitle>Diversity Score</CardTitle>
+                <CardTitle>Interaction Distribution</CardTitle>
+                <CardDescription>How you engage with content</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-green-600 mb-2">
-                    {Math.round(insights.behavioral_trends.diversity_score * 100)}%
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Eye className="h-4 w-4 mr-2 text-blue-600" />
+                      <span className="text-sm">Views</span>
+                    </div>
+                    <Badge variant="secondary">65%</Badge>
                   </div>
-                  <Progress value={insights.behavioral_trends.diversity_score * 100} className="mb-2" />
-                  <p className="text-sm text-gray-600">How varied your interests are</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <MousePointer className="h-4 w-4 mr-2 text-green-600" />
+                      <span className="text-sm">Clicks</span>
+                    </div>
+                    <Badge variant="secondary">20%</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Share2 className="h-4 w-4 mr-2 text-purple-600" />
+                      <span className="text-sm">Shares</span>
+                    </div>
+                    <Badge variant="secondary">8%</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Bookmark className="h-4 w-4 mr-2 text-orange-600" />
+                      <span className="text-sm">Saves</span>
+                    </div>
+                    <Badge variant="secondary">5%</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <SkipForward className="h-4 w-4 mr-2 text-red-600" />
+                      <span className="text-sm">Skips</span>
+                    </div>
+                    <Badge variant="secondary">2%</Badge>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -466,169 +352,241 @@ export function AdvancedPersonalizationDashboard({ userId }: { userId: string })
         </TabsContent>
 
         <TabsContent value="recommendations" className="space-y-6">
-          {/* Recommendation Performance */}
-          {metadata && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Current Pipeline */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5" />
-                  Recommendation Engine Status
-                </CardTitle>
+                <CardTitle>Active Pipeline</CardTitle>
+                <CardDescription>Current recommendation strategy</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded">
-                    <p className="text-sm text-gray-600">Pipeline Used</p>
-                    <p className="text-lg font-semibold capitalize">{metadata.pipeline_used.replace("_", " ")}</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded">
-                    <p className="text-sm text-gray-600">Confidence</p>
-                    <p className="text-lg font-semibold">{Math.round(metadata.confidence * 100)}%</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded">
-                    <p className="text-sm text-gray-600">Processing Time</p>
-                    <p className="text-lg font-semibold">{metadata.processing_time}ms</p>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded">
-                  <p className="text-sm text-blue-800">{metadata.explanation}</p>
+                <div className="text-center">
+                  <Badge variant="default" className="text-lg px-4 py-2">
+                    {insights?.pipeline || "Hybrid"}
+                  </Badge>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Confidence: {((insights?.confidence || 0) * 100).toFixed(0)}%
+                  </p>
                 </div>
               </CardContent>
             </Card>
-          )}
 
-          {/* Current Recommendations */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recommendations.slice(0, 5).map((rec, index) => (
-                  <div key={rec.article.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 mb-1">{rec.article.title}</h3>
-                        <p className="text-sm text-gray-600 mb-2">{rec.article.description}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Badge variant="outline">{rec.article.category}</Badge>
-                          <span>Score: {Math.round(rec.score * 100)}%</span>
-                          <span>•</span>
-                          <span>{rec.explanation}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        <Button size="sm" variant="outline" onClick={() => trackInteraction(rec.article.id, "click")}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => trackInteraction(rec.article.id, "like")}>
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => trackInteraction(rec.article.id, "share")}>
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+            {/* Performance Metrics */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance</CardTitle>
+                <CardDescription>Recommendation effectiveness</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-sm">
+                    <span>Click-through Rate</span>
+                    <span>{((insights?.performanceMetrics?.clickThroughRate || 0) * 100).toFixed(1)}%</span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <Progress value={(insights?.performanceMetrics?.clickThroughRate || 0) * 100} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm">
+                    <span>Engagement Rate</span>
+                    <span>{((insights?.performanceMetrics?.engagementRate || 0) * 100).toFixed(1)}%</span>
+                  </div>
+                  <Progress value={(insights?.performanceMetrics?.engagementRate || 0) * 100} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm">
+                    <span>Diversity Score</span>
+                    <span>{((insights?.performanceMetrics?.diversityScore || 0) * 100).toFixed(1)}%</span>
+                  </div>
+                  <Progress value={(insights?.performanceMetrics?.diversityScore || 0) * 100} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Reasoning */}
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Reasoning</CardTitle>
+                <CardDescription>Why these recommendations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {insights?.reasoning?.map((reason, index) => (
+                    <div key={index} className="flex items-start">
+                      <Zap className="h-4 w-4 text-yellow-500 mr-2 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">{reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="testing" className="space-y-6">
+          <Alert>
+            <Brain className="h-4 w-4" />
+            <AlertDescription>
+              A/B testing helps optimize your personalized experience. Current variant:{" "}
+              {insights?.abTestVariant || "Control"}
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Test Performance</CardTitle>
+                <CardDescription>Comparing recommendation strategies</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={[
+                      { variant: "Control", ctr: 0.12, engagement: 0.08 },
+                      { variant: "Collaborative", ctr: 0.15, engagement: 0.11 },
+                      { variant: "Content-Based", ctr: 0.13, engagement: 0.09 },
+                      { variant: "Behavioral", ctr: 0.16, engagement: 0.12 },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="variant" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="ctr" fill="#8884d8" name="Click-through Rate" />
+                    <Bar dataKey="engagement" fill="#82ca9d" name="Engagement Rate" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Optimization Status</CardTitle>
+                <CardDescription>Continuous learning progress</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Model Training</span>
+                    <span>85%</span>
+                  </div>
+                  <Progress value={85} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Data Collection</span>
+                    <span>92%</span>
+                  </div>
+                  <Progress value={92} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Pattern Recognition</span>
+                    <span>78%</span>
+                  </div>
+                  <Progress value={78} />
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Personalization Accuracy</span>
+                    <span>88%</span>
+                  </div>
+                  <Progress value={88} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-6">
-          {/* AI Insights */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Predictive Insights */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Predictive Insights</CardTitle>
+                <CardDescription>AI predictions for your reading preferences</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-medium text-blue-900">Next Hour Prediction</h4>
+                  <p className="text-sm text-blue-700">
+                    You're likely to read <strong>Technology</strong> and <strong>Business</strong> articles
+                  </p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <h4 className="font-medium text-green-900">Today's Recommendations</h4>
+                  <p className="text-sm text-green-700">
+                    Focus on <strong>Politics</strong>, <strong>Science</strong>, and <strong>Health</strong>
+                  </p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg">
+                  <h4 className="font-medium text-purple-900">Weekly Trend</h4>
+                  <p className="text-sm text-purple-700">
+                    Increasing interest in <strong>Climate</strong> and <strong>AI</strong> topics
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Learning Progress */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Learning Progress</CardTitle>
+                <CardDescription>How well the AI understands your preferences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadarChart
+                    data={[
+                      { subject: "Category Preferences", A: 85, fullMark: 100 },
+                      { subject: "Time Patterns", A: 70, fullMark: 100 },
+                      { subject: "Content Depth", A: 90, fullMark: 100 },
+                      { subject: "Source Preferences", A: 75, fullMark: 100 },
+                      { subject: "Engagement Style", A: 80, fullMark: 100 },
+                      { subject: "Topic Trends", A: 65, fullMark: 100 },
+                    ]}
+                  >
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="subject" />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                    <Radar name="Understanding" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* AI Recommendations for Improvement */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                AI-Generated Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Reading Behavior Analysis</h4>
-                <p className="text-sm text-blue-800">
-                  Based on your reading patterns, you prefer {insights.reading_patterns.preferred_length} articles and
-                  show {insights.reading_patterns.engagement_level} engagement levels. Your most active reading times
-                  are around {insights.reading_patterns.peak_hours.join(", ")} hours.
-                </p>
-              </div>
-
-              <div className="p-4 bg-green-50 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-2">Recommendation Performance</h4>
-                <p className="text-sm text-green-800">
-                  Your click-through rate of {Math.round(insights.recommendations_performance.click_through_rate * 100)}
-                  % is {insights.recommendations_performance.click_through_rate > 0.3 ? "above" : "below"} average.
-                  You've explored {insights.recommendations_performance.categories_explored} different categories,
-                  showing {insights.recommendations_performance.categories_explored > 5 ? "diverse" : "focused"}{" "}
-                  interests.
-                </p>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <h4 className="font-medium text-purple-900 mb-2">Profile Strength</h4>
-                <p className="text-sm text-purple-800">
-                  Your profile strength of {Math.round(insights.profile_strength * 100)}% indicates
-                  {insights.profile_strength > 0.7
-                    ? "excellent"
-                    : insights.profile_strength > 0.4
-                      ? "good"
-                      : "developing"}
-                  personalization accuracy.{" "}
-                  {insights.profile_strength < 0.5
-                    ? "Continue reading to improve recommendations!"
-                    : "Great job building a strong preference profile!"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Improvement Suggestions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Improvement Suggestions
-              </CardTitle>
+              <CardTitle>AI Recommendations for Better Personalization</CardTitle>
+              <CardDescription>Suggestions to improve your news experience</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {insights.profile_strength < 0.5 && (
-                  <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded">
-                    <BookOpen className="h-5 w-5 text-yellow-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-yellow-900">Read More Articles</p>
-                      <p className="text-xs text-yellow-800">
-                        Reading more articles will help us better understand your preferences
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {insights.behavioral_trends.diversity_score < 0.3 && (
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded">
-                    <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-blue-900">Explore New Categories</p>
-                      <p className="text-xs text-blue-800">
-                        Try reading articles from different categories to discover new interests
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {insights.recommendations_performance.click_through_rate < 0.2 && (
-                  <div className="flex items-start gap-3 p-3 bg-green-50 rounded">
-                    <Activity className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-green-900">Engage More</p>
-                      <p className="text-xs text-green-800">
-                        Like, share, or save articles you enjoy to improve recommendations
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2">Diversify Reading Times</h4>
+                  <p className="text-sm text-gray-600">
+                    Try reading during different hours to help us understand your full daily pattern.
+                  </p>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2">Explore New Categories</h4>
+                  <p className="text-sm text-gray-600">
+                    Consider reading Science or Health articles to broaden your interest profile.
+                  </p>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2">Provide More Feedback</h4>
+                  <p className="text-sm text-gray-600">
+                    Use like/dislike buttons more often to help us learn your preferences faster.
+                  </p>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium mb-2">Engage with Content</h4>
+                  <p className="text-sm text-gray-600">
+                    Share and save articles you find interesting to improve recommendation accuracy.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

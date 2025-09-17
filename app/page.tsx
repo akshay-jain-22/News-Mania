@@ -1,18 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { NewsHeader } from "@/components/news-header"
 import { NewsCard } from "@/components/news-card"
 import { PersonalizedNewsSection } from "@/components/personalized-news-section"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, TrendingUp, Clock, Globe, Zap } from "lucide-react"
 import type { NewsArticle } from "@/types/news"
 import Link from "next/link"
+import { Header } from "@/components/header"
+import { NewsGrid } from "@/components/news-grid"
+import { fetchNews } from "@/lib/news-api"
 
-export default function HomePage() {
+export default async function HomePage() {
+  const articles = await fetchNews()
   const [latestNews, setLatestNews] = useState<NewsArticle[]>([])
   const [featuredArticle, setFeaturedArticle] = useState<NewsArticle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,8 +128,8 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white">
-        <NewsHeader />
+      <div className="min-h-screen bg-background text-foreground">
+        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
@@ -141,130 +143,125 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <NewsHeader />
+    <div className="min-h-screen bg-background text-foreground">
+      <Header />
 
-      <main className="container mx-auto px-4 py-6 space-y-8">
-        {error && (
-          <Alert className="bg-yellow-900/20 border-yellow-600">
-            <AlertDescription className="text-yellow-200">{error}</AlertDescription>
-          </Alert>
-        )}
+      <main className="container py-8">
+        <div className="space-y-8">
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl font-bold tracking-tight">Welcome to NewsMania</h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Your trusted source for the latest news, powered by AI insights and fact-checking
+            </p>
+          </div>
 
-        {/* Featured Article */}
-        {featuredArticle && (
+          <NewsGrid articles={articles} title="Latest News" />
+
+          {/* Featured Article */}
+          {featuredArticle && (
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="h-5 w-5 text-red-500" />
+                <h2 className="text-2xl font-bold">Breaking News</h2>
+                <Badge className="bg-red-600 text-white">LIVE</Badge>
+              </div>
+              <Card className="bg-gradient-to-r from-red-900/20 to-orange-900/20 border-red-500/30 overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+                    <div className="aspect-video lg:aspect-auto relative">
+                      <img
+                        src={featuredArticle.urlToImage || "/placeholder.svg?height=400&width=600"}
+                        alt={featuredArticle.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-4 left-4">
+                        <Badge className="bg-red-600 text-white">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Breaking
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="p-6 flex flex-col justify-center">
+                      <Badge className="w-fit mb-3 bg-red-600 text-white">{featuredArticle.source.name}</Badge>
+                      <h3 className="text-2xl font-bold mb-4 text-white">{featuredArticle.title}</h3>
+                      <p className="text-gray-300 mb-6 text-lg">{featuredArticle.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-400">
+                          {new Date(featuredArticle.publishedAt).toLocaleDateString()}
+                        </span>
+                        <Button asChild className="bg-red-600 hover:bg-red-700">
+                          <Link href={featuredArticle.url} target="_blank" rel="noopener noreferrer">
+                            Read Full Story
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* For You - AI Personalized Section */}
           <section>
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="h-5 w-5 text-red-500" />
-              <h2 className="text-2xl font-bold">Breaking News</h2>
-              <Badge className="bg-red-600 text-white">LIVE</Badge>
+            <PersonalizedNewsSection />
+          </section>
+
+          {/* Latest News */}
+          <section>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {latestNews.map((article) => (
+                <NewsCard
+                  key={article.id || article.url}
+                  article={article}
+                  onInteraction={(action, articleId, timeSpent) => {
+                    console.log(`User ${action} article ${articleId}`, { timeSpent })
+                  }}
+                />
+              ))}
             </div>
-            <Card className="bg-gradient-to-r from-red-900/20 to-orange-900/20 border-red-500/30 overflow-hidden">
-              <CardContent className="p-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-                  <div className="aspect-video lg:aspect-auto relative">
-                    <img
-                      src={featuredArticle.urlToImage || "/placeholder.svg?height=400&width=600"}
-                      alt={featuredArticle.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-4 left-4">
-                      <Badge className="bg-red-600 text-white">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Breaking
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="p-6 flex flex-col justify-center">
-                    <Badge className="w-fit mb-3 bg-red-600 text-white">{featuredArticle.source.name}</Badge>
-                    <h3 className="text-2xl font-bold mb-4 text-white">{featuredArticle.title}</h3>
-                    <p className="text-gray-300 mb-6 text-lg">{featuredArticle.description}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">
-                        {new Date(featuredArticle.publishedAt).toLocaleDateString()}
-                      </span>
-                      <Button asChild className="bg-red-600 hover:bg-red-700">
-                        <Link href={featuredArticle.url} target="_blank" rel="noopener noreferrer">
-                          Read Full Story
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
+          </section>
+
+          {/* Quick Actions */}
+          <section>
+            <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-purple-400" />
+                  Quick Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Button asChild variant="outline" className="border-purple-500 bg-transparent">
+                    <Link href="/ai-personalized">
+                      <Zap className="h-4 w-4 mr-2" />
+                      For You Feed
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="border-blue-500 bg-transparent">
+                    <Link href="/fact-check">
+                      <Globe className="h-4 w-4 mr-2" />
+                      Fact Check
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="border-green-500 bg-transparent">
+                    <Link href="/extract">
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Extract News
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="border-orange-500 bg-transparent">
+                    <Link href="/notes">
+                      <Clock className="h-4 w-4 mr-2" />
+                      My Notes
+                    </Link>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </section>
-        )}
-
-        {/* For You - AI Personalized Section */}
-        <section>
-          <PersonalizedNewsSection />
-        </section>
-
-        {/* Latest News */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-blue-500" />
-              <h2 className="text-2xl font-bold">Latest News</h2>
-            </div>
-            <Button variant="outline" asChild>
-              <Link href="/topics">View All Topics</Link>
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {latestNews.map((article) => (
-              <NewsCard
-                key={article.id || article.url}
-                article={article}
-                onInteraction={(action, articleId, timeSpent) => {
-                  console.log(`User ${action} article ${articleId}`, { timeSpent })
-                }}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Quick Actions */}
-        <section>
-          <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-500/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-purple-400" />
-                Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Button asChild variant="outline" className="border-purple-500 bg-transparent">
-                  <Link href="/ai-personalized">
-                    <Zap className="h-4 w-4 mr-2" />
-                    For You Feed
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="border-blue-500 bg-transparent">
-                  <Link href="/fact-check">
-                    <Globe className="h-4 w-4 mr-2" />
-                    Fact Check
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="border-green-500 bg-transparent">
-                  <Link href="/extract">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Extract News
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="border-orange-500 bg-transparent">
-                  <Link href="/notes">
-                    <Clock className="h-4 w-4 mr-2" />
-                    My Notes
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+        </div>
       </main>
     </div>
   )

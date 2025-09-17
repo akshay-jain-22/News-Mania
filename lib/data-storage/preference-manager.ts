@@ -1,231 +1,156 @@
-import type { UserBehavior, UserPreferences } from "@/types/user-profile"
-import { getSupabaseClient } from "../supabase-client"
-
-/**
- * Data Storage and Management System
- * Handles user preferences, behavior tracking, and data persistence
- */
+import type { UserProfile, UserInteraction } from "@/types/user-profile"
+import { createClient } from "@supabase/supabase-js"
 
 export class PreferenceManager {
-  private memoryCache: Map<string, UserPreferences> = new Map()
-  private behaviorCache: Map<string, UserBehavior[]> = new Map()
+  private supabase
+
+  constructor() {
+    this.supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  }
 
   /**
-   * Store user behavior data with structured format
+   * Store user preferences in structured format
    */
-  async storeBehavior(behavior: UserBehavior): Promise<boolean> {
+  async storeUserPreferences(userProfile: UserProfile): Promise<void> {
     try {
-      const supabase = getSupabaseClient()
+      // Store main profile
+      const { error: profileError } = await this.supabase.from("user_profiles").upsert({
+        id: userProfile.id,
+        email: userProfile.email,
+        age: userProfile.age,
+        profession: userProfile.profession,
+        gender: userProfile.gender,
+        location: userProfile.location,
+        preferences: userProfile.preferences,
+        engagement_score: userProfile.behaviorProfile.engagementScore,
+        created_at: userProfile.createdAt,
+        updated_at: userProfile.updatedAt,
+      })
 
-      if (supabase) {
-        const { error } = await supabase.from("user_behaviors").insert([
-          {
-            user_id: behavior.user_id,
-            session_id: behavior.session_id,
-            article_id: behavior.article_id,
-            action: behavior.action,
-            timestamp: behavior.timestamp,
-            time_of_day: behavior.time_of_day,
-            day_of_week: behavior.day_of_week,
-            read_duration: behavior.read_duration,
-            scroll_depth: behavior.scroll_depth,
-            device_type: behavior.device_type,
-            source: behavior.source,
-            category: behavior.category,
-            sentiment_reaction: behavior.sentiment_reaction,
-          },
-        ])
+      if (profileError) throw profileError
 
-        if (error) {
-          console.error("Error storing behavior in Supabase:", error)
-        } else {
-          console.log("Behavior stored successfully in Supabase")
-        }
+      // Store category preferences
+      for (const categoryPref of userProfile.behaviorProfile.categoryPreferences) {
+        await this.supabase.from("user_category_preferences").upsert({
+          user_id: userProfile.id,
+          category: categoryPref.category,
+          score: categoryPref.score,
+          confidence: categoryPref.confidence,
+          last_updated: categoryPref.lastUpdated,
+        })
       }
 
-      // Always store in memory cache as fallback
-      if (!this.behaviorCache.has(behavior.user_id)) {
-        this.behaviorCache.set(behavior.user_id, [])
+      // Store time-based preferences
+      for (const timePref of userProfile.behaviorProfile.readingTimes) {
+        await this.supabase.from("user_time_preferences").upsert({
+          user_id: userProfile.id,
+          time_slot: timePref.timeSlot,
+          categories: timePref.categories,
+          avg_read_time: timePref.avgReadTime,
+          engagement_score: timePref.engagementScore,
+        })
       }
-
-      const userBehaviors = this.behaviorCache.get(behavior.user_id)!
-      userBehaviors.push(behavior)
-
-      // Keep only last 1000 behaviors per user in memory
-      if (userBehaviors.length > 1000) {
-        userBehaviors.splice(0, userBehaviors.length - 1000)
-      }
-
-      return true
     } catch (error) {
-      console.error("Error storing behavior:", error)
-      return false
+      console.error("Error storing user preferences:", error)
+      throw error
     }
   }
 
   /**
-   * Retrieve user behaviors with filtering options
+   * Store user interactions for analysis
    */
-  async getUserBehaviors(
-    userId: string,
-    options: {
-      limit?: number
-      startDate?: string
-      endDate?: string
-      actions?: string[]
-      categories?: string[]
-    } = {},
-  ): Promise<UserBehavior[]> {
+  async storeUserInteraction(interaction: UserInteraction): Promise<void> {
     try {
-      const supabase = getSupabaseClient()
+      const { error } = await this.supabase.from("user_interactions").insert({
+        user_id: interaction.articleId.split("-")[0], // Extract user ID
+        article_id: interaction.articleId,
+        action: interaction.action,
+        timestamp: interaction.timestamp,
+        read_time: interaction.readTime,
+        category: interaction.category,
+        time_of_day: interaction.timeOfDay,
+        device_type: interaction.deviceType,
+      })
 
-      if (supabase) {
-        let query = supabase
-          .from("user_behaviors")
-          .select("*")
-          .eq("user_id", userId)
-          .order("timestamp", { ascending: false })
-
-        if (options.limit) {
-          query = query.limit(options.limit)
-        }
-
-        if (options.startDate) {
-          query = query.gte("timestamp", options.startDate)
-        }
-
-        if (options.endDate) {
-          query = query.lte("timestamp", options.endDate)
-        }
-
-        if (options.actions && options.actions.length > 0) {
-          query = query.in("action", options.actions)
-        }
-
-        if (options.categories && options.categories.length > 0) {
-          query = query.in("category", options.categories)
-        }
-
-        const { data, error } = await query
-
-        if (!error && data) {
-          return data as UserBehavior[]
-        }
-      }
-
-      // Fallback to memory cache
-      const cachedBehaviors = this.behaviorCache.get(userId) || []
-      let filteredBehaviors = [...cachedBehaviors]
-
-      if (options.startDate) {
-        const startTime = new Date(options.startDate).getTime()
-        filteredBehaviors = filteredBehaviors.filter((b) => new Date(b.timestamp).getTime() >= startTime)
-      }
-
-      if (options.endDate) {
-        const endTime = new Date(options.endDate).getTime()
-        filteredBehaviors = filteredBehaviors.filter((b) => new Date(b.timestamp).getTime() <= endTime)
-      }
-
-      if (options.actions && options.actions.length > 0) {
-        filteredBehaviors = filteredBehaviors.filter((b) => options.actions!.includes(b.action))
-      }
-
-      if (options.categories && options.categories.length > 0) {
-        filteredBehaviors = filteredBehaviors.filter((b) => options.categories!.includes(b.category))
-      }
-
-      if (options.limit) {
-        filteredBehaviors = filteredBehaviors.slice(0, options.limit)
-      }
-
-      return filteredBehaviors.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      if (error) throw error
     } catch (error) {
-      console.error("Error retrieving user behaviors:", error)
-      return []
+      console.error("Error storing user interaction:", error)
+      throw error
     }
   }
 
   /**
-   * Store user preferences with versioning
+   * Retrieve user preferences with caching
    */
-  async storePreferences(preferences: UserPreferences): Promise<boolean> {
+  async getUserPreferences(userId: string): Promise<UserProfile | null> {
     try {
-      const supabase = getSupabaseClient()
+      // Get main profile
+      const { data: profile, error: profileError } = await this.supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
 
-      if (supabase) {
-        const { error } = await supabase.from("user_preferences").upsert([
-          {
-            user_id: preferences.user_id,
-            category_weights: preferences.category_weights,
-            time_based_preferences: preferences.time_based_preferences,
-            source_preferences: preferences.source_preferences,
-            content_length_preference: preferences.content_length_preference,
-            update_frequency: preferences.update_frequency,
-            language_preferences: preferences.language_preferences,
-            location_relevance: preferences.location_relevance,
-            recency_preference: preferences.recency_preference,
-            diversity_factor: preferences.diversity_factor,
-            confidence_score: preferences.confidence_score,
-            last_updated: preferences.last_updated,
-          },
-        ])
+      if (profileError || !profile) return null
 
-        if (error) {
-          console.error("Error storing preferences in Supabase:", error)
-        } else {
-          console.log("Preferences stored successfully in Supabase")
-        }
+      // Get category preferences
+      const { data: categoryPrefs } = await this.supabase
+        .from("user_category_preferences")
+        .select("*")
+        .eq("user_id", userId)
+
+      // Get time preferences
+      const { data: timePrefs } = await this.supabase.from("user_time_preferences").select("*").eq("user_id", userId)
+
+      // Get recent interactions
+      const { data: interactions } = await this.supabase
+        .from("user_interactions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+        .limit(1000)
+
+      // Construct UserProfile object
+      const userProfile: UserProfile = {
+        id: profile.id,
+        email: profile.email,
+        age: profile.age,
+        profession: profile.profession,
+        gender: profile.gender,
+        location: profile.location,
+        preferences: profile.preferences,
+        behaviorProfile: {
+          readingTimes:
+            timePrefs?.map((tp) => ({
+              timeSlot: tp.time_slot,
+              categories: tp.categories,
+              avgReadTime: tp.avg_read_time,
+              engagementScore: tp.engagement_score,
+            })) || [],
+          categoryPreferences:
+            categoryPrefs?.map((cp) => ({
+              category: cp.category,
+              score: cp.score,
+              confidence: cp.confidence,
+              lastUpdated: new Date(cp.last_updated),
+            })) || [],
+          interactionHistory:
+            interactions?.map((i) => ({
+              articleId: i.article_id,
+              action: i.action,
+              timestamp: new Date(i.timestamp),
+              readTime: i.read_time,
+              category: i.category,
+              timeOfDay: i.time_of_day,
+              deviceType: i.device_type,
+            })) || [],
+          engagementScore: profile.engagement_score || 0,
+        },
+        createdAt: new Date(profile.created_at),
+        updatedAt: new Date(profile.updated_at),
       }
 
-      // Store in memory cache
-      this.memoryCache.set(preferences.user_id, preferences)
-
-      return true
-    } catch (error) {
-      console.error("Error storing preferences:", error)
-      return false
-    }
-  }
-
-  /**
-   * Retrieve user preferences
-   */
-  async getUserPreferences(userId: string): Promise<UserPreferences | null> {
-    try {
-      // Check memory cache first
-      if (this.memoryCache.has(userId)) {
-        return this.memoryCache.get(userId)!
-      }
-
-      const supabase = getSupabaseClient()
-
-      if (supabase) {
-        const { data, error } = await supabase.from("user_preferences").select("*").eq("user_id", userId).single()
-
-        if (!error && data) {
-          const preferences: UserPreferences = {
-            user_id: data.user_id,
-            category_weights: data.category_weights || {},
-            time_based_preferences: data.time_based_preferences || {},
-            source_preferences: data.source_preferences || {},
-            content_length_preference: data.content_length_preference || "medium",
-            update_frequency: data.update_frequency || "hourly",
-            language_preferences: data.language_preferences || ["en"],
-            location_relevance: data.location_relevance || 0.5,
-            recency_preference: data.recency_preference || 0.6,
-            diversity_factor: data.diversity_factor || 0.6,
-            confidence_score: data.confidence_score || 0.3,
-            last_updated: data.last_updated,
-          }
-
-          // Cache in memory
-          this.memoryCache.set(userId, preferences)
-          return preferences
-        }
-      }
-
-      return null
+      return userProfile
     } catch (error) {
       console.error("Error retrieving user preferences:", error)
       return null
@@ -233,29 +158,74 @@ export class PreferenceManager {
   }
 
   /**
+   * Update preference model with new data
+   */
+  async updatePreferenceModel(userId: string, newInteractions: UserInteraction[]): Promise<void> {
+    try {
+      // Store new interactions
+      for (const interaction of newInteractions) {
+        await this.storeUserInteraction(interaction)
+      }
+
+      // Get current user profile
+      const userProfile = await this.getUserPreferences(userId)
+      if (!userProfile) return
+
+      // Update preferences using behavioral analyzer
+      const { BehavioralAnalyzer } = await import("../mathematical-models/behavioral-analyzer")
+      const analyzer = new BehavioralAnalyzer()
+
+      const updatedProfile = analyzer.updateUserPreferences(userProfile, newInteractions)
+
+      // Store updated preferences
+      await this.storeUserPreferences(updatedProfile)
+    } catch (error) {
+      console.error("Error updating preference model:", error)
+      throw error
+    }
+  }
+
+  /**
    * Export user data for analysis (Excel/CSV format)
    */
   async exportUserData(userId: string): Promise<{
-    behaviors: UserBehavior[]
-    preferences: UserPreferences | null
-    summary: {
-      totalInteractions: number
-      categoriesEngaged: string[]
-      averageSessionLength: number
-      mostActiveHours: number[]
-      preferredContentTypes: string[]
-    }
+    profile: any
+    interactions: any[]
+    preferences: any[]
+    timePatterns: any[]
   }> {
-    const behaviors = await this.getUserBehaviors(userId, { limit: 10000 })
-    const preferences = await this.getUserPreferences(userId)
+    try {
+      const userProfile = await this.getUserPreferences(userId)
+      if (!userProfile) throw new Error("User not found")
 
-    // Calculate summary statistics
-    const summary = this.calculateUserSummary(behaviors)
+      // Get detailed interaction data
+      const { data: interactions } = await this.supabase
+        .from("user_interactions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
 
-    return {
-      behaviors,
-      preferences,
-      summary,
+      // Format data for export
+      const exportData = {
+        profile: {
+          id: userProfile.id,
+          age: userProfile.age,
+          profession: userProfile.profession,
+          gender: userProfile.gender,
+          location: userProfile.location,
+          engagement_score: userProfile.behaviorProfile.engagementScore,
+          created_at: userProfile.createdAt,
+          updated_at: userProfile.updatedAt,
+        },
+        interactions: interactions || [],
+        preferences: userProfile.behaviorProfile.categoryPreferences,
+        timePatterns: userProfile.behaviorProfile.readingTimes,
+      }
+
+      return exportData
+    } catch (error) {
+      console.error("Error exporting user data:", error)
+      throw error
     }
   }
 
@@ -263,272 +233,138 @@ export class PreferenceManager {
    * Batch update preferences for multiple users
    */
   async batchUpdatePreferences(
-    updates: Array<{ userId: string; preferences: Partial<UserPreferences> }>,
-  ): Promise<boolean> {
+    updates: Array<{
+      userId: string
+      interactions: UserInteraction[]
+    }>,
+  ): Promise<void> {
     try {
-      const supabase = getSupabaseClient()
+      const promises = updates.map((update) => this.updatePreferenceModel(update.userId, update.interactions))
 
-      if (supabase) {
-        const updatePromises = updates.map(async ({ userId, preferences }) => {
-          const currentPreferences = await this.getUserPreferences(userId)
-          if (currentPreferences) {
-            const updatedPreferences = {
-              ...currentPreferences,
-              ...preferences,
-              last_updated: new Date().toISOString(),
-            }
-            return this.storePreferences(updatedPreferences)
-          }
-          return false
-        })
-
-        const results = await Promise.all(updatePromises)
-        return results.every((result) => result)
-      }
-
-      return false
+      await Promise.all(promises)
     } catch (error) {
       console.error("Error in batch update:", error)
-      return false
+      throw error
     }
   }
 
   /**
-   * Clean old behavior data to manage storage
+   * Clean old interaction data (data retention)
    */
-  async cleanOldBehaviorData(retentionDays = 90): Promise<boolean> {
+  async cleanOldInteractions(retentionDays = 365): Promise<void> {
     try {
-      const supabase = getSupabaseClient()
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays)
 
-      if (supabase) {
-        const cutoffDate = new Date()
-        cutoffDate.setDate(cutoffDate.getDate() - retentionDays)
+      const { error } = await this.supabase.from("user_interactions").delete().lt("timestamp", cutoffDate.toISOString())
 
-        const { error } = await supabase.from("user_behaviors").delete().lt("timestamp", cutoffDate.toISOString())
-
-        if (error) {
-          console.error("Error cleaning old behavior data:", error)
-          return false
-        }
-
-        console.log(`Cleaned behavior data older than ${retentionDays} days`)
-      }
-
-      // Clean memory cache
-      for (const [userId, behaviors] of this.behaviorCache.entries()) {
-        const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000
-        const filteredBehaviors = behaviors.filter((b) => new Date(b.timestamp).getTime() > cutoffTime)
-        this.behaviorCache.set(userId, filteredBehaviors)
-      }
-
-      return true
+      if (error) throw error
     } catch (error) {
-      console.error("Error cleaning old data:", error)
-      return false
+      console.error("Error cleaning old interactions:", error)
+      throw error
     }
   }
 
   /**
-   * Get aggregated analytics for all users
+   * Get aggregated analytics data
    */
-  async getGlobalAnalytics(): Promise<{
-    totalUsers: number
-    totalBehaviors: number
-    categoryDistribution: Record<string, number>
-    deviceDistribution: Record<string, number>
-    hourlyActivity: Record<string, number>
-    averageEngagement: number
+  async getAnalyticsData(userId: string): Promise<{
+    totalInteractions: number
+    avgDailyInteractions: number
+    topCategories: Array<{ category: string; count: number }>
+    readingPatterns: Array<{ hour: number; count: number }>
+    engagementTrend: Array<{ date: string; score: number }>
   }> {
     try {
-      const supabase = getSupabaseClient()
+      const { data: interactions } = await this.supabase
+        .from("user_interactions")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("timestamp", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
 
-      if (supabase) {
-        // Get total users
-        const { count: totalUsers } = await supabase
-          .from("user_preferences")
-          .select("*", { count: "exact", head: true })
-
-        // Get total behaviors
-        const { count: totalBehaviors } = await supabase
-          .from("user_behaviors")
-          .select("*", { count: "exact", head: true })
-
-        // Get category distribution
-        const { data: categoryData } = await supabase.from("user_behaviors").select("category")
-
-        // Get device distribution
-        const { data: deviceData } = await supabase.from("user_behaviors").select("device_type")
-
-        // Get hourly activity
-        const { data: hourlyData } = await supabase.from("user_behaviors").select("time_of_day")
-
-        // Calculate distributions
-        const categoryDistribution: Record<string, number> = {}
-        categoryData?.forEach((item) => {
-          categoryDistribution[item.category] = (categoryDistribution[item.category] || 0) + 1
-        })
-
-        const deviceDistribution: Record<string, number> = {}
-        deviceData?.forEach((item) => {
-          deviceDistribution[item.device_type] = (deviceDistribution[item.device_type] || 0) + 1
-        })
-
-        const hourlyActivity: Record<string, number> = {}
-        hourlyData?.forEach((item) => {
-          const hour = item.time_of_day.toString()
-          hourlyActivity[hour] = (hourlyActivity[hour] || 0) + 1
-        })
-
-        // Calculate average engagement
-        const { data: engagementData } = await supabase
-          .from("user_behaviors")
-          .select("read_duration, scroll_depth")
-          .not("read_duration", "is", null)
-          .not("scroll_depth", "is", null)
-
-        const averageEngagement =
-          engagementData && engagementData.length > 0
-            ? engagementData.reduce((sum, item) => sum + item.read_duration * item.scroll_depth, 0) /
-              engagementData.length
-            : 0
-
+      if (!interactions) {
         return {
-          totalUsers: totalUsers || 0,
-          totalBehaviors: totalBehaviors || 0,
-          categoryDistribution,
-          deviceDistribution,
-          hourlyActivity,
-          averageEngagement,
+          totalInteractions: 0,
+          avgDailyInteractions: 0,
+          topCategories: [],
+          readingPatterns: [],
+          engagementTrend: [],
         }
       }
 
-      // Fallback to memory cache analysis
-      return this.getMemoryCacheAnalytics()
+      // Calculate analytics
+      const totalInteractions = interactions.length
+      const avgDailyInteractions = totalInteractions / 30
+
+      // Top categories
+      const categoryCount: Record<string, number> = {}
+      interactions.forEach((i) => {
+        categoryCount[i.category] = (categoryCount[i.category] || 0) + 1
+      })
+
+      const topCategories = Object.entries(categoryCount)
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+
+      // Reading patterns by hour
+      const hourCount: Record<number, number> = {}
+      interactions.forEach((i) => {
+        const hour = new Date(i.timestamp).getHours()
+        hourCount[hour] = (hourCount[hour] || 0) + 1
+      })
+
+      const readingPatterns = Object.entries(hourCount)
+        .map(([hour, count]) => ({ hour: Number.parseInt(hour), count }))
+        .sort((a, b) => a.hour - b.hour)
+
+      // Engagement trend (simplified)
+      const engagementTrend = this.calculateEngagementTrend(interactions)
+
+      return {
+        totalInteractions,
+        avgDailyInteractions,
+        topCategories,
+        readingPatterns,
+        engagementTrend,
+      }
     } catch (error) {
-      console.error("Error getting global analytics:", error)
-      return this.getMemoryCacheAnalytics()
+      console.error("Error getting analytics data:", error)
+      throw error
     }
   }
 
-  private calculateUserSummary(behaviors: UserBehavior[]) {
-    const totalInteractions = behaviors.length
-    const categoriesEngaged = [...new Set(behaviors.map((b) => b.category))]
+  private calculateEngagementTrend(interactions: any[]): Array<{ date: string; score: number }> {
+    const dailyEngagement: Record<string, { total: number; count: number }> = {}
 
-    // Calculate average session length
-    const sessions = this.groupBehaviorsBySessions(behaviors)
-    const sessionLengths = sessions.map((session) => {
-      if (session.length < 2) return 0
-      const start = new Date(session[0].timestamp).getTime()
-      const end = new Date(session[session.length - 1].timestamp).getTime()
-      return (end - start) / (1000 * 60) // minutes
-    })
-    const averageSessionLength =
-      sessionLengths.length > 0 ? sessionLengths.reduce((sum, len) => sum + len, 0) / sessionLengths.length : 0
+    interactions.forEach((interaction) => {
+      const date = new Date(interaction.timestamp).toISOString().split("T")[0]
+      const score = this.getEngagementScore(interaction.action)
 
-    // Find most active hours
-    const hourCounts: Record<number, number> = {}
-    behaviors.forEach((b) => {
-      hourCounts[b.time_of_day] = (hourCounts[b.time_of_day] || 0) + 1
-    })
-    const mostActiveHours = Object.entries(hourCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3)
-      .map(([hour]) => Number.parseInt(hour))
-
-    // Determine preferred content types
-    const readBehaviors = behaviors.filter((b) => b.action === "read")
-    const avgReadTime =
-      readBehaviors.length > 0 ? readBehaviors.reduce((sum, b) => sum + b.read_duration, 0) / readBehaviors.length : 0
-
-    const preferredContentTypes = []
-    if (avgReadTime < 120) preferredContentTypes.push("short")
-    else if (avgReadTime > 300) preferredContentTypes.push("long")
-    else preferredContentTypes.push("medium")
-
-    const shareRate = behaviors.filter((b) => b.action === "share").length / totalInteractions
-    if (shareRate > 0.1) preferredContentTypes.push("shareable")
-
-    return {
-      totalInteractions,
-      categoriesEngaged,
-      averageSessionLength,
-      mostActiveHours,
-      preferredContentTypes,
-    }
-  }
-
-  private groupBehaviorsBySessions(behaviors: UserBehavior[]): UserBehavior[][] {
-    const sessions: UserBehavior[][] = []
-    let currentSession: UserBehavior[] = []
-
-    const sortedBehaviors = behaviors.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-
-    for (let i = 0; i < sortedBehaviors.length; i++) {
-      const behavior = sortedBehaviors[i]
-
-      if (currentSession.length === 0) {
-        currentSession.push(behavior)
-      } else {
-        const lastBehavior = currentSession[currentSession.length - 1]
-        const timeDiff = new Date(behavior.timestamp).getTime() - new Date(lastBehavior.timestamp).getTime()
-
-        // If more than 30 minutes gap, start new session
-        if (timeDiff > 30 * 60 * 1000) {
-          sessions.push([...currentSession])
-          currentSession = [behavior]
-        } else {
-          currentSession.push(behavior)
-        }
+      if (!dailyEngagement[date]) {
+        dailyEngagement[date] = { total: 0, count: 0 }
       }
-    }
 
-    if (currentSession.length > 0) {
-      sessions.push(currentSession)
-    }
+      dailyEngagement[date].total += score
+      dailyEngagement[date].count += 1
+    })
 
-    return sessions
+    return Object.entries(dailyEngagement)
+      .map(([date, data]) => ({
+        date,
+        score: data.total / data.count,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
   }
 
-  private getMemoryCacheAnalytics() {
-    const totalUsers = this.memoryCache.size
-    let totalBehaviors = 0
-    const categoryDistribution: Record<string, number> = {}
-    const deviceDistribution: Record<string, number> = {}
-    const hourlyActivity: Record<string, number> = {}
-    let totalEngagement = 0
-    let engagementCount = 0
-
-    for (const behaviors of this.behaviorCache.values()) {
-      totalBehaviors += behaviors.length
-
-      for (const behavior of behaviors) {
-        // Category distribution
-        categoryDistribution[behavior.category] = (categoryDistribution[behavior.category] || 0) + 1
-
-        // Device distribution
-        deviceDistribution[behavior.device_type] = (deviceDistribution[behavior.device_type] || 0) + 1
-
-        // Hourly activity
-        const hour = behavior.time_of_day.toString()
-        hourlyActivity[hour] = (hourlyActivity[hour] || 0) + 1
-
-        // Engagement
-        if (behavior.read_duration > 0 && behavior.scroll_depth > 0) {
-          totalEngagement += behavior.read_duration * behavior.scroll_depth
-          engagementCount++
-        }
-      }
+  private getEngagementScore(action: string): number {
+    const scores = {
+      view: 1,
+      click: 2,
+      share: 4,
+      save: 3,
+      skip: 0,
     }
-
-    return {
-      totalUsers,
-      totalBehaviors,
-      categoryDistribution,
-      deviceDistribution,
-      hourlyActivity,
-      averageEngagement: engagementCount > 0 ? totalEngagement / engagementCount : 0,
-    }
+    return scores[action as keyof typeof scores] || 1
   }
 }
-
-export const preferenceManager = new PreferenceManager()
