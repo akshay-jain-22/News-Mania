@@ -10,13 +10,13 @@ importers:
     dependencies:
       '@ai-sdk/groq':
         specifier: latest
-        version: 2.0.19(zod@3.24.1)
+        version: 2.0.19(zod@3.25.0)
       '@ai-sdk/openai':
         specifier: latest
-        version: 2.0.30(zod@3.24.1)
+        version: 2.0.30(zod@3.25.0)
       '@ai-sdk/xai':
         specifier: latest
-        version: 2.0.19(zod@3.24.1)
+        version: 2.0.19(zod@3.25.0)
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.9.1(react-hook-form@7.54.1(react@18.0.0))
@@ -112,7 +112,7 @@ importers:
         version: 2.57.4
       ai:
         specifier: latest
-        version: 5.0.44(zod@3.24.1)
+        version: 5.0.44(zod@3.25.0)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.5.4)
@@ -192,8 +192,8 @@ importers:
         specifier: ^0.9.6
         version: 0.9.6(@types/react-dom@18.0.0)(@types/react@18.0.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
       zod:
-        specifier: ^3.24.1
-        version: 3.24.1
+        specifier: ^3.25.0
+        version: 3.25.0
       zustand:
         specifier: latest
         version: 5.0.8(@types/react@18.0.0)(immer@10.1.3)(react@18.0.0)(use-sync-external-store@1.5.0(react@18.0.0))
@@ -2454,8 +2454,8 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  zod@3.24.1:
-    resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
+  zod@3.25.0:
+    resolution: {integrity: sha512-ficnZKUW0mlNivqeJkosTEkGbJ6NKCtSaOHGx5aXbtfeWMdRyzXLbAIn19my4C/KB7WPY/p9vlGPt+qpOp6c4Q==}
 
   zustand@5.0.8:
     resolution: {integrity: sha512-gyPKpIaxY9XcO2vSMrLbiER7QMAMGOQZVRdJ6Zi782jkbzZygq5GI9nG8g+sMgitRtndwaBSl7uiqC49o1SSiw==}
@@ -2480,47 +2480,47 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/gateway@1.0.23(zod@3.24.1)':
+  '@ai-sdk/gateway@1.0.23(zod@3.25.0)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
-      zod: 3.24.1
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
+      zod: 3.25.0
 
-  '@ai-sdk/groq@2.0.19(zod@3.24.1)':
+  '@ai-sdk/groq@2.0.19(zod@3.25.0)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
-      zod: 3.24.1
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
+      zod: 3.25.0
 
-  '@ai-sdk/openai-compatible@1.0.18(zod@3.24.1)':
+  '@ai-sdk/openai-compatible@1.0.18(zod@3.25.0)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
-      zod: 3.24.1
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
+      zod: 3.25.0
 
-  '@ai-sdk/openai@2.0.30(zod@3.24.1)':
+  '@ai-sdk/openai@2.0.30(zod@3.25.0)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
-      zod: 3.24.1
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
+      zod: 3.25.0
 
-  '@ai-sdk/provider-utils@3.0.9(zod@3.24.1)':
+  '@ai-sdk/provider-utils@3.0.9(zod@3.25.0)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
-      zod: 3.24.1
+      zod: 3.25.0
 
   '@ai-sdk/provider@2.0.0':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/xai@2.0.19(zod@3.24.1)':
+  '@ai-sdk/xai@2.0.19(zod@3.25.0)':
     dependencies:
-      '@ai-sdk/openai-compatible': 1.0.18(zod@3.24.1)
+      '@ai-sdk/openai-compatible': 1.0.18(zod@3.25.0)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
-      zod: 3.24.1
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
+      zod: 3.25.0
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -3592,13 +3592,13 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  ai@5.0.44(zod@3.24.1):
+  ai@5.0.44(zod@3.25.0):
     dependencies:
-      '@ai-sdk/gateway': 1.0.23(zod@3.24.1)
+      '@ai-sdk/gateway': 1.0.23(zod@3.25.0)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.24.1)
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.0)
       '@opentelemetry/api': 1.9.0
-      zod: 3.24.1
+      zod: 3.25.0
 
   ansi-regex@5.0.1: {}
 
@@ -4875,7 +4875,7 @@ snapshots:
 
   yaml@2.8.0: {}
 
-  zod@3.24.1: {}
+  zod@3.25.0: {}
 
   zustand@5.0.8(@types/react@18.0.0)(immer@10.1.3)(react@18.0.0)(use-sync-external-store@1.5.0(react@18.0.0)):
     optionalDependencies:

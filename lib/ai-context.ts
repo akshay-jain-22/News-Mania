@@ -1,188 +1,260 @@
-import type { NewsArticle } from "@/types/news"
+import { generateText } from "ai"
+import { openai } from "@ai-sdk/openai"
+import { groq } from "@ai-sdk/groq"
+import { xai } from "@ai-sdk/xai"
 
-export interface AIContextResponse {
+export interface NewsItem {
+  title: string
+  description?: string
+  content?: string
+  url: string
+  urlToImage?: string
+  publishedAt: string
+  source?: {
+    name: string
+  }
+}
+
+export interface ContextAnalysis {
   summary: string
   keyPoints: string[]
   sentiment: "positive" | "negative" | "neutral"
+  credibility: "high" | "medium" | "low"
+  bias: "left" | "right" | "center"
   topics: string[]
-  credibilityAssessment: string
   relatedQuestions: string[]
 }
 
-export async function getNewsContext(title: string, description: string, content: string): Promise<string> {
+// Get news context analysis - REQUIRED EXPORT
+export async function getNewsContext(article: NewsItem): Promise<ContextAnalysis> {
   try {
-    console.log("Requesting context for article:", title)
+    console.log("Analyzing news context for:", article.title)
 
-    // Add a timeout to the fetch to prevent hanging requests
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
+    const articleText = `
+Title: ${article.title}
+Description: ${article.description || "No description available"}
+Content: ${article.content || "No content available"}
+Source: ${article.source?.name || "Unknown source"}
+Published: ${article.publishedAt}
+    `.trim()
 
-    const response = await fetch("/api/news-context", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        content,
-      }),
-      signal: controller.signal,
-    })
+    // Try multiple AI providers with fallbacks
+    const providers = [
+      { name: "Groq", model: groq("llama-3.3-70b-versatile") },
+      { name: "OpenAI", model: openai("gpt-4o-mini") },
+      { name: "xAI", model: xai("grok-beta") },
+    ]
 
-    clearTimeout(timeoutId)
+    for (const provider of providers) {
+      try {
+        console.log(`Trying ${provider.name} for context analysis...`)
 
-    if (!response.ok) {
-      console.error(`Failed to fetch news context: ${response.status}`)
+        const { text } = await generateText({
+          model: provider.model,
+          prompt: `Analyze this news article and provide a comprehensive context analysis:
 
-      // Provide a fallback based on the article title
-      return `This article about "${title}" may benefit from additional context. While we couldn't generate specific background information at this moment, you can research more about this topic through reliable news sources.`
+${articleText}
+
+Please provide a JSON response with the following structure:
+{
+  "summary": "Brief 2-3 sentence summary of the article",
+  "keyPoints": ["key point 1", "key point 2", "key point 3"],
+  "sentiment": "positive|negative|neutral",
+  "credibility": "high|medium|low",
+  "bias": "left|right|center", 
+  "topics": ["topic1", "topic2", "topic3"],
+  "relatedQuestions": ["question 1?", "question 2?", "question 3?"]
+}
+
+Base your analysis on:
+- Content accuracy and source reliability
+- Language tone and emotional content
+- Political or ideological leanings
+- Main themes and subjects covered
+- Questions readers might have
+
+Respond only with valid JSON.`,
+          maxTokens: 1000,
+        })
+
+        // Try to parse the JSON response
+        try {
+          const analysis = JSON.parse(text)
+
+          // Validate the response structure
+          if (analysis.summary && analysis.keyPoints && analysis.sentiment) {
+            console.log(`Successfully analyzed with ${provider.name}`)
+            return {
+              summary: analysis.summary,
+              keyPoints: Array.isArray(analysis.keyPoints) ? analysis.keyPoints : [],
+              sentiment: ["positive", "negative", "neutral"].includes(analysis.sentiment)
+                ? analysis.sentiment
+                : "neutral",
+              credibility: ["high", "medium", "low"].includes(analysis.credibility) ? analysis.credibility : "medium",
+              bias: ["left", "right", "center"].includes(analysis.bias) ? analysis.bias : "center",
+              topics: Array.isArray(analysis.topics) ? analysis.topics : [],
+              relatedQuestions: Array.isArray(analysis.relatedQuestions) ? analysis.relatedQuestions : [],
+            }
+          }
+        } catch (parseError) {
+          console.warn(`Failed to parse JSON from ${provider.name}:`, parseError)
+          continue
+        }
+      } catch (providerError) {
+        console.warn(`${provider.name} failed:`, providerError)
+        continue
+      }
     }
 
-    const data = await response.json()
-
-    // Check if we got a valid context response
-    if (!data.context || data.context.trim() === "") {
-      return `This article titled "${title}" may require additional context. Consider checking multiple news sources to get a more complete understanding of this topic.`
-    }
-
-    return data.context
+    // Fallback analysis if all AI providers fail
+    console.log("All AI providers failed, using fallback analysis")
+    return generateFallbackAnalysis(article)
   } catch (error) {
-    console.error("Error getting news context:", error)
-
-    // Check if it's an abort error (timeout)
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return "The request for additional context timed out. This might be due to high demand or temporary service limitations. Please try again in a few moments."
-    }
-
-    // Provide a more helpful fallback that includes the article title
-    return `We couldn't retrieve additional context for "${title}" at this time. This might be due to temporary service limitations. You can still research this topic through other reliable news sources.`
+    console.error("Error in getNewsContext:", error)
+    return generateFallbackAnalysis(article)
   }
 }
 
-export async function getArticleContext(article: NewsArticle): Promise<AIContextResponse> {
-  try {
-    console.log("Getting AI context for article:", article.title)
-
-    // Try to call the AI API
-    const response = await fetch("/api/news-context", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: article.title,
-        content: article.content || article.description,
-        source: article.source?.name,
-      }),
-    })
-
-    if (response.ok) {
-      const result = await response.json()
-      return result
-    } else {
-      console.warn("AI API failed, using fallback analysis")
-      return generateFallbackContext(article)
-    }
-  } catch (error) {
-    console.error("Error getting article context:", error)
-    return generateFallbackContext(article)
-  }
+// Get article context (alias for backward compatibility)
+export async function getArticleContext(article: NewsItem): Promise<ContextAnalysis> {
+  return getNewsContext(article)
 }
 
-export async function askQuestionAboutArticle(article: NewsArticle, question: string): Promise<string> {
+// Ask a question about an article
+export async function askQuestionAboutArticle(article: NewsItem, question: string): Promise<string> {
   try {
-    console.log("Asking question about article:", question)
+    console.log("Answering question about article:", question)
 
-    // Try to call the AI chat API
-    const response = await fetch("/api/news-chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        article: {
-          title: article.title,
-          content: article.content || article.description,
-          source: article.source?.name,
-        },
-        question,
-      }),
-    })
+    const articleText = `
+Title: ${article.title}
+Description: ${article.description || "No description available"}
+Content: ${article.content || "No content available"}
+Source: ${article.source?.name || "Unknown source"}
+Published: ${article.publishedAt}
+    `.trim()
 
-    if (response.ok) {
-      const result = await response.json()
-      return result.answer || "I couldn't process that question right now."
-    } else {
-      console.warn("AI chat API failed, using fallback response")
-      return generateFallbackAnswer(article, question)
+    // Try multiple AI providers
+    const providers = [
+      { name: "Groq", model: groq("llama-3.3-70b-versatile") },
+      { name: "OpenAI", model: openai("gpt-4o-mini") },
+      { name: "xAI", model: xai("grok-beta") },
+    ]
+
+    for (const provider of providers) {
+      try {
+        console.log(`Trying ${provider.name} for question answering...`)
+
+        const { text } = await generateText({
+          model: provider.model,
+          prompt: `Based on this news article, please answer the following question:
+
+Article:
+${articleText}
+
+Question: ${question}
+
+Please provide a clear, informative answer based on the article content. If the article doesn't contain enough information to answer the question, say so and provide what context you can from the available information.`,
+          maxTokens: 500,
+        })
+
+        if (text && text.trim().length > 10) {
+          console.log(`Successfully answered with ${provider.name}`)
+          return text.trim()
+        }
+      } catch (providerError) {
+        console.warn(`${provider.name} failed for question:`, providerError)
+        continue
+      }
     }
+
+    // Fallback response
+    return generateFallbackAnswer(article, question)
   } catch (error) {
-    console.error("Error asking question about article:", error)
+    console.error("Error answering question:", error)
     return generateFallbackAnswer(article, question)
   }
 }
 
-export async function askAIAboutArticle(
-  title: string,
-  description: string,
-  content: string,
-  question: string,
-): Promise<string> {
+// Generate summary of an article
+export async function generateSummary(article: NewsItem): Promise<string> {
   try {
-    console.log("Asking AI about article:", title)
-    console.log("Question:", question)
+    console.log("Generating summary for:", article.title)
 
-    // Add a timeout to the fetch to prevent hanging requests
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
+    const articleText = `
+Title: ${article.title}
+Description: ${article.description || "No description available"}
+Content: ${article.content || "No content available"}
+    `.trim()
 
-    const response = await fetch("/api/news-chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        content,
-        question,
-      }),
-      signal: controller.signal,
-    })
+    // Try multiple AI providers
+    const providers = [
+      { name: "Groq", model: groq("llama-3.3-70b-versatile") },
+      { name: "OpenAI", model: openai("gpt-4o-mini") },
+      { name: "xAI", model: xai("grok-beta") },
+    ]
 
-    clearTimeout(timeoutId)
+    for (const provider of providers) {
+      try {
+        console.log(`Trying ${provider.name} for summary generation...`)
 
-    if (!response.ok) {
-      console.error(`Failed to get AI response: ${response.status}`)
-      return `I couldn't analyze this article to answer your question at the moment. This might be due to temporary service limitations. You might want to try a different question or try again later.`
+        const { text } = await generateText({
+          model: provider.model,
+          prompt: `Please provide a concise 2-3 sentence summary of this news article:
+
+${articleText}
+
+Focus on the main facts and key information. Keep it objective and informative.`,
+          maxTokens: 200,
+        })
+
+        if (text && text.trim().length > 20) {
+          console.log(`Successfully summarized with ${provider.name}`)
+          return text.trim()
+        }
+      } catch (providerError) {
+        console.warn(`${provider.name} failed for summary:`, providerError)
+        continue
+      }
     }
 
-    const data = await response.json()
-    return (
-      data.response ||
-      "I couldn't generate a specific response to your question, but I can try to answer a different question about this article."
-    )
+    // Fallback summary
+    return generateFallbackSummary(article)
   } catch (error) {
-    console.error("Error getting AI response:", error)
-
-    // Check if it's an abort error (timeout)
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return "The request timed out while processing your question. This might be due to high demand or temporary service limitations. Please try again in a few moments."
-    }
-
-    return `I'm sorry, but I couldn't process your question about this article at this time. This might be due to temporary service limitations. Please try again later or ask a different question.`
+    console.error("Error generating summary:", error)
+    return generateFallbackSummary(article)
   }
 }
 
-function generateFallbackContext(article: NewsArticle): AIContextResponse {
-  console.log("Generating fallback context for:", article.title)
+// Analyze article sentiment
+export async function analyzeSentiment(article: NewsItem): Promise<"positive" | "negative" | "neutral"> {
+  try {
+    const context = await getNewsContext(article)
+    return context.sentiment
+  } catch (error) {
+    console.error("Error analyzing sentiment:", error)
+    return "neutral"
+  }
+}
 
+// Get related topics
+export async function getRelatedTopics(article: NewsItem): Promise<string[]> {
+  try {
+    const context = await getNewsContext(article)
+    return context.topics
+  } catch (error) {
+    console.error("Error getting related topics:", error)
+    return extractFallbackTopics(article)
+  }
+}
+
+// Helper function to generate fallback analysis
+function generateFallbackAnalysis(article: NewsItem): ContextAnalysis {
   const title = article.title.toLowerCase()
-  const content = (article.content || article.description || "").toLowerCase()
-  const text = `${title} ${content}`
+  const description = (article.description || "").toLowerCase()
+  const content = (article.content || "").toLowerCase()
+  const fullText = `${title} ${description} ${content}`
 
-  // Determine sentiment based on keywords
+  // Simple sentiment analysis based on keywords
   const positiveWords = [
     "success",
     "growth",
@@ -193,207 +265,110 @@ function generateFallbackContext(article: NewsArticle): AIContextResponse {
     "good",
     "great",
     "excellent",
-    "win",
-    "victory",
-    "progress",
   ]
   const negativeWords = [
     "crisis",
     "problem",
-    "issue",
-    "concern",
     "decline",
     "failure",
+    "concern",
+    "issue",
     "negative",
     "bad",
     "terrible",
-    "loss",
-    "defeat",
-    "setback",
+    "disaster",
   ]
 
-  const positiveCount = positiveWords.filter((word) => text.includes(word)).length
-  const negativeCount = negativeWords.filter((word) => text.includes(word)).length
+  const positiveCount = positiveWords.filter((word) => fullText.includes(word)).length
+  const negativeCount = negativeWords.filter((word) => fullText.includes(word)).length
 
   let sentiment: "positive" | "negative" | "neutral" = "neutral"
   if (positiveCount > negativeCount) sentiment = "positive"
   else if (negativeCount > positiveCount) sentiment = "negative"
 
-  // Extract topics based on common categories
-  const topics: string[] = []
-  if (text.includes("technology") || text.includes("ai") || text.includes("digital")) topics.push("Technology")
-  if (text.includes("business") || text.includes("economy") || text.includes("market")) topics.push("Business")
-  if (text.includes("health") || text.includes("medical") || text.includes("healthcare")) topics.push("Health")
-  if (text.includes("politics") || text.includes("government") || text.includes("policy")) topics.push("Politics")
-  if (text.includes("environment") || text.includes("climate") || text.includes("green")) topics.push("Environment")
-  if (text.includes("sports") || text.includes("game") || text.includes("championship")) topics.push("Sports")
-  if (text.includes("entertainment") || text.includes("movie") || text.includes("music")) topics.push("Entertainment")
+  // Extract topics based on common keywords
+  const topics = extractFallbackTopics(article)
 
-  if (topics.length === 0) topics.push("General News")
-
-  // Generate key points
-  const sentences = (article.content || article.description || "").split(/[.!?]+/).filter((s) => s.trim().length > 20)
-  const keyPoints = sentences
-    .slice(0, 3)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-
-  if (keyPoints.length === 0) {
-    keyPoints.push("This article discusses recent developments in the news.")
-  }
-
-  // Generate credibility assessment
-  const source = article.source?.name || "Unknown Source"
-  const credibilityScore = article.credibilityScore || 75
-  let credibilityAssessment = `This article from ${source} `
-
-  if (credibilityScore >= 80) {
-    credibilityAssessment += "appears to be from a reliable source with high credibility."
-  } else if (credibilityScore >= 60) {
-    credibilityAssessment += "comes from a moderately reliable source. Consider cross-referencing with other sources."
-  } else {
-    credibilityAssessment += "may require additional verification. Please check multiple sources for confirmation."
-  }
-
-  // Generate related questions
-  const relatedQuestions = [
-    "What are the main implications of this news?",
-    "How might this affect the broader industry?",
-    "What are the key facts to remember?",
-    "Are there any potential concerns or criticisms?",
-    "What might happen next in this story?",
-  ]
+  // Generate basic summary
+  const summary =
+    article.description ||
+    `This article discusses ${article.title.toLowerCase()}. Published by ${article.source?.name || "unknown source"}.`
 
   return {
-    summary: `This article from ${source} discusses ${topics.join(", ").toLowerCase()} with a ${sentiment} outlook. ${keyPoints[0] || "The article provides important information on current events."}`,
-    keyPoints,
+    summary,
+    keyPoints: [
+      `Article published by ${article.source?.name || "unknown source"}`,
+      `Published on ${new Date(article.publishedAt).toLocaleDateString()}`,
+      "Content analysis performed using fallback method",
+    ],
     sentiment,
+    credibility: "medium",
+    bias: "center",
     topics,
-    credibilityAssessment,
-    relatedQuestions,
+    relatedQuestions: [
+      "What are the main facts in this article?",
+      "Who are the key people or organizations mentioned?",
+      "What is the significance of this news?",
+    ],
   }
 }
 
-function generateFallbackAnswer(article: NewsArticle, question: string): string {
-  console.log("Generating fallback answer for question:", question)
+// Helper function to extract topics from article
+function extractFallbackTopics(article: NewsItem): string[] {
+  const title = article.title.toLowerCase()
+  const description = (article.description || "").toLowerCase()
+  const fullText = `${title} ${description}`
 
-  const lowerQuestion = question.toLowerCase()
-  const title = article.title
-  const content = article.content || article.description || ""
-  const source = article.source?.name || "the source"
-
-  // Handle common question patterns
-  if (lowerQuestion.includes("what") && lowerQuestion.includes("about")) {
-    return `This article discusses ${title.toLowerCase()}. According to ${source}, ${content.slice(0, 200)}...`
+  const topicKeywords = {
+    Technology: ["tech", "ai", "artificial intelligence", "software", "computer", "digital", "internet", "app"],
+    Politics: ["government", "election", "policy", "political", "congress", "senate", "president", "vote"],
+    Business: ["business", "company", "market", "economy", "financial", "stock", "investment", "corporate"],
+    Health: ["health", "medical", "hospital", "doctor", "disease", "treatment", "medicine", "healthcare"],
+    Sports: ["sports", "game", "team", "player", "championship", "league", "match", "tournament"],
+    Science: ["science", "research", "study", "scientist", "discovery", "experiment", "scientific"],
+    Environment: ["climate", "environment", "green", "pollution", "sustainability", "renewable", "carbon"],
+    Entertainment: ["movie", "music", "celebrity", "entertainment", "film", "show", "actor", "artist"],
   }
 
-  if (lowerQuestion.includes("when") || lowerQuestion.includes("time")) {
-    const publishedDate = new Date(article.publishedAt).toLocaleDateString()
-    return `This article was published on ${publishedDate}. The events described appear to be recent developments.`
+  const detectedTopics: string[] = []
+
+  for (const [topic, keywords] of Object.entries(topicKeywords)) {
+    if (keywords.some((keyword) => fullText.includes(keyword))) {
+      detectedTopics.push(topic)
+    }
   }
 
-  if (lowerQuestion.includes("where") || lowerQuestion.includes("location")) {
-    return `Based on the article content, this appears to involve multiple locations. The specific geographic details would need to be found in the full article text.`
-  }
-
-  if (lowerQuestion.includes("who") || lowerQuestion.includes("people")) {
-    const author = article.author || "the reporter"
-    return `This article was written by ${author} and published by ${source}. The article mentions various individuals involved in the story.`
-  }
-
-  if (lowerQuestion.includes("why") || lowerQuestion.includes("reason")) {
-    return `The article explains the background and reasoning behind these developments. For detailed analysis of the causes, I'd recommend reading the full article.`
-  }
-
-  if (lowerQuestion.includes("how") || lowerQuestion.includes("process")) {
-    return `The article outlines the process and methodology involved. The specific steps and procedures are detailed in the full article content.`
-  }
-
-  if (lowerQuestion.includes("impact") || lowerQuestion.includes("effect")) {
-    return `This development could have significant implications for the industry and stakeholders involved. The long-term effects will likely become clearer over time.`
-  }
-
-  if (lowerQuestion.includes("opinion") || lowerQuestion.includes("think")) {
-    return `Based on the article content, this appears to be a significant development. Different stakeholders may have varying perspectives on these events.`
-  }
-
-  if (lowerQuestion.includes("future") || lowerQuestion.includes("next")) {
-    return `The article suggests that further developments are expected. Stakeholders will likely be monitoring the situation closely for updates.`
-  }
-
-  if (lowerQuestion.includes("source") || lowerQuestion.includes("reliable")) {
-    const credibilityScore = article.credibilityScore || 75
-    return `This article comes from ${source}. With a credibility score of ${credibilityScore}%, it appears to be ${credibilityScore >= 80 ? "highly reliable" : credibilityScore >= 60 ? "moderately reliable" : "requiring additional verification"}.`
-  }
-
-  // Default response
-  return `That's an interesting question about "${title}". Based on the article from ${source}, this appears to be a developing story. I'd recommend reading the full article for more detailed information, as it may contain additional context that could help answer your question more thoroughly.`
+  return detectedTopics.length > 0 ? detectedTopics : ["General News"]
 }
 
-export function extractKeywords(text: string): string[] {
-  const commonWords = new Set([
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "but",
-    "in",
-    "on",
-    "at",
-    "to",
-    "for",
-    "of",
-    "with",
-    "by",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "could",
-    "should",
-    "may",
-    "might",
-    "can",
-    "this",
-    "that",
-    "these",
-    "those",
-    "i",
-    "you",
-    "he",
-    "she",
-    "it",
-    "we",
-    "they",
-    "me",
-    "him",
-    "her",
-    "us",
-    "them",
-    "my",
-    "your",
-    "his",
-    "her",
-    "its",
-    "our",
-    "their",
-  ])
+// Helper function to generate fallback answer
+function generateFallbackAnswer(article: NewsItem, question: string): string {
+  const questionLower = question.toLowerCase()
 
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, " ")
-    .split(/\s+/)
-    .filter((word) => word.length > 3 && !commonWords.has(word))
-    .slice(0, 10)
+  if (questionLower.includes("what") || questionLower.includes("summary")) {
+    return `Based on the article "${article.title}", this appears to be a news story published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}. ${article.description || "No additional details are available in the article preview."}`
+  }
+
+  if (questionLower.includes("when")) {
+    return `According to the article information, this was published on ${new Date(article.publishedAt).toLocaleDateString()}.`
+  }
+
+  if (questionLower.includes("who")) {
+    return `This article was published by ${article.source?.name || "an unknown source"}. For specific people mentioned in the article, you would need to read the full content.`
+  }
+
+  if (questionLower.includes("where")) {
+    return `The article "${article.title}" was published by ${article.source?.name || "an unknown source"}. For specific locations mentioned, please refer to the full article content.`
+  }
+
+  return `I can see this article is titled "${article.title}" and was published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}. For more specific details about your question, I would need access to the full article content.`
+}
+
+// Helper function to generate fallback summary
+function generateFallbackSummary(article: NewsItem): string {
+  if (article.description) {
+    return article.description
+  }
+
+  return `This is a news article titled "${article.title}" published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}.`
 }
