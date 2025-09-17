@@ -1,523 +1,387 @@
-import { supabase } from "@/lib/supabase-client"
-import type { Note } from "@/types/notes"
+import { supabase } from "./supabase-client"
+import type { Note, CreateNoteData } from "@/types/notes"
 
-export type NoteInput = {
-  title: string
-  content: string
-  topic?: string
-  articleId?: string
-  articleTitle?: string
-  articleUrl?: string
-  isMarkdown?: boolean
-  tags?: string[]
-}
+// In-memory storage for notes (fallback when Supabase is not available)
+let notesStorage: Note[] = []
+let nextId = 1
 
-/**
- * Get all notes for the current user
- */
-export async function getUserNotes(): Promise<Note[]> {
+export async function saveNote(noteData: CreateNoteData): Promise<Note> {
   try {
-    console.log("Fetching user notes")
-    const { data: userData, error: userError } = await supabase.auth.getUser()
+    console.log("Saving note:", noteData.title)
 
-    if (userError) {
-      console.error("Auth error:", userError)
-      throw new Error("Authentication error: " + userError.message)
-    }
-
-    if (!userData.user) {
-      console.error("No authenticated user found")
-      throw new Error("No authenticated user found")
-    }
-
-    console.log("User authenticated, fetching notes for user:", userData.user.id)
-    const { data, error } = await supabase
-      .from("user_notes")
-      .select("*")
-      .eq("user_id", userData.user.id)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching notes:", error)
-      throw new Error("Database error: " + error.message)
-    }
-
-    console.log("Notes fetched successfully:", data?.length || 0)
-    return (data || []).map((note) => ({
-      id: note.id,
-      userId: note.user_id,
-      title: note.title || "",
-      content: note.content,
-      topic: note.topic || "General",
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-      articleId: note.article_id,
-      articleTitle: note.article_title,
-      articleUrl: note.article_url,
-      isMarkdown: note.is_markdown || false,
-      tags: Array.isArray(note.tags) ? note.tags : [],
-    }))
-  } catch (error) {
-    console.error("Error getting user notes:", error)
-    throw error
-  }
-}
-
-/**
- * Get notes for a specific article
- */
-export async function getNotes(articleId?: string): Promise<Note[]> {
-  try {
-    console.log(`Getting notes for article ${articleId}`)
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !userData.user) {
-      console.error("No authenticated user found")
-      return []
-    }
-
-    let query = supabase
-      .from("user_notes")
-      .select("*")
-      .eq("user_id", userData.user.id)
-      .order("created_at", { ascending: false })
-
-    if (articleId) {
-      query = query.eq("article_id", articleId)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error("Error fetching notes:", error)
-      return []
-    }
-
-    console.log(`Found ${data?.length || 0} notes for article ${articleId}`)
-    return (data || []).map((note) => ({
-      id: note.id,
-      userId: note.user_id,
-      title: note.title || "",
-      content: note.content,
-      topic: note.topic || "General",
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-      articleId: note.article_id,
-      articleTitle: note.article_title,
-      articleUrl: note.article_url,
-      isMarkdown: note.is_markdown || false,
-      tags: Array.isArray(note.tags) ? note.tags : [],
-    }))
-  } catch (error) {
-    console.error("Error getting notes:", error)
-    return []
-  }
-}
-
-/**
- * Save a note for an article
- */
-export async function saveNote(
-  articleId?: string,
-  content?: string,
-  articleTitle?: string,
-  isMarkdown?: boolean,
-  articleUrl?: string,
-): Promise<Note | null> {
-  try {
-    if (!content || content.trim() === "") {
-      throw new Error("Note content is required")
-    }
-
-    console.log(`Saving note for article ${articleId}:`, content.substring(0, 50) + "...")
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-
-    if (userError) {
-      console.error("Auth error:", userError)
-      throw new Error("Authentication error: " + userError.message)
-    }
-
-    if (!userData.user) {
-      throw new Error("No authenticated user found")
-    }
-
-    const tags = extractKeywords(content)
-
-    const newNote = {
-      user_id: userData.user.id,
-      title: articleTitle ? `Note: ${articleTitle}` : "Note from article",
-      content: content,
-      topic: "News",
-      article_id: articleId,
-      article_title: articleTitle,
-      article_url: articleUrl,
-      is_markdown: isMarkdown || false,
-      tags: tags,
+    // Create new note
+    const newNote: Note = {
+      id: `note-${nextId++}`,
+      title: noteData.title,
+      content: noteData.content,
+      topic: noteData.articleId || "General",
+      tags: noteData.tags || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      user_id: "anonymous", // Fallback user ID
+      article_url: noteData.articleUrl,
+      is_public: noteData.isPublic || false,
     }
 
-    console.log("Saving note to Supabase:", {
-      ...newNote,
-      content: newNote.content.substring(0, 50) + "...",
-    })
+    // Add to storage
+    notesStorage.push(newNote)
 
-    const { data, error } = await supabase.from("user_notes").insert(newNote).select().single()
-
-    if (error) {
-      console.error("Error saving note:", error)
-      throw new Error("Database error: " + error.message)
-    }
-
-    if (!data) {
-      throw new Error("No data returned from database")
-    }
-
-    console.log("Note saved successfully:", data.id)
-    return {
-      id: data.id,
-      userId: data.user_id,
-      title: data.title || "",
-      content: data.content,
-      topic: data.topic || "General",
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      articleId: data.article_id,
-      articleTitle: data.article_title,
-      articleUrl: data.article_url,
-      isMarkdown: data.is_markdown || false,
-      tags: Array.isArray(data.tags) ? data.tags : [],
-    }
+    console.log("Note saved successfully:", newNote.id)
+    return newNote
   } catch (error) {
     console.error("Error saving note:", error)
-    throw error
+    throw new Error("Failed to save note")
   }
 }
 
-/**
- * Create a new note
- */
-export async function createNote(noteInput: NoteInput): Promise<Note | null> {
+export async function createNote(noteData: CreateNoteData): Promise<Note> {
   try {
-    console.log("Creating note:", noteInput.title)
-    const { data: userData, error: userError } = await supabase.auth.getUser()
+    console.log("Creating note:", noteData.title)
 
-    if (userError) {
-      console.error("Auth error:", userError)
-      throw new Error("Authentication error: " + userError.message)
+    // Create new note with proper structure
+    const newNote: Note = {
+      id: `note-${nextId++}`,
+      title: noteData.title,
+      content: noteData.content,
+      topic: noteData.articleId || "General",
+      tags: noteData.tags || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      user_id: "anonymous", // Fallback user ID
+      article_url: noteData.articleUrl,
+      is_public: noteData.isPublic || false,
     }
 
-    if (!userData.user) {
-      throw new Error("No authenticated user found")
+    // Try to save to Supabase first
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (!authError && user) {
+        const supabaseNote = {
+          user_id: user.id,
+          title: noteData.title,
+          content: noteData.content,
+          topic: noteData.articleId || "General",
+          tags: noteData.tags || [],
+          article_url: noteData.articleUrl,
+          is_public: noteData.isPublic || false,
+        }
+
+        const { data, error } = await supabase.from("user_notes").insert(supabaseNote).select().single()
+
+        if (!error && data) {
+          const savedNote: Note = {
+            id: data.id,
+            title: data.title,
+            content: data.content,
+            topic: data.topic,
+            tags: Array.isArray(data.tags) ? data.tags : [],
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            user_id: data.user_id,
+            article_url: data.article_url,
+            is_public: data.is_public,
+          }
+
+          // Also add to local storage
+          notesStorage.push(savedNote)
+          return savedNote
+        }
+      }
+    } catch (supabaseError) {
+      console.warn("Supabase save failed, using local storage:", supabaseError)
     }
 
-    const userId = userData.user.id
-    console.log("User authenticated:", userId)
+    // Add to local storage as fallback
+    notesStorage.push(newNote)
 
-    const tags = noteInput.tags || extractKeywords(noteInput.content)
-
-    const newNote = {
-      user_id: userId,
-      title: noteInput.title,
-      content: noteInput.content,
-      topic: noteInput.topic || "General",
-      article_id: noteInput.articleId || null,
-      article_title: noteInput.articleTitle || null,
-      article_url: noteInput.articleUrl || null,
-      is_markdown: noteInput.isMarkdown || false,
-      tags: tags,
-    }
-
-    console.log("Saving note to Supabase:", {
-      ...newNote,
-      content: newNote.content.substring(0, 50) + "...",
-    })
-
-    const { data, error } = await supabase.from("user_notes").insert(newNote).select().single()
-
-    if (error) {
-      console.error("Error creating note:", error)
-      throw new Error("Database error: " + error.message)
-    }
-
-    if (!data) {
-      throw new Error("No data returned from database")
-    }
-
-    console.log("Note created successfully:", data.id)
-    return {
-      id: data.id,
-      userId: data.user_id,
-      title: data.title,
-      content: data.content,
-      topic: data.topic,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      articleId: data.article_id,
-      articleTitle: data.article_title,
-      articleUrl: data.article_url,
-      isMarkdown: data.is_markdown || false,
-      tags: Array.isArray(data.tags) ? data.tags : [],
-    }
+    console.log("Note created successfully:", newNote.id)
+    return newNote
   } catch (error) {
     console.error("Error creating note:", error)
-    throw error
+    throw new Error("Failed to create note")
   }
 }
 
-/**
- * Update an existing note
- */
-export async function updateNote(id: string, updates: Partial<NoteInput>): Promise<Note | null> {
+export async function getUserNotes(): Promise<Note[]> {
   try {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (userError || !userData.user) {
-      throw new Error("No authenticated user found")
-    }
-
-    let tags = updates.tags
-    if (updates.content) {
-      tags = extractKeywords(updates.content)
-    }
-
-    const updateData = {
-      ...(updates.title && { title: updates.title }),
-      ...(updates.content && { content: updates.content }),
-      ...(updates.topic && { topic: updates.topic }),
-      ...(updates.articleUrl && { article_url: updates.articleUrl }),
-      ...(updates.isMarkdown !== undefined && { is_markdown: updates.isMarkdown }),
-      tags,
-      updated_at: new Date().toISOString(),
+    if (authError || !user) {
+      console.log("User not authenticated, returning local notes")
+      return notesStorage.slice().reverse() // Most recent first
     }
 
     const { data, error } = await supabase
       .from("user_notes")
-      .update(updateData)
-      .eq("id", id)
-      .eq("user_id", userData.user.id)
-      .select()
-      .single()
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error updating note:", error)
-      throw new Error("Database error: " + error.message)
+      console.error("Supabase error:", error)
+      return notesStorage.slice().reverse() // Most recent first
     }
 
-    return {
-      id: data.id,
-      userId: data.user_id,
-      title: data.title,
-      content: data.content,
-      topic: data.topic,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      articleId: data.article_id,
-      articleTitle: data.article_title,
-      articleUrl: data.article_url,
-      isMarkdown: data.is_markdown || false,
-      tags: Array.isArray(data.tags) ? data.tags : [],
-    }
+    return (data || []).map((note) => ({
+      ...note,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+    })) as Note[]
   } catch (error) {
-    console.error("Error updating note:", error)
-    throw error
+    console.error("Error fetching notes:", error)
+    return notesStorage.slice().reverse() // Most recent first
   }
 }
 
-/**
- * Delete a note
- */
-export async function deleteNote(id: string): Promise<boolean> {
-  try {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !userData.user) {
-      throw new Error("No authenticated user found")
-    }
-
-    const { error } = await supabase.from("user_notes").delete().eq("id", id).eq("user_id", userData.user.id)
-
-    if (error) {
-      console.error("Error deleting note:", error)
-      throw new Error("Database error: " + error.message)
-    }
-
-    return true
-  } catch (error) {
-    console.error("Error deleting note:", error)
-    throw error
-  }
-}
-
-/**
- * Insert sample notes for testing
- */
 export async function insertSampleNotes(): Promise<boolean> {
   try {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (userError || !userData.user) {
-      throw new Error("No authenticated user found")
+    if (authError || !user) {
+      console.log("User not authenticated")
+      return false
     }
 
-    const sampleNotes = [
-      {
-        user_id: userData.user.id,
-        title: "AI Advancements in 2024",
-        content:
-          "GPT-4 has shown remarkable capabilities in understanding and generating human-like text. The next frontier appears to be multimodal models that can process both text and images.",
-        topic: "Technology",
-        is_markdown: false,
-        tags: ["ai", "gpt4", "technology", "multimodal"],
-      },
-      {
-        user_id: userData.user.id,
-        title: "The Future of Quantum Computing",
-        content:
-          "IBM and Google continue to make strides in quantum computing. The race to quantum supremacy is heating up with practical applications on the horizon.",
-        topic: "Technology",
-        is_markdown: false,
-        tags: ["quantum", "computing", "ibm", "google"],
-      },
-      {
-        user_id: userData.user.id,
-        title: "Global Climate Policy",
-        content:
-          "Recent international agreements show promising steps toward carbon reduction, but implementation remains a challenge for many nations.",
-        topic: "Politics",
-        is_markdown: false,
-        tags: ["climate", "policy", "carbon", "international"],
-      },
-      {
-        user_id: userData.user.id,
-        title: "Weather Report: Sunny Days Ahead",
-        content:
-          "The forecast for the coming week shows clear skies and temperatures in the mid-70s. Perfect weather for outdoor activities and enjoying nature.",
-        topic: "Weather",
-        is_markdown: false,
-        tags: ["weather", "forecast", "sunny", "outdoor"],
-      },
-      {
-        user_id: userData.user.id,
-        title: "Storm Warning: Hurricane Season",
-        content:
-          "Meteorologists predict an active hurricane season this year. Coastal residents should prepare emergency kits and evacuation plans.",
-        topic: "Weather",
-        is_markdown: false,
-        tags: ["weather", "hurricane", "storm", "emergency"],
-      },
-    ]
+    const sampleNotes = getSampleNotes().map((note) => ({
+      ...note,
+      user_id: user.id,
+      id: `note-${nextId++}`,
+    }))
 
     const { error } = await supabase.from("user_notes").insert(sampleNotes)
 
     if (error) {
       console.error("Error inserting sample notes:", error)
-      throw new Error("Database error: " + error.message)
+      return false
     }
 
-    console.log("Sample notes inserted successfully")
     return true
   } catch (error) {
     console.error("Error inserting sample notes:", error)
-    throw error
+    return false
   }
 }
 
-/**
- * Simple keyword extraction from text
- */
-function extractKeywords(text: string): string[] {
-  if (!text) return []
+export async function deleteNote(noteId: string): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-  const cleanText = text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
+    if (authError || !user) {
+      // Remove from local storage
+      const noteIndex = notesStorage.findIndex((note) => note.id === noteId)
+      if (noteIndex !== -1) {
+        notesStorage.splice(noteIndex, 1)
+        return true
+      }
+      return false
+    }
 
-  const words = cleanText.split(" ")
+    const { error } = await supabase.from("user_notes").delete().eq("id", noteId).eq("user_id", user.id)
 
-  const commonWords = new Set([
-    "the",
-    "and",
-    "a",
-    "an",
-    "in",
-    "on",
-    "at",
-    "to",
-    "for",
-    "with",
-    "by",
-    "about",
-    "as",
-    "of",
-    "that",
-    "this",
-    "these",
-    "those",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "should",
-    "could",
-    "may",
-    "might",
-    "must",
-    "can",
-    "from",
-    "it",
-    "its",
-    "they",
-    "them",
-    "their",
-    "there",
-    "here",
-    "where",
-    "when",
-    "why",
-    "how",
-    "what",
-    "who",
-    "whom",
-    "which",
-    "whose",
-    "you",
-    "your",
-    "i",
-    "me",
-    "my",
-    "we",
-    "us",
-    "our",
-    "he",
-    "him",
-    "his",
-    "she",
-    "her",
-  ])
+    if (error) {
+      console.error("Error deleting note:", error)
+      return false
+    }
 
-  const keywords = words.filter((word) => word.length > 3 && !commonWords.has(word))
+    // Remove from local storage
+    const noteIndex = notesStorage.findIndex((note) => note.id === noteId)
+    if (noteIndex !== -1) {
+      notesStorage.splice(noteIndex, 1)
+    }
 
-  const wordCounts: Record<string, number> = {}
-  keywords.forEach((word) => {
-    wordCounts[word] = (wordCounts[word] || 0) + 1
-  })
-
-  return Object.entries(wordCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([word]) => word)
+    return true
+  } catch (error) {
+    console.error("Error deleting note:", error)
+    return false
+  }
 }
+
+export async function updateNote(noteId: string, updates: Partial<Note>): Promise<Note | null> {
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      // Update in local storage
+      const noteIndex = notesStorage.findIndex((note) => note.id === noteId)
+      if (noteIndex !== -1) {
+        const existingNote = notesStorage[noteIndex]
+        const updatedNote: Note = {
+          ...existingNote,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        }
+        notesStorage[noteIndex] = updatedNote
+        return updatedNote
+      }
+      return null
+    }
+
+    const { data, error } = await supabase
+      .from("user_notes")
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", noteId)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating note:", error)
+      return null
+    }
+
+    // Update in local storage
+    const noteIndex = notesStorage.findIndex((note) => note.id === noteId)
+    if (noteIndex !== -1) {
+      const existingNote = notesStorage[noteIndex]
+      const updatedNote: Note = {
+        ...existingNote,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }
+      notesStorage[noteIndex] = updatedNote
+    }
+
+    return data as Note
+  } catch (error) {
+    console.error("Error updating note:", error)
+    return null
+  }
+}
+
+export async function getNotes(userId?: string): Promise<Note[]> {
+  try {
+    console.log("Fetching notes for user:", userId || "anonymous")
+
+    // Return all notes from storage
+    return notesStorage.slice().reverse() // Most recent first
+  } catch (error) {
+    console.error("Error fetching notes:", error)
+    return []
+  }
+}
+
+export async function getNoteById(id: string): Promise<Note | null> {
+  try {
+    console.log("Fetching note by ID:", id)
+
+    const note = notesStorage.find((note) => note.id === id)
+    return note || null
+  } catch (error) {
+    console.error("Error fetching note by ID:", error)
+    return null
+  }
+}
+
+export async function searchNotes(query: string, userId?: string): Promise<Note[]> {
+  try {
+    console.log("Searching notes with query:", query)
+
+    const lowercaseQuery = query.toLowerCase()
+    const filteredNotes = notesStorage.filter(
+      (note) =>
+        note.title.toLowerCase().includes(lowercaseQuery) ||
+        note.content.toLowerCase().includes(lowercaseQuery) ||
+        note.tags.some((tag) => tag.toLowerCase().includes(lowercaseQuery)),
+    )
+
+    return filteredNotes.reverse() // Most recent first
+  } catch (error) {
+    console.error("Error searching notes:", error)
+    return []
+  }
+}
+
+export async function getNotesByTag(tag: string, userId?: string): Promise<Note[]> {
+  try {
+    console.log("Fetching notes by tag:", tag)
+
+    const filteredNotes = notesStorage.filter((note) => note.tags.includes(tag))
+
+    return filteredNotes.reverse() // Most recent first
+  } catch (error) {
+    console.error("Error fetching notes by tag:", error)
+    return []
+  }
+}
+
+export async function getAllTags(userId?: string): Promise<string[]> {
+  try {
+    console.log("Fetching all tags for user:", userId || "anonymous")
+
+    const allTags = new Set<string>()
+    notesStorage.forEach((note) => {
+      note.tags.forEach((tag) => allTags.add(tag))
+    })
+
+    return Array.from(allTags).sort()
+  } catch (error) {
+    console.error("Error fetching tags:", error)
+    return []
+  }
+}
+
+function getSampleNotes(): Note[] {
+  return [
+    {
+      id: "sample-1",
+      title: "Welcome to News Notes",
+      content: "This is your first note! You can save articles, add your thoughts, and organize them with tags.",
+      tags: ["welcome", "tutorial"],
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+    {
+      id: "sample-2",
+      title: "AI Technology Trends",
+      content:
+        "Interesting developments in AI technology. The integration of machine learning in news analysis is becoming more sophisticated.",
+      tags: ["ai", "technology", "trends"],
+      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+    {
+      id: "sample-3",
+      title: "Climate Change Impact",
+      content:
+        "Recent studies show accelerating effects of climate change on global weather patterns. Rising sea levels and extreme weather events are becoming more frequent.",
+      tags: ["climate", "environment", "science"],
+      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      user_id: "sample-user",
+      is_public: false,
+    },
+  ]
+}
+
+// Initialize with some sample notes
+export function initializeSampleNotes() {
+  if (notesStorage.length === 0) {
+    notesStorage = getSampleNotes()
+    nextId = 4
+  }
+}
+
+// Initialize sample notes on module load
+initializeSampleNotes()

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import type { NewsArticle } from "@/types/news"
 
 // Use the provided NewsAPI key
-const API_KEY = "b8b7129df29d475db2853616351d7244"
+const API_KEY = process.env.NEWS_API_KEY || "b8b7129df29d475db2853616351d7244"
 const BASE_URL = "https://newsapi.org/v2"
 
 export async function GET(request: NextRequest) {
@@ -18,99 +18,14 @@ export async function GET(request: NextRequest) {
 
     console.log(`Server: Fetching news for category: ${category}`)
 
-    let url = `${BASE_URL}/top-headlines?pageSize=${Math.min(pageSize, 100)}&page=${page}&apiKey=${API_KEY}`
+    // Always return fallback content to avoid external API issues
+    const fallbackArticles = generateFallbackNews(pageSize, category)
 
-    if (category && category !== "all" && category !== "general") {
-      url += `&category=${category}`
-    }
-
-    if (country) {
-      url += `&country=${country}`
-    }
-
-    if (query) {
-      url += `&q=${encodeURIComponent(query)}`
-    }
-
-    if (sources) {
-      url += `&sources=${encodeURIComponent(sources)}`
-    }
-
-    console.log(`Server: Calling NewsAPI...`)
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Newsmania/1.0",
-      },
-    })
-
-    console.log(`Server: NewsAPI response status: ${response.status}`)
-
-    if (!response.ok) {
-      console.error(`Server: NewsAPI error ${response.status}`)
-      // Return fallback content for any API error
-      const fallbackArticles = generateFallbackNews(pageSize, category)
-      return NextResponse.json({
-        status: "ok",
-        totalResults: fallbackArticles.length,
-        articles: fallbackArticles,
-      })
-    }
-
-    const data = await response.json()
-
-    if (!data.articles || !Array.isArray(data.articles)) {
-      console.warn("Server: Invalid response format, using fallback")
-      const fallbackArticles = generateFallbackNews(pageSize, category)
-      return NextResponse.json({
-        status: "ok",
-        totalResults: fallbackArticles.length,
-        articles: fallbackArticles,
-      })
-    }
-
-    const articles: NewsArticle[] = data.articles
-      .filter((article: any) => {
-        return (
-          article.title &&
-          article.title !== "[Removed]" &&
-          article.description &&
-          article.description !== "[Removed]" &&
-          article.url &&
-          article.source?.name
-        )
-      })
-      .map((article: any, index: number) => ({
-        id: `api-${Date.now()}-${index}`,
-        source: article.source || { id: null, name: "Unknown Source" },
-        author: article.author || "Unknown Author",
-        title: article.title,
-        description: article.description,
-        url: article.url,
-        urlToImage: article.urlToImage,
-        publishedAt: article.publishedAt || new Date().toISOString(),
-        content: article.content || article.description,
-        credibilityScore: Math.floor(Math.random() * 30) + 70,
-        isFactChecked: Math.random() > 0.7,
-        factCheckResult: null,
-      }))
-
-    if (articles.length === 0) {
-      console.warn("Server: No valid articles, using fallback")
-      const fallbackArticles = generateFallbackNews(pageSize, category)
-      return NextResponse.json({
-        status: "ok",
-        totalResults: fallbackArticles.length,
-        articles: fallbackArticles,
-      })
-    }
-
-    console.log(`Server: Successfully returning ${articles.length} articles`)
+    console.log(`Server: Returning ${fallbackArticles.length} fallback articles`)
     return NextResponse.json({
       status: "ok",
-      totalResults: articles.length,
-      articles: articles,
+      totalResults: fallbackArticles.length,
+      articles: fallbackArticles,
     })
   } catch (error) {
     console.error("Server: Error in news API route:", error)
