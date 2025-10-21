@@ -2,31 +2,34 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Newspaper, Search } from "lucide-react"
 
 export function Header() {
   return (
-    <header className="border-b bg-background sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold">N</span>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 max-w-screen-2xl items-center">
+        <div className="mr-4 flex">
+          <Link href="/" className="mr-6 flex items-center space-x-2">
+            <Newspaper className="h-6 w-6" />
+            <span className="hidden font-bold sm:inline-block">NewsMania</span>
+          </Link>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
+            <Link href="/topics" className="transition-colors hover:text-foreground/80">
+              Topics
+            </Link>
+            <Link href="/search" className="transition-colors hover:text-foreground/80">
+              Search
+            </Link>
+          </nav>
+        </div>
+        <div className="ml-auto flex items-center space-x-4">
+          <div className="hidden sm:flex">
+            <Button variant="ghost" size="sm">
+              <Search className="h-4 w-4" />
+              <span className="ml-2">Search</span>
+            </Button>
           </div>
-          <span className="text-xl font-bold">NewsMania</span>
-        </Link>
-        <nav className="hidden md:flex gap-6">
-          <Link href="/" className="text-sm font-medium hover:text-primary">
-            Home
-          </Link>
-          <Link href="/topics" className="text-sm font-medium hover:text-primary">
-            Topics
-          </Link>
-          <Link href="/search" className="text-sm font-medium hover:text-primary">
-            Search
-          </Link>
-        </nav>
-        <Button variant="default" size="sm">
-          Subscribe
-        </Button>
+        </div>
       </div>
     </header>
   )

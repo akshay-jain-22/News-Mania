@@ -1,71 +1,76 @@
 "use client"
 
 import { useState } from "react"
-import { Header } from "@/components/header"
-import { Button } from "@/components/ui/button"
+import type { NewsArticle } from "@/types/news"
 import { NewsCard } from "@/components/news-card"
 import { fetchNews } from "@/lib/news-api"
-import type { NewsArticle } from "@/types/news"
+import { useEffect } from "react"
+import { Button } from "@/components/ui/button"
 
-const CATEGORIES = ["technology", "business", "environment", "health", "science"]
+const CATEGORIES = [
+  { id: "all", label: "All" },
+  { id: "technology", label: "Technology" },
+  { id: "business", label: "Business" },
+  { id: "health", label: "Health" },
+  { id: "science", label: "Science" },
+  { id: "sports", label: "Sports" },
+  { id: "environment", label: "Environment" },
+]
 
 export default function TopicsPage() {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState("all")
 
-  const handleCategorySelect = async (category: string) => {
-    setSelectedCategory(category)
-    setLoading(true)
-    try {
-      const data = await fetchNews(category)
-      setArticles(data)
-    } catch (error) {
-      console.error("Error loading articles:", error)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    async function loadNews() {
+      setLoading(true)
+      try {
+        const category = selectedCategory === "all" ? undefined : selectedCategory
+        const news = await fetchNews(category)
+        setArticles(news)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    loadNews()
+  }, [selectedCategory])
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold mb-8">Topics</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold">Browse by Topic</h1>
+        <p className="mt-2 text-muted-foreground">Explore news from your favorite categories</p>
+      </div>
 
-        <div className="flex flex-wrap gap-2 mb-8">
-          {CATEGORIES.map((category) => (
-            <Button
-              key={category}
-              variant={selectedCategory === category ? "default" : "outline"}
-              onClick={() => handleCategorySelect(category)}
-              className="capitalize"
-            >
-              {category}
-            </Button>
+      <div className="mb-8 flex flex-wrap gap-2">
+        {CATEGORIES.map((category) => (
+          <Button
+            key={category.id}
+            variant={selectedCategory === category.id ? "default" : "outline"}
+            onClick={() => setSelectedCategory(category.id)}
+          >
+            {category.label}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-96 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground">Loading articles...</p>
-          </div>
-        ) : selectedCategory ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {articles.length > 0 ? (
-              articles.map((article) => <NewsCard key={article.id} article={article} />)
-            ) : (
-              <div className="col-span-full text-center py-12">
-                <p className="text-lg text-muted-foreground">No articles found in this category.</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground">Select a topic to view articles.</p>
-          </div>
-        )}
-      </main>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {articles.map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,15 +1,19 @@
-import { NextResponse } from "next/server"
 import { fetchNews } from "@/lib/news-api"
+import { type NextRequest, NextResponse } from "next/server"
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const category = searchParams.get("category")
+    const searchParams = request.nextUrl.searchParams
+    const category = searchParams.get("category") || undefined
 
     const articles = await fetchNews(category || undefined)
-    return NextResponse.json(articles)
+
+    return NextResponse.json({
+      success: true,
+      articles,
+    })
   } catch (error) {
-    console.error("Error in API route:", error)
-    return NextResponse.json({ error: "Failed to fetch news" }, { status: 500 })
+    console.error("Error in news API:", error)
+    return NextResponse.json({ success: false, error: "Failed to fetch news" }, { status: 500 })
   }
 }

@@ -8,9 +8,10 @@ export interface NewsArticle {
   url: string
   publishedAt: string
   category: string
+  author?: string
 }
 
-export interface SearchResult {
+export interface NewsResponse {
   articles: NewsArticle[]
   totalResults: number
 }
