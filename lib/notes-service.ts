@@ -1,508 +1,523 @@
-import { getSupabaseClient } from "./supabase-client"
+import { supabase } from "@/lib/supabase-client"
+import type { Note } from "@/types/notes"
 
-// Types
-export interface Note {
-  id: string
+export type NoteInput = {
   title: string
   content: string
   topic?: string
-  tags: string[]
-  article_url?: string
-  article_title?: string
-  created_at: string
-  updated_at: string
-  user_id?: string
-  is_public?: boolean
-}
-
-export interface CreateNoteData {
-  title: string
-  content: string
   articleId?: string
-  articleUrl?: string
   articleTitle?: string
+  articleUrl?: string
+  isMarkdown?: boolean
   tags?: string[]
-  isPublic?: boolean
 }
 
-// In-memory storage for fallback
-let memoryNotes: Note[] = []
-let nextId = 1
+/**
+ * Get all notes for the current user
+ */
+export async function getUserNotes(): Promise<Note[]> {
+  try {
+    console.log("Fetching user notes")
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-// Generate unique ID for fallback storage
-function generateId(): string {
-  return `note-${nextId++}`
-}
-
-// Create a new note
-export async function createNote(noteData: CreateNoteData): Promise<Note> {
-  const supabase = getSupabaseClient()
-
-  if (supabase) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      const noteToInsert = {
-        title: noteData.title,
-        content: noteData.content,
-        topic: noteData.articleId || "General",
-        tags: noteData.tags || [],
-        article_url: noteData.articleUrl,
-        article_title: noteData.articleTitle,
-        is_public: noteData.isPublic || false,
-        user_id: user?.id || "anonymous",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase.from("user_notes").insert([noteToInsert]).select().single()
-
-      if (error) throw error
-
-      const createdNote: Note = {
-        id: data.id,
-        title: data.title,
-        content: data.content,
-        topic: data.topic,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        article_url: data.article_url,
-        article_title: data.article_title,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        user_id: data.user_id,
-        is_public: data.is_public,
-      }
-
-      // Also add to memory storage
-      memoryNotes.push(createdNote)
-      return createdNote
-    } catch (error) {
-      console.warn("Supabase createNote failed, using fallback:", error)
+    if (userError) {
+      console.error("Auth error:", userError)
+      throw new Error("Authentication error: " + userError.message)
     }
-  }
 
-  // Fallback to memory storage
-  const note: Note = {
-    id: generateId(),
-    title: noteData.title,
-    content: noteData.content,
-    topic: noteData.articleId || "General",
-    tags: noteData.tags || [],
-    article_url: noteData.articleUrl,
-    article_title: noteData.articleTitle,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user_id: "anonymous",
-    is_public: noteData.isPublic || false,
-  }
-
-  memoryNotes.push(note)
-  return note
-}
-
-// Save a note (alias for createNote for backward compatibility)
-export async function saveNote(noteData: CreateNoteData): Promise<Note> {
-  return createNote(noteData)
-}
-
-// Get all notes for a user
-export async function getUserNotes(userId?: string): Promise<Note[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      const targetUserId = userId || user?.id
-
-      if (targetUserId) {
-        const { data, error } = await supabase
-          .from("user_notes")
-          .select("*")
-          .eq("user_id", targetUserId)
-          .order("created_at", { ascending: false })
-
-        if (error) throw error
-
-        return (data || []).map((note) => ({
-          ...note,
-          tags: Array.isArray(note.tags) ? note.tags : [],
-        })) as Note[]
-      }
-    } catch (error) {
-      console.warn("Supabase getUserNotes failed, using fallback:", error)
+    if (!userData.user) {
+      console.error("No authenticated user found")
+      throw new Error("No authenticated user found")
     }
+
+    console.log("User authenticated, fetching notes for user:", userData.user.id)
+    const { data, error } = await supabase
+      .from("user_notes")
+      .select("*")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching notes:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    console.log("Notes fetched successfully:", data?.length || 0)
+    return (data || []).map((note) => ({
+      id: note.id,
+      userId: note.user_id,
+      title: note.title || "",
+      content: note.content,
+      topic: note.topic || "General",
+      createdAt: note.created_at,
+      updatedAt: note.updated_at,
+      articleId: note.article_id,
+      articleTitle: note.article_title,
+      articleUrl: note.article_url,
+      isMarkdown: note.is_markdown || false,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+    }))
+  } catch (error) {
+    console.error("Error getting user notes:", error)
+    throw error
   }
-
-  // Fallback to memory storage
-  return memoryNotes
-    .filter((note) => !userId || note.user_id === userId)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
-// Get all notes (without user filtering) - REQUIRED EXPORT
-export async function getNotes(userId?: string): Promise<Note[]> {
-  return getUserNotes(userId)
+/**
+ * Get notes for a specific article
+ */
+export async function getNotes(articleId?: string): Promise<Note[]> {
+  try {
+    console.log(`Getting notes for article ${articleId}`)
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !userData.user) {
+      console.error("No authenticated user found")
+      return []
+    }
+
+    let query = supabase
+      .from("user_notes")
+      .select("*")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false })
+
+    if (articleId) {
+      query = query.eq("article_id", articleId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching notes:", error)
+      return []
+    }
+
+    console.log(`Found ${data?.length || 0} notes for article ${articleId}`)
+    return (data || []).map((note) => ({
+      id: note.id,
+      userId: note.user_id,
+      title: note.title || "",
+      content: note.content,
+      topic: note.topic || "General",
+      createdAt: note.created_at,
+      updatedAt: note.updated_at,
+      articleId: note.article_id,
+      articleTitle: note.article_title,
+      articleUrl: note.article_url,
+      isMarkdown: note.is_markdown || false,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+    }))
+  } catch (error) {
+    console.error("Error getting notes:", error)
+    return []
+  }
 }
 
-// Insert sample notes - REQUIRED EXPORT
+/**
+ * Save a note for an article
+ */
+export async function saveNote(
+  articleId?: string,
+  content?: string,
+  articleTitle?: string,
+  isMarkdown?: boolean,
+  articleUrl?: string,
+): Promise<Note | null> {
+  try {
+    if (!content || content.trim() === "") {
+      throw new Error("Note content is required")
+    }
+
+    console.log(`Saving note for article ${articleId}:`, content.substring(0, 50) + "...")
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError) {
+      console.error("Auth error:", userError)
+      throw new Error("Authentication error: " + userError.message)
+    }
+
+    if (!userData.user) {
+      throw new Error("No authenticated user found")
+    }
+
+    const tags = extractKeywords(content)
+
+    const newNote = {
+      user_id: userData.user.id,
+      title: articleTitle ? `Note: ${articleTitle}` : "Note from article",
+      content: content,
+      topic: "News",
+      article_id: articleId,
+      article_title: articleTitle,
+      article_url: articleUrl,
+      is_markdown: isMarkdown || false,
+      tags: tags,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    console.log("Saving note to Supabase:", {
+      ...newNote,
+      content: newNote.content.substring(0, 50) + "...",
+    })
+
+    const { data, error } = await supabase.from("user_notes").insert(newNote).select().single()
+
+    if (error) {
+      console.error("Error saving note:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    if (!data) {
+      throw new Error("No data returned from database")
+    }
+
+    console.log("Note saved successfully:", data.id)
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title || "",
+      content: data.content,
+      topic: data.topic || "General",
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      articleId: data.article_id,
+      articleTitle: data.article_title,
+      articleUrl: data.article_url,
+      isMarkdown: data.is_markdown || false,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    }
+  } catch (error) {
+    console.error("Error saving note:", error)
+    throw error
+  }
+}
+
+/**
+ * Create a new note
+ */
+export async function createNote(noteInput: NoteInput): Promise<Note | null> {
+  try {
+    console.log("Creating note:", noteInput.title)
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError) {
+      console.error("Auth error:", userError)
+      throw new Error("Authentication error: " + userError.message)
+    }
+
+    if (!userData.user) {
+      throw new Error("No authenticated user found")
+    }
+
+    const userId = userData.user.id
+    console.log("User authenticated:", userId)
+
+    const tags = noteInput.tags || extractKeywords(noteInput.content)
+
+    const newNote = {
+      user_id: userId,
+      title: noteInput.title,
+      content: noteInput.content,
+      topic: noteInput.topic || "General",
+      article_id: noteInput.articleId || null,
+      article_title: noteInput.articleTitle || null,
+      article_url: noteInput.articleUrl || null,
+      is_markdown: noteInput.isMarkdown || false,
+      tags: tags,
+    }
+
+    console.log("Saving note to Supabase:", {
+      ...newNote,
+      content: newNote.content.substring(0, 50) + "...",
+    })
+
+    const { data, error } = await supabase.from("user_notes").insert(newNote).select().single()
+
+    if (error) {
+      console.error("Error creating note:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    if (!data) {
+      throw new Error("No data returned from database")
+    }
+
+    console.log("Note created successfully:", data.id)
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      content: data.content,
+      topic: data.topic,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      articleId: data.article_id,
+      articleTitle: data.article_title,
+      articleUrl: data.article_url,
+      isMarkdown: data.is_markdown || false,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    }
+  } catch (error) {
+    console.error("Error creating note:", error)
+    throw error
+  }
+}
+
+/**
+ * Update an existing note
+ */
+export async function updateNote(id: string, updates: Partial<NoteInput>): Promise<Note | null> {
+  try {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !userData.user) {
+      throw new Error("No authenticated user found")
+    }
+
+    let tags = updates.tags
+    if (updates.content) {
+      tags = extractKeywords(updates.content)
+    }
+
+    const updateData = {
+      ...(updates.title && { title: updates.title }),
+      ...(updates.content && { content: updates.content }),
+      ...(updates.topic && { topic: updates.topic }),
+      ...(updates.articleUrl && { article_url: updates.articleUrl }),
+      ...(updates.isMarkdown !== undefined && { is_markdown: updates.isMarkdown }),
+      tags,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase
+      .from("user_notes")
+      .update(updateData)
+      .eq("id", id)
+      .eq("user_id", userData.user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating note:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      content: data.content,
+      topic: data.topic,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      articleId: data.article_id,
+      articleTitle: data.article_title,
+      articleUrl: data.article_url,
+      isMarkdown: data.is_markdown || false,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    }
+  } catch (error) {
+    console.error("Error updating note:", error)
+    throw error
+  }
+}
+
+/**
+ * Delete a note
+ */
+export async function deleteNote(id: string): Promise<boolean> {
+  try {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !userData.user) {
+      throw new Error("No authenticated user found")
+    }
+
+    const { error } = await supabase.from("user_notes").delete().eq("id", id).eq("user_id", userData.user.id)
+
+    if (error) {
+      console.error("Error deleting note:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error deleting note:", error)
+    throw error
+  }
+}
+
+/**
+ * Insert sample notes for testing
+ */
 export async function insertSampleNotes(): Promise<boolean> {
   try {
-    const supabase = getSupabaseClient()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (supabase) {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (user) {
-          const sampleNotes = getSampleNotesData().map((note) => ({
-            ...note,
-            user_id: user.id,
-          }))
-
-          const { error } = await supabase.from("user_notes").insert(sampleNotes)
-
-          if (error) {
-            console.error("Error inserting sample notes to Supabase:", error)
-          } else {
-            console.log("Sample notes inserted successfully to Supabase")
-            return true
-          }
-        }
-      } catch (supabaseError) {
-        console.warn("Supabase insertSampleNotes failed, using fallback:", supabaseError)
-      }
+    if (userError || !userData.user) {
+      throw new Error("No authenticated user found")
     }
 
-    // Fallback: add sample notes to memory storage
-    const sampleNotes = getSampleNotesData().map((noteData) => ({
-      ...noteData,
-      id: generateId(),
-      user_id: "anonymous",
-    }))
+    const sampleNotes = [
+      {
+        user_id: userData.user.id,
+        title: "AI Advancements in 2024",
+        content:
+          "GPT-4 has shown remarkable capabilities in understanding and generating human-like text. The next frontier appears to be multimodal models that can process both text and images.",
+        topic: "Technology",
+        is_markdown: false,
+        tags: ["ai", "gpt4", "technology", "multimodal"],
+      },
+      {
+        user_id: userData.user.id,
+        title: "The Future of Quantum Computing",
+        content:
+          "IBM and Google continue to make strides in quantum computing. The race to quantum supremacy is heating up with practical applications on the horizon.",
+        topic: "Technology",
+        is_markdown: false,
+        tags: ["quantum", "computing", "ibm", "google"],
+      },
+      {
+        user_id: userData.user.id,
+        title: "Global Climate Policy",
+        content:
+          "Recent international agreements show promising steps toward carbon reduction, but implementation remains a challenge for many nations.",
+        topic: "Politics",
+        is_markdown: false,
+        tags: ["climate", "policy", "carbon", "international"],
+      },
+      {
+        user_id: userData.user.id,
+        title: "Weather Report: Sunny Days Ahead",
+        content:
+          "The forecast for the coming week shows clear skies and temperatures in the mid-70s. Perfect weather for outdoor activities and enjoying nature.",
+        topic: "Weather",
+        is_markdown: false,
+        tags: ["weather", "forecast", "sunny", "outdoor"],
+      },
+      {
+        user_id: userData.user.id,
+        title: "Storm Warning: Hurricane Season",
+        content:
+          "Meteorologists predict an active hurricane season this year. Coastal residents should prepare emergency kits and evacuation plans.",
+        topic: "Weather",
+        is_markdown: false,
+        tags: ["weather", "hurricane", "storm", "emergency"],
+      },
+    ]
 
-    memoryNotes.push(...sampleNotes)
-    console.log("Sample notes added to memory storage")
+    const { error } = await supabase.from("user_notes").insert(sampleNotes)
+
+    if (error) {
+      console.error("Error inserting sample notes:", error)
+      throw new Error("Database error: " + error.message)
+    }
+
+    console.log("Sample notes inserted successfully")
     return true
   } catch (error) {
     console.error("Error inserting sample notes:", error)
-    return false
+    throw error
   }
 }
 
-// Update a note
-export async function updateNote(id: string, updates: Partial<Note>): Promise<Note | null> {
-  const supabase = getSupabaseClient()
+/**
+ * Simple keyword extraction from text
+ */
+function extractKeywords(text: string): string[] {
+  if (!text) return []
 
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("user_notes")
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single()
+  const cleanText = text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
 
-      if (error) throw error
+  const words = cleanText.split(" ")
 
-      // Update memory storage too
-      const noteIndex = memoryNotes.findIndex((note) => note.id === id)
-      if (noteIndex !== -1) {
-        memoryNotes[noteIndex] = {
-          ...memoryNotes[noteIndex],
-          ...updates,
-          updated_at: new Date().toISOString(),
-        }
-      }
+  const commonWords = new Set([
+    "the",
+    "and",
+    "a",
+    "an",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "with",
+    "by",
+    "about",
+    "as",
+    "of",
+    "that",
+    "this",
+    "these",
+    "those",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "should",
+    "could",
+    "may",
+    "might",
+    "must",
+    "can",
+    "from",
+    "it",
+    "its",
+    "they",
+    "them",
+    "their",
+    "there",
+    "here",
+    "where",
+    "when",
+    "why",
+    "how",
+    "what",
+    "who",
+    "whom",
+    "which",
+    "whose",
+    "you",
+    "your",
+    "i",
+    "me",
+    "my",
+    "we",
+    "us",
+    "our",
+    "he",
+    "him",
+    "his",
+    "she",
+    "her",
+  ])
 
-      return {
-        ...data,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-      } as Note
-    } catch (error) {
-      console.warn("Supabase updateNote failed, using fallback:", error)
-    }
-  }
+  const keywords = words.filter((word) => word.length > 3 && !commonWords.has(word))
 
-  // Fallback to memory storage
-  const noteIndex = memoryNotes.findIndex((note) => note.id === id)
-  if (noteIndex !== -1) {
-    memoryNotes[noteIndex] = {
-      ...memoryNotes[noteIndex],
-      ...updates,
-      updated_at: new Date().toISOString(),
-    }
-    return memoryNotes[noteIndex]
-  }
+  const wordCounts: Record<string, number> = {}
+  keywords.forEach((word) => {
+    wordCounts[word] = (wordCounts[word] || 0) + 1
+  })
 
-  return null
+  return Object.entries(wordCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word)
 }
-
-// Delete a note
-export async function deleteNote(id: string): Promise<boolean> {
-  const supabase = getSupabaseClient()
-
-  if (supabase) {
-    try {
-      const { error } = await supabase.from("user_notes").delete().eq("id", id)
-
-      if (error) throw error
-
-      // Remove from memory storage too
-      const noteIndex = memoryNotes.findIndex((note) => note.id === id)
-      if (noteIndex !== -1) {
-        memoryNotes.splice(noteIndex, 1)
-      }
-
-      return true
-    } catch (error) {
-      console.warn("Supabase deleteNote failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  const noteIndex = memoryNotes.findIndex((note) => note.id === id)
-  if (noteIndex !== -1) {
-    memoryNotes.splice(noteIndex, 1)
-    return true
-  }
-
-  return false
-}
-
-// Get a single note by ID
-export async function getNoteById(id: string): Promise<Note | null> {
-  const supabase = getSupabaseClient()
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.from("user_notes").select("*").eq("id", id).single()
-
-      if (error) throw error
-
-      return {
-        ...data,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-      } as Note
-    } catch (error) {
-      console.warn("Supabase getNoteById failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  return memoryNotes.find((note) => note.id === id) || null
-}
-
-// Search notes by content or title
-export async function searchNotes(query: string, userId?: string): Promise<Note[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase
-        .from("user_notes")
-        .select("*")
-        .eq("user_id", userId)
-        .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      return (data || []).map((note) => ({
-        ...note,
-        tags: Array.isArray(note.tags) ? note.tags : [],
-      })) as Note[]
-    } catch (error) {
-      console.warn("Supabase searchNotes failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  const lowercaseQuery = query.toLowerCase()
-  return memoryNotes
-    .filter((note) => {
-      const matchesQuery =
-        note.title.toLowerCase().includes(lowercaseQuery) ||
-        note.content.toLowerCase().includes(lowercaseQuery) ||
-        note.tags.some((tag) => tag.toLowerCase().includes(lowercaseQuery))
-
-      const matchesUser = !userId || note.user_id === userId
-
-      return matchesQuery && matchesUser
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-}
-
-// Get notes by article URL
-export async function getNotesByArticle(articleUrl: string, userId?: string): Promise<Note[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase
-        .from("user_notes")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("article_url", articleUrl)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      return (data || []).map((note) => ({
-        ...note,
-        tags: Array.isArray(note.tags) ? note.tags : [],
-      })) as Note[]
-    } catch (error) {
-      console.warn("Supabase getNotesByArticle failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  return memoryNotes
-    .filter((note) => {
-      const matchesUrl = note.article_url === articleUrl
-      const matchesUser = !userId || note.user_id === userId
-      return matchesUrl && matchesUser
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-}
-
-// Get notes by tag
-export async function getNotesByTag(tag: string, userId?: string): Promise<Note[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase
-        .from("user_notes")
-        .select("*")
-        .eq("user_id", userId)
-        .contains("tags", [tag])
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      return (data || []).map((note) => ({
-        ...note,
-        tags: Array.isArray(note.tags) ? note.tags : [],
-      })) as Note[]
-    } catch (error) {
-      console.warn("Supabase getNotesByTag failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  return memoryNotes
-    .filter((note) => {
-      const hasTag = note.tags.includes(tag)
-      const matchesUser = !userId || note.user_id === userId
-      return hasTag && matchesUser
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-}
-
-// Get all tags for a user
-export async function getAllTags(userId?: string): Promise<string[]> {
-  const supabase = getSupabaseClient()
-
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase.from("user_notes").select("tags").eq("user_id", userId)
-
-      if (error) throw error
-
-      const allTags = new Set<string>()
-      data?.forEach((note) => {
-        if (Array.isArray(note.tags)) {
-          note.tags.forEach((tag: string) => allTags.add(tag))
-        }
-      })
-
-      return Array.from(allTags).sort()
-    } catch (error) {
-      console.warn("Supabase getAllTags failed, using fallback:", error)
-    }
-  }
-
-  // Fallback to memory storage
-  const allTags = new Set<string>()
-  memoryNotes
-    .filter((note) => !userId || note.user_id === userId)
-    .forEach((note) => {
-      note.tags.forEach((tag) => allTags.add(tag))
-    })
-
-  return Array.from(allTags).sort()
-}
-
-// Helper function to get sample notes data
-function getSampleNotesData(): Omit<Note, "id" | "user_id">[] {
-  return [
-    {
-      title: "Welcome to News Notes",
-      content:
-        "This is your first note! You can save articles, add your thoughts, and organize them with tags. Use the AI features to get insights and context about news articles.",
-      topic: "Tutorial",
-      tags: ["welcome", "tutorial", "getting-started"],
-      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      is_public: false,
-    },
-    {
-      title: "AI Technology Trends 2024",
-      content:
-        "Interesting developments in AI technology this year. The integration of machine learning in news analysis is becoming more sophisticated. Key trends include multimodal AI, improved language models, and better fact-checking capabilities.",
-      topic: "Technology",
-      tags: ["ai", "technology", "trends", "2024"],
-      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      is_public: false,
-    },
-    {
-      title: "Climate Change Impact Analysis",
-      content:
-        "Recent studies show accelerating effects of climate change on global weather patterns. Rising sea levels and extreme weather events are becoming more frequent. Important to track policy responses and technological solutions.",
-      topic: "Environment",
-      tags: ["climate", "environment", "science", "policy"],
-      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      is_public: false,
-    },
-    {
-      title: "Economic Market Analysis",
-      content:
-        "Current market trends show volatility in tech stocks while renewable energy sectors are gaining momentum. Federal Reserve policies continue to influence global markets.",
-      topic: "Economics",
-      tags: ["economics", "markets", "finance", "analysis"],
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      is_public: false,
-    },
-  ]
-}
-
-// Initialize sample notes on module load
-function initializeSampleNotes() {
-  if (memoryNotes.length === 0) {
-    const sampleNotes = getSampleNotesData().map((noteData, index) => ({
-      ...noteData,
-      id: `sample-${index + 1}`,
-      user_id: "anonymous",
-    }))
-
-    memoryNotes = sampleNotes
-    nextId = sampleNotes.length + 1
-    console.log("Initialized with sample notes")
-  }
-}
-
-// Initialize on module load
-initializeSampleNotes()

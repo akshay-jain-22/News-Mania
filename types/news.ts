@@ -1,17 +1,54 @@
-export interface NewsArticle {
-  id: string
-  title: string
-  description: string
-  content: string
-  image: string
-  source: string
-  url: string
-  publishedAt: string
-  category: string
-  author?: string
+export interface NewsSource {
+  id: string | null
+  name: string
 }
 
-export interface NewsResponse {
-  articles: NewsArticle[]
-  totalResults: number
+export interface NewsArticle {
+  id: string
+  source: NewsSource
+  author: string
+  title: string
+  description: string
+  url: string
+  urlToImage: string | null
+  publishedAt: string
+  content: string
+  credibilityScore?: number
+  isFactChecked?: boolean
+  factCheckResult?: string | null
+  claimsAnalyzed?: FactCheckClaim[]
+  analysisFactors?: string[]
+  analyzedBy?: string
+}
+
+export interface FactCheckClaim {
+  claim: string
+  verdict: "true" | "false" | "partially true" | "unverified"
+  explanation: string
+  sources?: string[]
+}
+
+export interface FactCheckResult {
+  isFactChecked: boolean
+  credibilityScore: number
+  factCheckResult: string
+  claimsAnalyzed?: FactCheckClaim[]
+  analysisFactors?: string[]
+  analyzedBy?: string
+}
+
+export interface UserPreferences {
+  categories: string[]
+  sources: string[]
+  autoRefresh: boolean
+  refreshInterval: number
+  theme: "light" | "dark" | "system"
+}
+
+export interface TopicData {
+  name: string
+  description: string
+  icon: string
+  color: string
+  articles?: NewsArticle[]
 }

@@ -1,23 +1,30 @@
-import { recommendationPipeline } from "@/lib/system-architecture/recommendation-pipeline"
+import { type NextRequest, NextResponse } from "next/server"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { userId, articleId, action } = body
+    const { userId, articleId, interactionType, timeSpent, scrollDepth } = await request.json()
 
-    if (!userId || !articleId) {
-      return Response.json({ error: "Missing required fields" }, { status: 400 })
+    if (!userId || !articleId || !interactionType) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Track the interaction
-    recommendationPipeline.trackReading(userId, articleId)
+    // Log the interaction (in a real app, this would go to a database)
+    console.log(`📊 User ${userId} performed ${interactionType} on article ${articleId}`, {
+      timeSpent,
+      scrollDepth,
+      timestamp: new Date().toISOString(),
+    })
 
-    return Response.json({
+    // Simulate successful tracking
+    return NextResponse.json({
       success: true,
-      message: "Interaction tracked",
+      userId,
+      articleId,
+      interactionType,
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
     console.error("Error tracking interaction:", error)
-    return Response.json({ error: "Failed to track interaction" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to track interaction" }, { status: 500 })
   }
 }

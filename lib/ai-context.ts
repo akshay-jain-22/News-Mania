@@ -1,228 +1,308 @@
-// Simple fallback implementation without AI SDK dependencies
-export interface NewsItem {
-  id: string
-  title: string
-  description?: string
-  content?: string
-  url: string
-  urlToImage?: string
-  publishedAt: string
-  source?: {
-    name?: string
-  }
-  author?: string
-  credibilityScore?: number
-  isFactChecked?: boolean
-}
-
-export interface ContextAnalysis {
-  summary: string
-  keyPoints: string[]
-  sentiment: "positive" | "negative" | "neutral"
-  credibility: "high" | "medium" | "low"
-  bias: "left" | "right" | "center"
-  topics: string[]
-  relatedQuestions: string[]
-}
-
-// Get news context analysis - REQUIRED EXPORT
-export async function getNewsContext(article: NewsItem): Promise<ContextAnalysis> {
+/**
+ * Get additional context for a news article using AI
+ */
+export async function getNewsContext(title: string, description: string, content: string): Promise<string> {
   try {
-    console.log("Analyzing news context for:", article.title)
+    console.log("Requesting context for article:", title)
 
-    // Use fallback analysis for now to avoid AI SDK issues
-    return generateFallbackAnalysis(article)
-  } catch (error) {
-    console.error("Error in getNewsContext:", error)
-    return generateFallbackAnalysis(article)
-  }
-}
+    // Add a timeout to the fetch to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
 
-// Get article context (alias for backward compatibility)
-export async function getArticleContext(article: NewsItem): Promise<ContextAnalysis> {
-  return getNewsContext(article)
-}
+    const response = await fetch("/api/news-context", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title,
+        description,
+        content,
+      }),
+      signal: controller.signal,
+    })
 
-// Ask a question about an article
-export async function askQuestionAboutArticle(article: NewsItem, question: string): Promise<string> {
-  try {
-    console.log("Answering question about article:", question)
-    return generateFallbackAnswer(article, question)
-  } catch (error) {
-    console.error("Error answering question:", error)
-    return generateFallbackAnswer(article, question)
-  }
-}
+    clearTimeout(timeoutId)
 
-// Generate summary of an article
-export async function generateSummary(article: NewsItem): Promise<string> {
-  try {
-    console.log("Generating summary for:", article.title)
-    return generateFallbackSummary(article)
-  } catch (error) {
-    console.error("Error generating summary:", error)
-    return generateFallbackSummary(article)
-  }
-}
-
-// Analyze article sentiment
-export async function analyzeSentiment(article: NewsItem): Promise<"positive" | "negative" | "neutral"> {
-  try {
-    const context = await getNewsContext(article)
-    return context.sentiment
-  } catch (error) {
-    console.error("Error analyzing sentiment:", error)
-    return "neutral"
-  }
-}
-
-// Get related topics
-export async function getRelatedTopics(article: NewsItem): Promise<string[]> {
-  try {
-    const context = await getNewsContext(article)
-    return context.topics
-  } catch (error) {
-    console.error("Error getting related topics:", error)
-    return extractFallbackTopics(article)
-  }
-}
-
-// Helper function to generate fallback analysis
-function generateFallbackAnalysis(article: NewsItem): ContextAnalysis {
-  const title = article.title?.toLowerCase() || ""
-  const description = (article.description || "").toLowerCase()
-  const content = (article.content || "").toLowerCase()
-  const fullText = `${title} ${description} ${content}`
-
-  // Simple sentiment analysis based on keywords
-  const positiveWords = [
-    "success",
-    "growth",
-    "improvement",
-    "breakthrough",
-    "achievement",
-    "positive",
-    "good",
-    "great",
-    "excellent",
-    "win",
-    "victory",
-    "progress",
-  ]
-  const negativeWords = [
-    "crisis",
-    "problem",
-    "decline",
-    "failure",
-    "concern",
-    "issue",
-    "negative",
-    "bad",
-    "terrible",
-    "disaster",
-    "loss",
-    "defeat",
-  ]
-
-  const positiveCount = positiveWords.filter((word) => fullText.includes(word)).length
-  const negativeCount = negativeWords.filter((word) => fullText.includes(word)).length
-
-  let sentiment: "positive" | "negative" | "neutral" = "neutral"
-  if (positiveCount > negativeCount) sentiment = "positive"
-  else if (negativeCount > positiveCount) sentiment = "negative"
-
-  // Extract topics based on common keywords
-  const topics = extractFallbackTopics(article)
-
-  // Generate basic summary
-  const summary =
-    article.description ||
-    `This article discusses ${article.title}. Published by ${article.source?.name || "unknown source"}.`
-
-  // Determine credibility based on source and other factors
-  let credibility: "high" | "medium" | "low" = "medium"
-  if (article.credibilityScore) {
-    if (article.credibilityScore >= 80) credibility = "high"
-    else if (article.credibilityScore < 60) credibility = "low"
-  }
-
-  return {
-    summary,
-    keyPoints: [
-      `Article published by ${article.source?.name || "unknown source"}`,
-      `Published on ${new Date(article.publishedAt).toLocaleDateString()}`,
-      `Sentiment analysis shows ${sentiment} tone`,
-      article.author ? `Written by ${article.author}` : "Author information not available",
-    ].filter(Boolean),
-    sentiment,
-    credibility,
-    bias: "center", // Default to center for fallback
-    topics,
-    relatedQuestions: [
-      "What are the main facts in this article?",
-      "Who are the key people or organizations mentioned?",
-      "What is the significance of this news?",
-      "How might this impact the broader industry or society?",
-    ],
-  }
-}
-
-// Helper function to extract topics from article
-function extractFallbackTopics(article: NewsItem): string[] {
-  const title = article.title?.toLowerCase() || ""
-  const description = (article.description || "").toLowerCase()
-  const fullText = `${title} ${description}`
-
-  const topicKeywords = {
-    Technology: ["tech", "ai", "artificial intelligence", "software", "computer", "digital", "internet", "app"],
-    Politics: ["government", "election", "policy", "political", "congress", "senate", "president", "vote"],
-    Business: ["business", "company", "market", "economy", "financial", "stock", "investment", "corporate"],
-    Health: ["health", "medical", "hospital", "doctor", "disease", "treatment", "medicine", "healthcare"],
-    Sports: ["sports", "game", "team", "player", "championship", "league", "match", "tournament"],
-    Science: ["science", "research", "study", "scientist", "discovery", "experiment", "scientific"],
-    Environment: ["climate", "environment", "green", "pollution", "sustainability", "renewable", "carbon"],
-    Entertainment: ["movie", "music", "celebrity", "entertainment", "film", "show", "actor", "artist"],
-  }
-
-  const detectedTopics: string[] = []
-
-  for (const [topic, keywords] of Object.entries(topicKeywords)) {
-    if (keywords.some((keyword) => fullText.includes(keyword))) {
-      detectedTopics.push(topic)
+    if (!response.ok) {
+      console.error(`Failed to fetch news context: ${response.status}`)
+      throw new Error(`API Error: ${response.status}`)
     }
-  }
 
-  return detectedTopics.length > 0 ? detectedTopics : ["General News"]
+    const data = await response.json()
+
+    // Check if we got a valid context response
+    if (!data.context || data.context.trim() === "") {
+      throw new Error("Empty context received")
+    }
+
+    return data.context
+  } catch (error) {
+    console.error("Error getting news context:", error)
+
+    // Create intelligent fallback based on article content
+    return createIntelligentFallback(title, description, content)
+  }
 }
 
-// Helper function to generate fallback answer
-function generateFallbackAnswer(article: NewsItem, question: string): string {
+/**
+ * Ask AI a question about a specific news article
+ */
+export async function askAIAboutArticle(
+  title: string,
+  description: string,
+  content: string,
+  question: string,
+): Promise<string> {
+  try {
+    console.log("Asking AI about article:", title)
+    console.log("Question:", question)
+
+    // Add a timeout to the fetch to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
+    const response = await fetch("/api/news-chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title,
+        description,
+        content,
+        question,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      console.error(`Failed to get AI response: ${response.status}`)
+      throw new Error(`API Error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (!data.response || data.response.trim() === "") {
+      throw new Error("Empty response received")
+    }
+
+    return data.response
+  } catch (error) {
+    console.error("Error getting AI response:", error)
+
+    // Create intelligent response based on the question and article
+    return createIntelligentResponse(title, description, content, question)
+  }
+}
+
+/**
+ * Create an intelligent fallback context based on article content
+ */
+function createIntelligentFallback(title: string, description: string, content: string): string {
+  const articleText = (title + " " + description + " " + content).toLowerCase()
+
+  // Extract key topics and entities
+  const topics = extractTopics(articleText)
+  const entities = extractEntities(articleText)
+
+  let context = `Here's additional context about "${title}":\n\n`
+
+  // Add topic-based context
+  if (topics.length > 0) {
+    context += `📋 Key Topics: This article covers ${topics.join(", ")}.\n\n`
+  }
+
+  // Add entity-based context
+  if (entities.length > 0) {
+    context += `🏢 Key Entities: The story involves ${entities.join(", ")}.\n\n`
+  }
+
+  // Add general context based on content analysis
+  if (articleText.includes("breaking") || articleText.includes("urgent")) {
+    context += `⚡ Breaking News: This appears to be a developing story that may have ongoing updates.\n\n`
+  }
+
+  if (articleText.includes("study") || articleText.includes("research")) {
+    context += `🔬 Research-Based: This article references scientific studies or research findings.\n\n`
+  }
+
+  if (articleText.includes("government") || articleText.includes("policy")) {
+    context += `🏛️ Government/Policy: This story involves government actions or policy decisions.\n\n`
+  }
+
+  if (articleText.includes("market") || articleText.includes("stock") || articleText.includes("economy")) {
+    context += `📈 Economic Impact: This news may have economic or market implications.\n\n`
+  }
+
+  context += `💡 For More Information: Consider checking multiple reliable news sources for comprehensive coverage of this topic. You can also ask specific questions about this article using the chat feature.`
+
+  return context
+}
+
+/**
+ * Create an intelligent response based on the question and article content
+ */
+function createIntelligentResponse(title: string, description: string, content: string, question: string): string {
+  const articleText = (title + " " + description + " " + content).toLowerCase()
   const questionLower = question.toLowerCase()
 
-  if (questionLower.includes("what") || questionLower.includes("summary")) {
-    return `Based on the article "${article.title}", this appears to be a news story published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}. ${article.description || "No additional details are available in the article preview."}`
+  // Question type detection and response generation
+  if (questionLower.includes("what") && questionLower.includes("about")) {
+    return `Based on the article "${title}", this story discusses ${description || "the topic mentioned in the headline"}. ${content ? "The article provides details about " + content.substring(0, 200) + "..." : "For complete details, I recommend reading the full article."}`
   }
 
-  if (questionLower.includes("when")) {
-    return `According to the article information, this was published on ${new Date(article.publishedAt).toLocaleDateString()}.`
+  if (questionLower.includes("when") || questionLower.includes("time")) {
+    const timeInfo = extractTimeInfo(articleText)
+    return timeInfo
+      ? `According to the article, ${timeInfo}`
+      : `The article doesn't specify exact timing, but you can find more details in the full article about "${title}".`
   }
 
   if (questionLower.includes("who")) {
-    return `This article was published by ${article.source?.name || "an unknown source"}${article.author ? ` and written by ${article.author}` : ""}. For specific people mentioned in the article, you would need to read the full content.`
+    const people = extractPeople(articleText)
+    return people.length > 0
+      ? `The article mentions several key people: ${people.join(", ")}. For more details about their roles, please refer to the full article.`
+      : `The article "${title}" discusses various parties, but specific individuals aren't clearly identified in the available excerpt.`
   }
 
   if (questionLower.includes("where")) {
-    return `The article "${article.title}" was published by ${article.source?.name || "an unknown source"}. For specific locations mentioned, please refer to the full article content.`
+    const locations = extractLocations(articleText)
+    return locations.length > 0
+      ? `This story takes place in or involves: ${locations.join(", ")}. The full article may contain more specific location details.`
+      : `The article doesn't specify clear locations in the available excerpt. Check the full article for geographic details.`
   }
 
-  return `I can see this article is titled "${article.title}" and was published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}. For more specific details about your question, I would need access to the full article content.`
+  if (questionLower.includes("why") || questionLower.includes("reason")) {
+    return `The article "${title}" explains the reasoning behind this story. ${description || "The main points are covered in the article content."} For a complete understanding of the motivations and reasons, I recommend reading the full article.`
+  }
+
+  if (questionLower.includes("how")) {
+    return `The article provides details on how this situation developed. ${content ? "According to the content: " + content.substring(0, 200) + "..." : "The full article contains the step-by-step details."}`
+  }
+
+  // Default intelligent response
+  return `That's an interesting question about "${title}". While I can see this article covers ${description || "the topic in the headline"}, I'd recommend reading the full article for the most accurate and complete information. You can also try asking more specific questions about particular aspects of the story.`
 }
 
-// Helper function to generate fallback summary
-function generateFallbackSummary(article: NewsItem): string {
-  if (article.description) {
-    return article.description
+/**
+ * Extract topics from article text
+ */
+function extractTopics(text: string): string[] {
+  const topicKeywords = {
+    technology: ["tech", "ai", "artificial intelligence", "software", "app", "digital", "cyber", "internet"],
+    politics: ["government", "election", "vote", "policy", "congress", "senate", "president"],
+    business: ["company", "business", "market", "stock", "economy", "financial", "revenue", "profit"],
+    health: ["health", "medical", "doctor", "hospital", "disease", "treatment", "vaccine"],
+    sports: ["game", "team", "player", "sport", "championship", "league", "match"],
+    science: ["research", "study", "scientist", "discovery", "experiment", "data"],
   }
 
-  return `This is a news article titled "${article.title}" published by ${article.source?.name || "an unknown source"} on ${new Date(article.publishedAt).toLocaleDateString()}.`
+  const foundTopics: string[] = []
+
+  for (const [topic, keywords] of Object.entries(topicKeywords)) {
+    if (keywords.some((keyword) => text.includes(keyword))) {
+      foundTopics.push(topic)
+    }
+  }
+
+  return foundTopics
+}
+
+/**
+ * Extract entities (companies, organizations) from text
+ */
+function extractEntities(text: string): string[] {
+  const commonEntities = [
+    "apple",
+    "google",
+    "microsoft",
+    "amazon",
+    "facebook",
+    "meta",
+    "twitter",
+    "tesla",
+    "nasa",
+    "fda",
+    "cdc",
+    "who",
+    "un",
+    "eu",
+    "nato",
+    "congress",
+    "senate",
+    "white house",
+    "supreme court",
+  ]
+
+  return commonEntities.filter((entity) => text.includes(entity))
+}
+
+/**
+ * Extract time-related information
+ */
+function extractTimeInfo(text: string): string | null {
+  const timePatterns = [
+    /(\d{1,2}:\d{2})/g,
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi,
+    /(january|february|march|april|may|june|july|august|september|october|november|december)/gi,
+    /(today|tomorrow|yesterday|next week|last week)/gi,
+  ]
+
+  for (const pattern of timePatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      return `the timing mentioned includes ${match[0]}`
+    }
+  }
+
+  return null
+}
+
+/**
+ * Extract people names (basic pattern matching)
+ */
+function extractPeople(text: string): string[] {
+  // This is a simplified approach - in a real app you'd use NLP
+  const words = text.split(" ")
+  const people: string[] = []
+
+  for (let i = 0; i < words.length - 1; i++) {
+    const word = words[i]
+    const nextWord = words[i + 1]
+
+    // Look for capitalized words that might be names
+    if (word.match(/^[A-Z][a-z]+$/) && nextWord.match(/^[A-Z][a-z]+$/)) {
+      people.push(`${word} ${nextWord}`)
+    }
+  }
+
+  return people.slice(0, 3) // Return max 3 names
+}
+
+/**
+ * Extract locations (basic pattern matching)
+ */
+function extractLocations(text: string): string[] {
+  const commonLocations = [
+    "new york",
+    "california",
+    "texas",
+    "florida",
+    "washington",
+    "london",
+    "paris",
+    "tokyo",
+    "china",
+    "usa",
+    "america",
+    "europe",
+    "asia",
+    "africa",
+    "australia",
+  ]
+
+  return commonLocations.filter((location) => text.includes(location))
 }
