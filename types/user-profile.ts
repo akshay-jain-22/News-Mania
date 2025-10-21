@@ -1,109 +1,68 @@
+export interface UserProfile {
+  id: string
+  email: string
+  name?: string
+  avatar?: string
+  preferences: {
+    categories: string[]
+    sources: string[]
+    readingTime?: string
+  }
+  stats: {
+    articlesRead: number
+    totalReadingTime: number
+    favoriteCategories: string[]
+  }
+}
+
 export interface UserCredentials {
   id: string
   email: string
   age: number
-  profession: string
-  gender: "male" | "female" | "other" | "prefer_not_to_say"
   location: {
     country: string
-    state: string
-    city: string
-    timezone: string
-    coordinates?: {
-      lat: number
-      lng: number
-    }
+    city?: string
   }
-  interests: string[]
-  languages: string[]
-  created_at: string
-  updated_at: string
+  profession: string
 }
 
 export interface UserBehavior {
   user_id: string
   session_id: string
   article_id: string
-  action: "view" | "click" | "read" | "share" | "save" | "skip" | "like" | "dislike"
+  action: "view" | "read" | "like" | "share" | "save" | "click"
   timestamp: string
-  time_of_day: number // 0-23 hours
-  day_of_week: number // 0-6 (Sunday = 0)
-  read_duration: number // seconds
-  scroll_depth: number // 0-1 (percentage)
-  device_type: "mobile" | "desktop" | "tablet"
-  source: "recommendation" | "search" | "trending" | "category"
+  time_of_day: number
+  day_of_week: number
+  read_duration: number
+  scroll_depth: number
+  device_type: "mobile" | "tablet" | "desktop"
+  source: "homepage" | "search" | "recommendation" | "shared"
   category: string
-  sentiment_reaction?: "positive" | "negative" | "neutral"
+  sentiment_reaction: "positive" | "negative" | "neutral"
 }
 
 export interface UserPreferences {
   user_id: string
-  category_weights: Record<string, number> // politics: 0.8, sports: 0.3, etc.
-  time_based_preferences: Record<string, Record<string, number>> // hour -> category -> weight
-  source_preferences: Record<string, number> // source reliability preferences
-  content_length_preference: "short" | "medium" | "long" | "mixed"
-  update_frequency: "real_time" | "hourly" | "daily"
-  language_preferences: string[]
-  location_relevance: number // 0-1, how much local news matters
-  recency_preference: number // 0-1, preference for recent vs evergreen content
-  diversity_factor: number // 0-1, how much variety in recommendations
+  category_weights: Record<string, number>
+  source_preferences: Record<string, number>
+  confidence_score: number
   last_updated: string
-  confidence_score: number // 0-1, how confident we are in these preferences
-}
-
-export interface UserProfile {
-  id: string
-  email: string
-  age: number
-  profession: string
-  gender: "male" | "female" | "other" | "prefer_not_to_say"
-  location: {
-    country: string
-    city: string
-    timezone: string
-    coordinates?: {
-      lat: number
-      lng: number
-    }
+  reading_patterns: {
+    peak_hours: number[]
+    preferred_device: "mobile" | "desktop"
+    average_session_length: number
   }
-  preferences: {
-    categories: string[]
-    languages: string[]
-    readingLevel: "basic" | "intermediate" | "advanced"
-    contentLength: "short" | "medium" | "long" | "mixed"
+  engagement_profile: {
+    engagement_score: number
+    interaction_count: number
+    retention_score: number
   }
-  behaviorProfile: {
-    readingTimes: TimeBasedPreference[]
-    categoryPreferences: CategoryPreference[]
-    interactionHistory: UserInteraction[]
+  behavioral_profile: {
+    categoryPreferences: Array<{ category: string; score: number }>
+    interactionHistory: Array<{ articleId: string; action: string }>
     engagementScore: number
   }
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface TimeBasedPreference {
-  timeSlot: string // '00-06', '06-12', '12-18', '18-24'
-  categories: string[]
-  avgReadTime: number
-  engagementScore: number
-}
-
-export interface CategoryPreference {
-  category: string
-  score: number
-  confidence: number
-  lastUpdated: Date
-}
-
-export interface UserInteraction {
-  articleId: string
-  action: "view" | "click" | "share" | "save" | "skip"
-  timestamp: Date
-  readTime?: number
-  category: string
-  timeOfDay: string
-  deviceType: string
 }
 
 export interface NewsArticle {
@@ -114,43 +73,16 @@ export interface NewsArticle {
   url: string
   urlToImage?: string
   publishedAt: string
-  source: {
-    id?: string
-    name: string
-    reliability_score: number
-  }
+  source: { name: string; id?: string }
   author?: string
-  category: string
-  subcategory?: string
-  location_relevance: {
-    country?: string
-    state?: string
-    city?: string
-    global_relevance: number
-  }
-  sentiment: "positive" | "negative" | "neutral"
-  complexity_score: number // 0-1, reading difficulty
-  estimated_read_time: number // minutes
-  keywords: string[]
-  entities: string[] // people, organizations, locations mentioned
-  trending_score: number // 0-1
-  credibility_score: number // 0-1
-  engagement_metrics: {
-    views: number
-    shares: number
-    comments: number
-    likes: number
-  }
-  embedding_vector?: number[] // for similarity calculations
+  category?: string
 }
 
 export interface RecommendationRequest {
   user_id: string
-  limit: number
-  exclude_seen?: boolean
-  time_context?: "current" | "specific"
-  specific_time?: string
+  limit?: number
   categories?: string[]
+  exclude_seen?: boolean
   location_filter?: boolean
   diversity_boost?: number
 }
@@ -167,26 +99,4 @@ export interface RecommendationResult {
     overall_confidence: number
   }
   explanation: string
-}
-
-export interface UserSegment {
-  id: string
-  name: string
-  description: string
-  criteria: {
-    age_range?: [number, number]
-    professions?: string[]
-    locations?: string[]
-    behavior_patterns?: string[]
-  }
-  typical_preferences: UserPreferences
-  size: number
-}
-
-export interface RecommendationScore {
-  articleId: string
-  score: number
-  reasons: string[]
-  confidence: number
-  pipeline: "collaborative" | "content" | "demographic" | "behavioral" | "cold_start"
 }
