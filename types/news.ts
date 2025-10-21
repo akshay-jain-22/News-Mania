@@ -3,16 +3,14 @@ export interface NewsArticle {
   title: string
   description: string
   content: string
-  url: string
-  imageUrl?: string
-  publishedAt: string
+  image: string
   source: string
+  url: string
+  publishedAt: string
   category: string
-  author?: string
 }
 
-export interface NewsCategory {
-  id: string
-  name: string
-  slug: string
+export interface SearchResult {
+  articles: NewsArticle[]
+  totalResults: number
 }
