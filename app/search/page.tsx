@@ -1,70 +1,149 @@
-"use client"
-
-import type React from "react"
-
-import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { NewsHeader } from "@/components/news-header"
 import { NewsCard } from "@/components/news-card"
-import { fetchNews } from "@/lib/news-api"
-import type { NewsArticle } from "@/types/news"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Search, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Separator } from "@/components/ui/separator"
+import { TopicSelector } from "@/components/topic-selector"
+import { fetchNews } from "@/lib/news-api" // Import fetchNews directly
 
-export default function SearchPage() {
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<NewsArticle[]>([])
-  const [searched, setSearched] = useState(false)
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: { q: string }
+}) {
+  const query = searchParams.q || ""
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearched(true)
+  // If no query is provided, show a message
+  if (!query) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <NewsHeader />
+        <main className="flex-1 py-6">
+          <div className="container px-4 md:px-6">
+            <div className="grid gap-6">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">Search News</h1>
+                <p className="text-muted-foreground">Enter a search term to find relevant news articles</p>
+              </div>
 
-    if (!query.trim()) {
-      setResults([])
-      return
+              <form action="/search" method="GET" className="flex max-w-md gap-2">
+                <Input type="text" name="q" placeholder="Search news..." required />
+                <Button type="submit">
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+              </form>
+
+              <div className="mt-6">
+                <h2 className="text-xl font-semibold mb-4">Browse by Topic</h2>
+                <TopicSelector />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Use direct function call instead of fetch to avoid network errors
+  console.log(`Page: Searching for "${query}"`)
+
+  let articles = []
+  let error = null
+
+  try {
+    // Use the categories list to check if the query is a category
+    const categories = ["business", "technology", "sports", "health", "science", "entertainment", "politics", "general"]
+    const lowerQuery = query.toLowerCase()
+
+    if (categories.includes(lowerQuery)) {
+      // If the query is a category, fetch by category
+      console.log(`Page: Query "${query}" matches a category, fetching by category`)
+      articles = await fetchNews({
+        category: lowerQuery,
+        pageSize: 20,
+        forceRefresh: true,
+      })
+    } else {
+      // Otherwise, perform a regular search
+      console.log(`Page: Performing regular search for "${query}"`)
+      articles = await fetchNews({
+        query: query,
+        pageSize: 20,
+        forceRefresh: true,
+      })
     }
 
-    const articles = await fetchNews()
-    const filtered = articles.filter(
-      (article) =>
-        article.title.toLowerCase().includes(query.toLowerCase()) ||
-        article.description.toLowerCase().includes(query.toLowerCase()),
-    )
-    setResults(filtered)
+    console.log(`Page: Found ${articles.length} results for "${query}"`)
+  } catch (err) {
+    console.error("Page: Error fetching search results:", err)
+    error = err instanceof Error ? err.message : "An error occurred while searching"
+
+    // Fallback to mock data
+    try {
+      console.log("Page: Using fallback mock data")
+      articles = await fetchNews({
+        category: "general",
+        pageSize: 10,
+      })
+    } catch (fallbackErr) {
+      console.error("Page: Even fallback failed:", fallbackErr)
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight">Search News</h1>
-        <p className="text-muted-foreground mt-2">Find articles by keyword</p>
-      </div>
+    <div className="flex min-h-screen flex-col">
+      <NewsHeader />
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <Input
-          placeholder="Search articles..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="flex-1"
-        />
-        <Button type="submit">Search</Button>
-      </form>
-
-      {searched && (
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Found {results.length} result{results.length !== 1 ? "s" : ""}
-          </p>
-          {results.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
-              {results.map((article) => (
-                <NewsCard key={article.id} article={article} />
-              ))}
+      <main className="flex-1 py-6">
+        <div className="container px-4 md:px-6">
+          <div className="grid gap-6">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
+              <p className="text-muted-foreground">Showing results for "{query}"</p>
             </div>
-          ) : (
-            <p className="text-muted-foreground mt-4">No articles found matching your search.</p>
-          )}
+
+            <form action="/search" method="GET" className="flex max-w-md gap-2">
+              <Input type="text" name="q" placeholder="Search news..." defaultValue={query} required />
+              <Button type="submit">
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
+            </form>
+
+            <div className="mt-4">
+              <h2 className="text-xl font-semibold mb-4">Browse by Topic</h2>
+              <TopicSelector />
+            </div>
+
+            <Separator className="my-4" />
+
+            {error ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}. Try a different search term or browse by topic instead.</AlertDescription>
+              </Alert>
+            ) : articles.length > 0 ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {articles.map((article, index) => (
+                  <NewsCard key={`search-${index}-${article.id || index}`} article={article} />
+                ))}
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>No results found</AlertTitle>
+                <AlertDescription>
+                  No articles match your search query. Try different keywords or browse by topic instead.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </div>
-      )}
+      </main>
     </div>
   )
 }

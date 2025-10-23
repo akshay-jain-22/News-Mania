@@ -1,36 +1,63 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import { supabase } from "@/lib/supabase-client"
+import { useRouter } from "next/navigation"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Header() {
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser()
+      setUser(data.user)
+      setLoading(false)
+    }
+
+    getUser()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+  }
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2 font-bold text-2xl">
-            📰 NewsMania
-          </Link>
-          <nav className="hidden md:flex gap-4">
-            <Link href="/" className="text-sm hover:text-primary">
-              Home
+    <header className="border-b">
+      <div className="container flex h-16 items-center justify-between py-4">
+        <Link href="/" className="flex items-center space-x-2">
+          <span className="text-xl font-bold">NewsMania</span>
+        </Link>
+        <nav className="flex items-center gap-4">
+          <ThemeToggle />
+          {!loading && user ? (
+            <>
+              <Link href="/notes">
+                <Button variant="ghost">My Notes</Button>
+              </Link>
+              <Button variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Link href="/auth">
+              <Button>Sign In</Button>
             </Link>
-            <Link href="/search" className="text-sm hover:text-primary">
-              Search
-            </Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="hidden md:flex relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search news..." className="pl-8 w-64" />
-          </div>
-          <Button variant="ghost" size="sm">
-            Sign In
-          </Button>
-        </div>
+          )}
+        </nav>
       </div>
     </header>
   )
