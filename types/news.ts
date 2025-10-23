@@ -5,20 +5,19 @@ export interface NewsSource {
 
 export interface NewsArticle {
   id: string
-  source: NewsSource
-  author: string
   title: string
   description: string
+  content?: string
+  image?: string
+  source: string
   url: string
-  urlToImage: string | null
-  publishedAt: string
-  content: string
-  credibilityScore?: number
-  isFactChecked?: boolean
-  factCheckResult?: string | null
-  claimsAnalyzed?: FactCheckClaim[]
-  analysisFactors?: string[]
-  analyzedBy?: string
+  publishedAt: Date
+  category?: string
+}
+
+export interface SearchResult {
+  articles: NewsArticle[]
+  total: number
 }
 
 export interface FactCheckClaim {
