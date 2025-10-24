@@ -1,13 +1,4 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "build": "next build",
-    "dev": "next dev",
-    "lint": "next lint",
-    "start": "next start"
-  },
   "dependencies": {
     "@ai-sdk/groq": "latest",
     "@ai-sdk/openai": "latest",
@@ -69,7 +60,7 @@
     "tailwindcss-animate": "^1.0.7",
     "use-sync-external-store": "latest",
     "vaul": "^0.9.6",
-    "zod": "3.23.8",
+    "zod": "^4",
     "zustand": "latest"
   },
   "devDependencies": {
