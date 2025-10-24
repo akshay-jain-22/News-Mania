@@ -1,63 +1,33 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase-client"
-import { useRouter } from "next/navigation"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle } from "./theme-toggle"
 
 export function Header() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser()
-      setUser(data.user)
-      setLoading(false)
-    }
-
-    getUser()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => {
-      authListener.subscription.unsubscribe()
-    }
-  }, [])
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-  }
-
   return (
-    <header className="border-b">
-      <div className="container flex h-16 items-center justify-between py-4">
-        <Link href="/" className="flex items-center space-x-2">
-          <span className="text-xl font-bold">NewsMania</span>
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="h-8 w-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-lg">N</span>
+          </div>
+          <span className="font-bold text-xl hidden sm:inline">NewsCore</span>
         </Link>
-        <nav className="flex items-center gap-4">
-          <ThemeToggle />
-          {!loading && user ? (
-            <>
-              <Link href="/notes">
-                <Button variant="ghost">My Notes</Button>
-              </Link>
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            </>
-          ) : (
-            <Link href="/auth">
-              <Button>Sign In</Button>
+
+        <div className="flex items-center gap-4">
+          <nav className="hidden sm:flex gap-6">
+            <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
+              Home
             </Link>
-          )}
-        </nav>
+            <Link href="/trending" className="text-sm font-medium hover:text-primary transition-colors">
+              Trending
+            </Link>
+            <Link href="/categories" className="text-sm font-medium hover:text-primary transition-colors">
+              Categories
+            </Link>
+          </nav>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )
