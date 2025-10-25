@@ -35,6 +35,7 @@
     "@supabase/supabase-js": "latest",
     "ai": "latest",
     "autoprefixer": "^10.4.20",
+    "bufferutil": "latest",
     "cheerio": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -59,7 +60,9 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "use-sync-external-store": "latest",
+    "utf-8-validate": "latest",
     "vaul": "^0.9.6",
+    "ws": "latest",
     "zod": "^4",
     "zustand": "latest"
   },
