@@ -1,0 +1,222 @@
+[
+  {
+    "id": "top-1",
+    "title": "Breaking: Global Markets React to Economic Report",
+    "category": "Business",
+    "tags": ["business", "markets"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Major stock indices showed volatility following the latest economic indicators.",
+    "source": "NewsAPI",
+    "credibility_score": 0.95,
+    "created_at": "2025-01-05T10:00:00Z"
+  },
+  {
+    "id": "top-2",
+    "title": "AI Breakthrough: New Model Achieves Record Performance",
+    "category": "Tech",
+    "tags": ["tech", "ai"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Researchers unveiled a new AI model with unprecedented capabilities in multiple domains.",
+    "source": "NewsAPI",
+    "credibility_score": 0.92,
+    "created_at": "2025-01-05T09:30:00Z"
+  },
+  {
+    "id": "top-3",
+    "title": "Championship Game: Historic Victory in Final Seconds",
+    "category": "Sports",
+    "tags": ["sports", "championship"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "The underdog team pulled off a stunning upset in one of the most dramatic finishes ever.",
+    "source": "NewsAPI",
+    "credibility_score": 0.89,
+    "created_at": "2025-01-05T08:45:00Z"
+  },
+  {
+    "id": "biz-1",
+    "title": "Tech Giant Announces Major Acquisition",
+    "category": "Business",
+    "tags": ["business", "tech"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "A major technology company has announced its largest acquisition in company history.",
+    "source": "NewsAPI",
+    "credibility_score": 0.93,
+    "created_at": "2025-01-05T07:00:00Z"
+  },
+  {
+    "id": "tech-1",
+    "title": "Quantum Computing Reaches New Milestone",
+    "category": "Tech",
+    "tags": ["tech", "quantum"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Scientists demonstrate quantum computer solving problems previously thought impossible.",
+    "source": "NewsAPI",
+    "credibility_score": 0.91,
+    "created_at": "2025-01-04T18:00:00Z"
+  },
+  {
+    "id": "sports-1",
+    "title": "Star Athlete Signs Record-Breaking Contract",
+    "category": "Sports",
+    "tags": ["sports", "contracts"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Professional athlete signs deal worth unprecedented amount with top team.",
+    "source": "NewsAPI",
+    "credibility_score": 0.88,
+    "created_at": "2025-01-04T16:30:00Z"
+  },
+  {
+    "id": "world-1",
+    "title": "International Summit Concludes with Major Agreement",
+    "category": "World",
+    "tags": ["world", "politics"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "World leaders reach consensus on critical global issues affecting millions.",
+    "source": "NewsAPI",
+    "credibility_score": 0.94,
+    "created_at": "2025-01-04T14:00:00Z"
+  },
+  {
+    "id": "health-1",
+    "title": "Medical Breakthrough Offers Hope for Common Disease",
+    "category": "Health",
+    "tags": ["health", "medical"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Researchers announce successful trials of new treatment approach.",
+    "source": "NewsAPI",
+    "credibility_score": 0.9,
+    "created_at": "2025-01-04T12:00:00Z"
+  },
+  {
+    "id": "tech-2",
+    "title": "Cybersecurity Alert: New Threat Identified",
+    "category": "Tech",
+    "tags": ["tech", "security"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Security experts warn about emerging cyber threat affecting multiple sectors.",
+    "source": "NewsAPI",
+    "credibility_score": 0.89,
+    "created_at": "2025-01-04T10:30:00Z"
+  },
+  {
+    "id": "biz-2",
+    "title": "Startup Raises Massive Funding Round",
+    "category": "Business",
+    "tags": ["business", "startup"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Hot new startup secures record investment from leading venture capital firms.",
+    "source": "NewsAPI",
+    "credibility_score": 0.87,
+    "created_at": "2025-01-03T15:00:00Z"
+  },
+  {
+    "id": "sports-2",
+    "title": "Coach Leads Team to Historic First Championship",
+    "category": "Sports",
+    "tags": ["sports", "championship"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Young coach guides underdog team to their first-ever league championship.",
+    "source": "NewsAPI",
+    "credibility_score": 0.86,
+    "created_at": "2025-01-03T13:00:00Z"
+  },
+  {
+    "id": "world-2",
+    "title": "Environmental Report Shows Progress on Climate",
+    "category": "World",
+    "tags": ["world", "environment"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Latest climate data indicates positive trends in renewable energy adoption.",
+    "source": "NewsAPI",
+    "credibility_score": 0.92,
+    "created_at": "2025-01-03T11:00:00Z"
+  },
+  {
+    "id": "tech-3",
+    "title": "Space Agency Announces New Mars Mission",
+    "category": "Tech",
+    "tags": ["tech", "space"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Major space agency reveals ambitious plans for next Mars exploration mission.",
+    "source": "NewsAPI",
+    "credibility_score": 0.91,
+    "created_at": "2025-01-03T09:00:00Z"
+  },
+  {
+    "id": "health-2",
+    "title": "New Health Guidelines Released by WHO",
+    "category": "Health",
+    "tags": ["health", "guidelines"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "World Health Organization releases updated wellness guidelines for 2025.",
+    "source": "NewsAPI",
+    "credibility_score": 0.93,
+    "created_at": "2025-01-02T16:00:00Z"
+  },
+  {
+    "id": "biz-3",
+    "title": "Trade Deal Reaches Final Agreement",
+    "category": "Business",
+    "tags": ["business", "trade"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Two major economies conclude multi-year trade negotiation with historic accord.",
+    "source": "NewsAPI",
+    "credibility_score": 0.9,
+    "created_at": "2025-01-02T14:00:00Z"
+  },
+  {
+    "id": "sports-3",
+    "title": "Olympic Preparations Underway for Summer Games",
+    "category": "Sports",
+    "tags": ["sports", "olympics"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Host city makes final preparations for upcoming Olympic Games.",
+    "source": "NewsAPI",
+    "credibility_score": 0.88,
+    "created_at": "2025-01-02T12:00:00Z"
+  },
+  {
+    "id": "tech-4",
+    "title": "Electric Vehicle Market Reaches New Heights",
+    "category": "Tech",
+    "tags": ["tech", "automotive"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "EV sales surpass expectations with record adoption rates globally.",
+    "source": "NewsAPI",
+    "credibility_score": 0.89,
+    "created_at": "2025-01-02T10:00:00Z"
+  },
+  {
+    "id": "world-3",
+    "title": "Humanitarian Crisis Draws International Response",
+    "category": "World",
+    "tags": ["world", "humanitarian"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "United Nations coordinates global response to regional humanitarian emergency.",
+    "source": "NewsAPI",
+    "credibility_score": 0.91,
+    "created_at": "2025-01-01T18:00:00Z"
+  },
+  {
+    "id": "biz-4",
+    "title": "Banking Sector Reports Strong Year-End Results",
+    "category": "Business",
+    "tags": ["business", "finance"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Major financial institutions report record profits for fiscal year.",
+    "source": "NewsAPI",
+    "credibility_score": 0.87,
+    "created_at": "2025-01-01T16:00:00Z"
+  },
+  {
+    "id": "health-3",
+    "title": "Fitness Trends Expected to Dominate New Year",
+    "category": "Health",
+    "tags": ["health", "fitness"],
+    "thumb_url": "/placeholder.svg?height=200&width=300",
+    "snippet": "Health experts predict major shifts in wellness and fitness industry.",
+    "source": "NewsAPI",
+    "credibility_score": 0.85,
+    "created_at": "2025-01-01T14:00:00Z"
+  }
+]
