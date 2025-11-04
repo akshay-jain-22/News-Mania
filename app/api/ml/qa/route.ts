@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { generateText } from "ai"
 import { buildRagContext, buildQaPrompt, getQaCacheKey } from "@/lib/rag-pipeline"
 import { verifyAuthToken, checkRateLimit } from "@/lib/auth-utils"
 import { createServerSupabaseClient } from "@/lib/supabase"
+import { llmService } from "@/lib/llm-service"
 
 const qaSchema = z.object({
   articleId: z.string().min(1),
@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
           tokensUsed: cachedAnswer.tokens_used,
           sources: cachedAnswer.sources,
           requestId: cachedAnswer.request_id,
+          confidence: cachedAnswer.confidence || "Med",
           cacheHit: true,
+          providerFallbackUsed: cachedAnswer.provider_fallback_used || false,
         },
         { status: 200 },
       )
@@ -65,45 +67,56 @@ export async function POST(request: NextRequest) {
 
     const prompt = buildQaPrompt(ragContext, question)
 
-    const { text: answer, usage } = await generateText({
-      model: "openai/gpt-4-turbo",
+    const llmResponse = await llmService.generate(
       prompt,
-      temperature: 0.4,
-      maxTokens: 500,
-    })
+      "gpt-4-turbo",
+      {
+        temperature: 0.4,
+        maxTokens: 500,
+      },
+      ragContext.passages,
+      ragContext.requestId,
+    )
 
     await supabase.from("qa_cache").insert({
       cache_key: cacheKey,
       article_id: articleId,
       question,
-      answer,
-      model_used: "openai/gpt-4-turbo",
-      tokens_used: usage?.totalTokens || 0,
-      sources: ragContext.passages,
-      request_id: ragContext.requestId,
+      answer: llmResponse.text,
+      model_used: llmResponse.modelUsed,
+      tokens_used: llmResponse.tokensUsed,
+      sources: llmResponse.sources,
+      request_id: llmResponse.requestId,
+      confidence: llmResponse.confidence,
+      provider_fallback_used: llmResponse.providerFallbackUsed,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })
 
     if (userId) {
-      await supabase.from("ml_requests").insert({
+      await supabase.from("interactions").insert({
         user_id: userId,
-        request_type: "qa",
         article_id: articleId,
-        model_used: "openai/gpt-4-turbo",
-        tokens_used: usage?.totalTokens || 0,
+        action: "qa",
+        question: question,
+        request_id: llmResponse.requestId,
+        model_used: llmResponse.modelUsed,
+        provider_used: llmResponse.modelUsed.split("/")[0],
+        tokens_used: llmResponse.tokensUsed,
         created_at: new Date().toISOString(),
       })
     }
 
     return NextResponse.json(
       {
-        answer,
-        modelUsed: "openai/gpt-4-turbo",
-        tokensUsed: usage?.totalTokens || 0,
-        sources: ragContext.passages,
-        requestId: ragContext.requestId,
+        answer: llmResponse.text,
+        modelUsed: llmResponse.modelUsed,
+        tokensUsed: llmResponse.tokensUsed,
+        sources: llmResponse.sources,
+        requestId: llmResponse.requestId,
+        confidence: llmResponse.confidence,
         cacheHit: false,
+        providerFallbackUsed: llmResponse.providerFallbackUsed,
       },
       { status: 200 },
     )

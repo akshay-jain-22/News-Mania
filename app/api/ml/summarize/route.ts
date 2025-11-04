@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { generateText } from "ai"
 import { buildRagContext, buildSummarizationPrompt, getSummarizationCacheKey } from "@/lib/rag-pipeline"
 import { verifyAuthToken, checkRateLimit } from "@/lib/auth-utils"
 import { createServerSupabaseClient } from "@/lib/supabase"
+import { llmService } from "@/lib/llm-service"
 
 const summarizeSchema = z.object({
   articleId: z.string().min(1),
@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
           sources: cachedSummary.sources,
           requestId: cachedSummary.request_id,
           cacheHit: true,
+          providerFallbackUsed: cachedSummary.provider_fallback_used || false,
+          confidence: cachedSummary.confidence || "Med",
         },
         { status: 200 },
       )
@@ -69,44 +71,54 @@ export async function POST(request: NextRequest) {
 
     const prompt = buildSummarizationPrompt(ragContext, length)
 
-    const { text: summary, usage } = await generateText({
-      model: "openai/gpt-4-turbo",
+    const llmResponse = await llmService.generate(
       prompt,
-      temperature: deterministic ? 0.1 : 0.3,
-      maxTokens: length === "short" ? 100 : length === "medium" ? 200 : 300,
-    })
+      "gpt-4-turbo",
+      {
+        temperature: deterministic ? 0.0 : 0.2,
+        maxTokens: length === "short" ? 100 : length === "medium" ? 200 : 300,
+      },
+      ragContext.passages,
+      ragContext.requestId,
+    )
 
     await supabase.from("summarization_cache").insert({
       cache_key: cacheKey,
       article_id: articleId,
-      summary,
-      model_used: "openai/gpt-4-turbo",
-      tokens_used: usage?.totalTokens || 0,
-      sources: ragContext.passages,
-      request_id: ragContext.requestId,
+      summary: llmResponse.text,
+      model_used: llmResponse.modelUsed,
+      tokens_used: llmResponse.tokensUsed,
+      sources: llmResponse.sources,
+      request_id: llmResponse.requestId,
+      provider_fallback_used: llmResponse.providerFallbackUsed,
+      confidence: llmResponse.confidence,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })
 
     if (userId) {
-      await supabase.from("ml_requests").insert({
+      await supabase.from("interactions").insert({
         user_id: userId,
-        request_type: "summarize",
         article_id: articleId,
-        model_used: "openai/gpt-4-turbo",
-        tokens_used: usage?.totalTokens || 0,
+        action: "summarize",
+        request_id: llmResponse.requestId,
+        model_used: llmResponse.modelUsed,
+        provider_used: llmResponse.modelUsed.split("/")[0],
+        tokens_used: llmResponse.tokensUsed,
         created_at: new Date().toISOString(),
       })
     }
 
     return NextResponse.json(
       {
-        summary,
-        modelUsed: "openai/gpt-4-turbo",
-        tokensUsed: usage?.totalTokens || 0,
-        sources: ragContext.passages,
-        requestId: ragContext.requestId,
+        summary: llmResponse.text,
+        modelUsed: llmResponse.modelUsed,
+        tokensUsed: llmResponse.tokensUsed,
+        sources: llmResponse.sources,
+        requestId: llmResponse.requestId,
         cacheHit: false,
+        providerFallbackUsed: llmResponse.providerFallbackUsed,
+        confidence: llmResponse.confidence,
       },
       { status: 200 },
     )
