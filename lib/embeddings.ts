@@ -1,4 +1,4 @@
-import { generateEmbedding as generateOpenAIEmbedding } from "ai"
+import { openai } from "@ai-sdk/openai"
 
 /**
  * Generate embedding for text using OpenAI
@@ -9,9 +9,12 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       return null
     }
 
-    const embedding = await generateOpenAIEmbedding("openai.embedding.3-small", text)
+    const response = await openai.textEmbedding({
+      model: "text-embedding-3-small",
+      value: text,
+    })
 
-    return embedding
+    return response.embedding
   } catch (error) {
     console.error("Error generating embedding:", error)
     return null

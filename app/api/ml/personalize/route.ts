@@ -7,7 +7,7 @@ import { llmService } from "@/lib/llm-service"
 
 const personalizeSchema = z.object({
   userId: z.string().min(1),
-  limit: z.number().default(20).max(50),
+  limit: z.number().max(50).default(20),
   context: z.string().optional(),
 })
 
