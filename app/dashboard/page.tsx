@@ -41,13 +41,14 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState("trending")
-  const [userAnalytics, setUserAnalytics] = useState({
-    articlesRead: 0,
-    timeSpent: "0h 0m",
+
+  // Mock user analytics data
+  const [userAnalytics] = useState({
+    articlesRead: 47,
+    timeSpent: "2h 34m",
     favoriteCategories: ["Technology", "Business", "Science"],
-    readingStreak: 0,
+    readingStreak: 12,
   })
-  const [statsLoading, setStatsLoading] = useState(true)
 
   // Load dashboard data
   useEffect(() => {
@@ -56,18 +57,6 @@ export default function Dashboard() {
         setLoading(true)
         setError(null)
         console.log("Loading dashboard data...")
-
-        const statsResponse = await fetch("/api/user-stats")
-        if (statsResponse.ok) {
-          const stats = await statsResponse.json()
-          setUserAnalytics((prev) => ({
-            ...prev,
-            articlesRead: stats.articlesRead,
-            timeSpent: stats.timeSpent,
-            readingStreak: stats.readingStreak,
-            favoriteCategories: [stats.topCategory, ...prev.favoriteCategories.filter((c) => c !== stats.topCategory)],
-          }))
-        }
 
         // Fetch trending news from multiple categories
         const [generalNews, businessNews, techNews, healthNews] = await Promise.all([
@@ -95,7 +84,6 @@ export default function Dashboard() {
         setError("Unable to load dashboard data. Please check your connection and try again.")
       } finally {
         setLoading(false)
-        setStatsLoading(false)
       }
     }
 
@@ -159,7 +147,7 @@ export default function Dashboard() {
     }
   }
 
-  if (loading || statsLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-white">
         <div className="container mx-auto px-4 py-8">

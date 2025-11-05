@@ -65,24 +65,3 @@ export function getRateLimitInfo(key: string, windowMs = 60000): { remaining: nu
     resetTime: record.resetTime,
   }
 }
-
-/**
- * Verify this is a valid internal service request using service role
- */
-export async function verifyServiceRole(): Promise<{ valid: boolean } | null> {
-  try {
-    // For internal service calls, we use the service role client
-    // This is called from internal routes that compute user stats
-    const supabase = createServerSupabaseClient()
-
-    // If we have a valid service role connection, this is a valid internal request
-    if (supabase) {
-      return { valid: true }
-    }
-
-    return null
-  } catch (error) {
-    console.error("Service role verification error:", error)
-    return null
-  }
-}
