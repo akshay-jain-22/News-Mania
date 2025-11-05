@@ -2,7 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/auth-utils"
 import { logger } from "@/lib/logger"
-import fallbackNewsData from "@/data/fallback-news.json"
+import { fetchNews } from "@/lib/news-api"
+import type { NewsArticle } from "@/types/news"
 import { llmService } from "@/lib/llm-service" // Declare llmService variable
 
 const personalizeSchema = z.object({
@@ -20,6 +21,9 @@ interface PersonalizedItem {
   source: string
   publishAt: string
   credibility: number
+  description?: string
+  content?: string
+  url?: string
 }
 
 interface PersonalizeResponse {
@@ -104,6 +108,58 @@ async function calculatePersonalizationScore(
   return { score, reason }
 }
 
+async function fetchPersonalizedItems(limit: number): Promise<PersonalizedItem[]> {
+  try {
+    // Fetch from multiple categories to provide diverse content
+    const categories = ["business", "technology", "health", "sports", "science"]
+    const articlePromises = categories.map((category) =>
+      fetchNews({ category, pageSize: Math.ceil(limit / categories.length) }),
+    )
+
+    const allArticles = await Promise.all(articlePromises)
+    const mergedArticles = allArticles.flat()
+
+    const articlesWithImages = mergedArticles.filter(
+      (article) => article.urlToImage && article.urlToImage.trim().length > 0,
+    )
+
+    // Convert to PersonalizedItem format
+    const items = articlesWithImages.slice(0, limit).map((article) => ({
+      articleId: article.id,
+      title: article.title,
+      score: 0.85,
+      reason: "Trending in " + (article.source?.name || "news"),
+      category: extractCategory(article),
+      thumb: article.urlToImage,
+      source: article.source?.name || "News",
+      publishAt: article.publishedAt,
+      credibility: article.credibilityScore || 0.85,
+      description: article.description,
+      content: article.content,
+      url: article.url,
+    }))
+
+    return items
+  } catch (error) {
+    console.error("[v0] Error fetching personalized items:", error)
+    return []
+  }
+}
+
+function extractCategory(article: NewsArticle): string {
+  const categories = ["business", "technology", "health", "sports", "science", "entertainment", "general"]
+  const title = article.title?.toLowerCase() || ""
+  const description = article.description?.toLowerCase() || ""
+  const combined = title + " " + description
+
+  for (const category of categories) {
+    if (combined.includes(category)) {
+      return category
+    }
+  }
+  return "general"
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
@@ -119,25 +175,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // This ensures the endpoint always returns data even if Supabase tables don't exist yet
-    console.log(`[v0] Using bundled fallback feed for userId=${userId}`)
-
-    const personalizedItems: PersonalizedItem[] = fallbackNewsData.slice(0, limit).map((item: any) => ({
-      articleId: item.id,
-      title: item.title,
-      score: 0.75,
-      reason: "Top picks curated just for you",
-      category: item.category.toLowerCase(),
-      thumb: item.thumb_url || "",
-      source: item.source,
-      publishAt: item.created_at,
-      credibility: item.credibility_score || 0.85,
-    }))
+    const personalizedItems = await fetchPersonalizedItems(limit)
 
     const response: PersonalizeResponse = {
       items: personalizedItems,
-      source: "fallback",
-      fallbackBuckets: ["top-news", "business", "tech", "sports", "world", "health"],
+      source: personalizedItems.length > 0 ? "personalized" : "fallback",
       totalCount: personalizedItems.length,
     }
 
@@ -146,11 +188,11 @@ export async function POST(request: NextRequest) {
       requestId: `req-${Date.now()}`,
       userId,
       endpoint: "/api/ml/personalize",
-      message: "Fallback feed generated",
+      message: "Personalized feed generated",
       metadata: {
         duration_ms: Date.now() - startTime,
-        provider_used: "fallback",
         items_count: personalizedItems.length,
+        source: response.source,
       },
     })
 
@@ -169,23 +211,12 @@ export async function POST(request: NextRequest) {
       metadata: { error: String(error) },
     })
 
-    // Final fallback: return bundled JSON with generic reason
+    // Fallback: return empty array so frontend can handle gracefully
     return NextResponse.json(
       {
-        items: fallbackNewsData.slice(0, 20).map((item: any) => ({
-          articleId: item.id,
-          title: item.title,
-          score: 0.7,
-          reason: "Top picks curated just for you",
-          category: item.category.toLowerCase(),
-          thumb: item.thumb_url || "",
-          source: item.source,
-          publishAt: item.created_at,
-          credibility: item.credibility_score || 0.85,
-        })),
+        items: [],
         source: "fallback",
-        fallbackBuckets: ["top-news", "business", "tech", "sports", "world", "health"],
-        totalCount: fallbackNewsData.length,
+        totalCount: 0,
       },
       { status: 200 },
     )

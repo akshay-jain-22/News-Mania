@@ -157,38 +157,6 @@ export default function PersonalizedPage() {
       <main className="flex-1 py-8">
         <div className="container px-4 md:px-6">
           <div className="space-y-6">
-            {source && (
-              <div
-                className={`rounded-lg border p-4 ${
-                  source === "personalized" ? "bg-primary/5 border-primary/20" : "bg-yellow-500/5 border-yellow-500/20"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  {source === "personalized" ? (
-                    <>
-                      <Sparkles className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                      <div>
-                        <h2 className="font-semibold text-primary">For you — Personalized</h2>
-                        <p className="text-sm text-muted-foreground">
-                          Articles curated based on your reading history and preferences
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <h2 className="font-semibold">Top picks for you (default feed)</h2>
-                        <p className="text-sm text-muted-foreground">
-                          Personalized feed is loading or not available — here's top news and trending topics
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Error Alert */}
             {error && (
               <Alert variant="destructive">
@@ -201,10 +169,9 @@ export default function PersonalizedPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-primary" />
-                <h1 className="text-3xl font-bold tracking-tight">
-                  {source === "personalized" ? "Your Personalized Feed" : "Recommended for You"}
-                </h1>
+                <h1 className="text-3xl font-bold tracking-tight">Your Personalized Feed</h1>
               </div>
+              <p className="text-muted-foreground">Fresh news tailored to your interests</p>
             </div>
 
             {/* Articles Grid */}
@@ -215,79 +182,12 @@ export default function PersonalizedPage() {
               </div>
             ) : items.length > 0 ? (
               <>
-                {source === "fallback" && (
-                  <div className="space-y-10">
-                    {/* Top News Section */}
-                    <div>
-                      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                        <Sparkles className="h-6 w-6 text-primary" />
-                        Top News
-                      </h2>
-                      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {items
-                          .filter((item) => !["business", "tech", "technology", "sports"].includes(item.category))
-                          .slice(0, 6)
-                          .map((item) => (
-                            <NewsCard key={`top-${item.articleId}`} article={convertToNewsArticle(item)} />
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Business Section */}
-                    <div>
-                      <h2 className="text-2xl font-bold mb-6">Business</h2>
-                      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {items
-                          .filter((item) => item.category === "business")
-                          .slice(0, 6)
-                          .map((item) => (
-                            <NewsCard key={`business-${item.articleId}`} article={convertToNewsArticle(item)} />
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Tech Section */}
-                    <div>
-                      <h2 className="text-2xl font-bold mb-6">Technology</h2>
-                      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {items
-                          .filter((item) => ["tech", "technology"].includes(item.category))
-                          .slice(0, 6)
-                          .map((item) => (
-                            <NewsCard key={`tech-${item.articleId}`} article={convertToNewsArticle(item)} />
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Sports Section */}
-                    <div>
-                      <h2 className="text-2xl font-bold mb-6">Sports</h2>
-                      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {items
-                          .filter((item) => item.category === "sports")
-                          .slice(0, 6)
-                          .map((item) => (
-                            <NewsCard key={`sports-${item.articleId}`} article={convertToNewsArticle(item)} />
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Personalized grid (single flow) */}
-                {source === "personalized" && (
-                  <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                      <Sparkles className="h-6 w-6 text-primary" />
-                      Your Personalized Feed
-                    </h2>
-                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                      {items.map((item) => (
-                        <NewsCard key={`personalized-${item.articleId}`} article={convertToNewsArticle(item)} />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Single continuous grid for personalized feed */}
+                <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {items.map((item) => (
+                    <NewsCard key={`personalized-${item.articleId}`} article={convertToNewsArticle(item)} />
+                  ))}
+                </div>
 
                 {hasMore && (
                   <div className="flex justify-center mt-8">
