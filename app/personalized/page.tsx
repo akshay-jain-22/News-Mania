@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Sparkles, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
+import { NewsCard } from "@/components/news-card"
+import type { NewsArticle } from "@/types/news"
 
 interface PersonalizedItem {
   articleId: string
@@ -18,6 +20,9 @@ interface PersonalizedItem {
   source: string
   publishAt: string
   credibility: number
+  description?: string
+  content?: string
+  url?: string
 }
 
 interface PersonalizeResponse {
@@ -126,13 +131,32 @@ export default function PersonalizedPage() {
     }
   }
 
+  const convertToNewsArticle = (item: PersonalizedItem): NewsArticle => {
+    return {
+      id: item.articleId,
+      title: item.title,
+      description: item.description || item.reason,
+      content: item.content || "",
+      urlToImage: item.thumb,
+      url: item.url || "#",
+      source: {
+        id: item.source.toLowerCase().replace(/\s+/g, "-"),
+        name: item.source,
+      },
+      author: "",
+      publishedAt: item.publishAt,
+      isFactChecked: false,
+      credibilityScore: item.credibility,
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <NewsHeader />
 
-      <main className="flex-1 py-6">
+      <main className="flex-1 py-8">
         <div className="container px-4 md:px-6">
-          <div className="grid gap-6">
+          <div className="space-y-6">
             {source && (
               <div
                 className={`rounded-lg border p-4 ${
@@ -192,55 +216,58 @@ export default function PersonalizedPage() {
             ) : items.length > 0 ? (
               <>
                 {source === "fallback" && (
-                  <div className="space-y-8">
+                  <div className="space-y-10">
                     {/* Top News Section */}
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Top News</h3>
+                      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                        <Sparkles className="h-6 w-6 text-primary" />
+                        Top News
+                      </h2>
                       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {items
                           .filter((item) => !["business", "tech", "technology", "sports"].includes(item.category))
-                          .slice(0, 3)
-                          .map((item, idx) => (
-                            <PersonalizedItemCard key={`top-${idx}`} item={item} />
+                          .slice(0, 6)
+                          .map((item) => (
+                            <NewsCard key={`top-${item.articleId}`} article={convertToNewsArticle(item)} />
                           ))}
                       </div>
                     </div>
 
                     {/* Business Section */}
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Business</h3>
+                      <h2 className="text-2xl font-bold mb-6">Business</h2>
                       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {items
                           .filter((item) => item.category === "business")
-                          .slice(0, 4)
-                          .map((item, idx) => (
-                            <PersonalizedItemCard key={`business-${idx}`} item={item} />
+                          .slice(0, 6)
+                          .map((item) => (
+                            <NewsCard key={`business-${item.articleId}`} article={convertToNewsArticle(item)} />
                           ))}
                       </div>
                     </div>
 
                     {/* Tech Section */}
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Technology</h3>
+                      <h2 className="text-2xl font-bold mb-6">Technology</h2>
                       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {items
                           .filter((item) => ["tech", "technology"].includes(item.category))
-                          .slice(0, 4)
-                          .map((item, idx) => (
-                            <PersonalizedItemCard key={`tech-${idx}`} item={item} />
+                          .slice(0, 6)
+                          .map((item) => (
+                            <NewsCard key={`tech-${item.articleId}`} article={convertToNewsArticle(item)} />
                           ))}
                       </div>
                     </div>
 
                     {/* Sports Section */}
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Sports</h3>
+                      <h2 className="text-2xl font-bold mb-6">Sports</h2>
                       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {items
                           .filter((item) => item.category === "sports")
-                          .slice(0, 4)
-                          .map((item, idx) => (
-                            <PersonalizedItemCard key={`sports-${idx}`} item={item} />
+                          .slice(0, 6)
+                          .map((item) => (
+                            <NewsCard key={`sports-${item.articleId}`} article={convertToNewsArticle(item)} />
                           ))}
                       </div>
                     </div>
@@ -249,10 +276,16 @@ export default function PersonalizedPage() {
 
                 {/* Personalized grid (single flow) */}
                 {source === "personalized" && (
-                  <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                    {items.map((item, idx) => (
-                      <PersonalizedItemCard key={`personalized-${idx}`} item={item} />
-                    ))}
+                  <div>
+                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                      <Sparkles className="h-6 w-6 text-primary" />
+                      Your Personalized Feed
+                    </h2>
+                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                      {items.map((item) => (
+                        <NewsCard key={`personalized-${item.articleId}`} article={convertToNewsArticle(item)} />
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -296,34 +329,5 @@ export default function PersonalizedPage() {
         </div>
       </main>
     </div>
-  )
-}
-
-function PersonalizedItemCard({ item }: { item: PersonalizedItem }) {
-  return (
-    <Card className="bg-[#1a1a1a] border-gray-800 overflow-hidden group hover:border-gray-700 transition-all hover:shadow-lg">
-      <div className="p-4 flex flex-col h-full">
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">{item.category}</span>
-            <span className="text-xs text-muted-foreground">{item.credibility}% credible</span>
-          </div>
-          <h3 className="font-bold text-sm mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-            {item.title}
-          </h3>
-          <p className="text-xs text-muted-foreground">{item.reason}</p>
-        </div>
-        <div className="mt-auto pt-3 border-t border-gray-700">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">{item.source}</span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                <Sparkles className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
   )
 }
