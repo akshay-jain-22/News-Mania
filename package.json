@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@ai-sdk/groq": "latest",
+    "@ai-sdk/groq": "2.0.24",
     "@ai-sdk/openai": "latest",
     "@ai-sdk/xai": "latest",
     "@hookform/resolvers": "^3.9.1",

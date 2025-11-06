@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateText } from "ai"
-import { groq } from "@ai-sdk/groq"
+import { askGemini } from "@/lib/gemini-client"
 
 export async function POST(request: Request) {
   try {
@@ -18,49 +17,39 @@ export async function POST(request: Request) {
     try {
       console.log("Generating context for article:", title)
 
-      const prompt = `
-        You are a helpful assistant that provides background context for news articles. Provide factual, balanced information without political bias.
+      const prompt = `You are a helpful assistant that provides background context for news articles.
         
-        Article Title: ${title}
-        Article Description: ${description || "Not available"}
-        Article Content: ${content || "Not available"}
-        
-        Please provide background context and additional information about this news topic in 3-4 paragraphs.
-      `
+Article Title: ${title}
+Article Description: ${description || "Not available"}
+Article Content: ${content || "Not available"}
 
-      const { text: contextText } = await generateText({
-        model: groq("llama3-70b-8192"),
-        prompt: prompt,
-        temperature: 0.7,
-        maxTokens: 500,
-      })
+Please provide background context and additional information about this news topic in 3-4 paragraphs.`
 
-      console.log("Successfully generated context")
+      const contextText = await askGemini(prompt, 0.7, 500)
 
-      // Provide a fallback if the response is empty
+      console.log("Successfully generated context with Gemini")
+
       if (!contextText || contextText.trim() === "") {
         return NextResponse.json({
           context:
             "This news topic appears to be about " +
             title +
-            ". While specific context couldn't be generated, you can research more about this topic through reliable news sources and fact-checking websites.",
+            ". You can research more about this topic through reliable news sources.",
         })
       }
 
       return NextResponse.json({ context: contextText })
     } catch (error) {
-      console.error("AI generation error:", error)
+      console.error("Gemini generation error:", error)
 
-      // Provide a more helpful fallback response
       return NextResponse.json({
-        context: `This article titled "${title}" may require additional context. While our AI system couldn't generate specific background information at this moment, you can look for related news from multiple sources to get a more complete picture.`,
+        context: `This article titled "${title}" may require additional context. You can look for related news from multiple sources.`,
       })
     }
   } catch (error) {
     console.error("General error in news-context API route:", error)
     return NextResponse.json({
-      context:
-        "We encountered a technical issue while analyzing this article. This might be due to temporary service limitations. Please try again in a few moments.",
+      context: "We encountered a technical issue while analyzing this article. Please try again.",
     })
   }
 }

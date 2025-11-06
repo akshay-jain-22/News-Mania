@@ -1,10 +1,8 @@
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
-import { xai } from "@ai-sdk/xai"
 import { logger } from "@/lib/logger"
+import { askGemini } from "@/lib/gemini-client"
 
-export type LLMProvider = "openai" | "grok"
-export type LLMModel = "gpt-4-turbo" | "gpt-4o" | "grok-4"
+export type LLMProvider = "openai" | "grok" | "gemini"
+export type LLMModel = "gpt-4-turbo" | "gpt-4o" | "grok-4" | "gemini-pro"
 
 interface LLMResponse {
   text: string
@@ -27,17 +25,13 @@ class LLMService {
   private fallbackProvider: LLMProvider
   private requestCache: Map<string, LLMResponse> = new Map()
 
-  constructor(primaryProvider: LLMProvider = "openai") {
+  constructor(primaryProvider: LLMProvider = "gemini") {
     this.primaryProvider = primaryProvider
-    this.fallbackProvider = primaryProvider === "openai" ? "grok" : "openai"
+    this.fallbackProvider = "gemini"
   }
 
   private getModel(provider: LLMProvider, model: LLMModel) {
-    if (provider === "openai") {
-      return openai(model === "grok-4" ? "gpt-4-turbo" : model)
-    } else {
-      return xai(model === "gpt-4-turbo" || model === "gpt-4o" ? "grok-4" : model)
-    }
+    return { provider: "gemini", model: "gemini-pro" }
   }
 
   private isRetryableError(error: unknown): boolean {
@@ -53,7 +47,7 @@ class LLMService {
 
   async generate(
     prompt: string,
-    model: LLMModel = "gpt-4-turbo",
+    model: LLMModel = "gemini-pro",
     options: LLMOptions = {},
     sources: Array<{ source: string; url: string; excerpt: string }> = [],
     requestId = `req_${Date.now()}`,
@@ -67,32 +61,21 @@ class LLMService {
 
     const { temperature = 0.3, maxTokens = 500, topP = 0.9 } = options
 
-    let lastError: unknown = null
-    let providerFallbackUsed = false
-
-    // Try primary provider
     try {
       logger.log({
         requestId,
         endpoint: "/api/ml/generate",
-        provider: this.primaryProvider,
-        model,
+        provider: "gemini",
+        model: "gemini-pro",
         latency: 0,
       })
 
-      const primaryModel = this.getModel(this.primaryProvider, model)
-      const { text, usage } = await generateText({
-        model: primaryModel,
-        prompt,
-        temperature,
-        maxTokens,
-        topP,
-      })
+      const text = await askGemini(prompt, temperature, maxTokens)
 
       const response: LLMResponse = {
         text,
-        modelUsed: `${this.primaryProvider}/${model}`,
-        tokensUsed: usage?.totalTokens || 0,
+        modelUsed: "gemini/gemini-pro",
+        tokensUsed: 0,
         sources,
         requestId,
         confidence: "High",
@@ -102,64 +85,16 @@ class LLMService {
       this.requestCache.set(cacheKey, response)
       return response
     } catch (error) {
-      lastError = error
       logger.log({
         requestId,
         endpoint: "/api/ml/generate",
-        provider: this.primaryProvider,
-        model,
+        provider: "gemini",
+        model: "gemini-pro",
         error: String(error),
         latency: 0,
       })
 
-      if (!this.isRetryableError(error)) {
-        throw error
-      }
-    }
-
-    // Try fallback provider
-    try {
-      logger.log({
-        requestId,
-        endpoint: "/api/ml/generate",
-        provider: this.fallbackProvider,
-        model,
-        latency: 0,
-      })
-
-      providerFallbackUsed = true
-      const fallbackModel = this.getModel(this.fallbackProvider, model)
-      const { text, usage } = await generateText({
-        model: fallbackModel,
-        prompt,
-        temperature,
-        maxTokens,
-        topP,
-      })
-
-      const response: LLMResponse = {
-        text,
-        modelUsed: `${this.fallbackProvider}/${model}`,
-        tokensUsed: usage?.totalTokens || 0,
-        sources,
-        requestId,
-        confidence: "Med",
-        providerFallbackUsed: true,
-      }
-
-      this.requestCache.set(cacheKey, response)
-      return response
-    } catch (fallbackError) {
-      logger.log({
-        requestId,
-        endpoint: "/api/ml/generate",
-        provider: this.fallbackProvider,
-        model,
-        error: String(fallbackError),
-        latency: 0,
-      })
-
-      // Both providers failed, return cached result or extractive fallback
+      // Use extractive fallback when Gemini fails
       const extractiveResult = this.extractiveTextRank(prompt, sources)
       return {
         text: extractiveResult,
@@ -205,4 +140,4 @@ class LLMService {
   }
 }
 
-export const llmService = new LLMService((process.env.LLM_PROVIDER as LLMProvider) || "openai")
+export const llmService = new LLMService("gemini")

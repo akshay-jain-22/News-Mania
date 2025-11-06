@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateText } from "ai"
-import { groq } from "@ai-sdk/groq"
+import { summarizeArticle } from "@/lib/gemini-client"
 
 // Cache for summaries to ensure consistency but allow variation
 const summaryCache = new Map<string, { summary: string; timestamp: number; variations: string[] }>()
@@ -25,7 +24,6 @@ export async function POST(request: Request) {
       // Check cache for existing summary
       const cached = summaryCache.get(articleId || title)
       if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        // Return a variation if available, otherwise return cached
         const variation = cached.variations[Math.floor(Math.random() * cached.variations.length)]
         return NextResponse.json({
           summary: variation || cached.summary,
@@ -34,60 +32,16 @@ export async function POST(request: Request) {
         })
       }
 
-      // Generate context-aware summary with specific style
-      const stylePrompts = {
-        concise: "Provide a 2-3 sentence summary focusing on the main facts and key takeaways.",
-        detailed: "Provide a 4-5 sentence summary with important details and context.",
-        analytical: "Provide a 3-4 sentence analytical summary explaining the significance and implications.",
-        headline: "Provide a single compelling headline-style summary (one sentence).",
-      }
+      const summaryText = await summarizeArticle(title, content, style)
 
-      const styleInstruction = stylePrompts[style as keyof typeof stylePrompts] || stylePrompts.concise
+      console.log("Successfully generated summary with Gemini")
 
-      const prompt = `
-        You are an expert news summarizer. Your task is to create a clear, accurate, and engaging summary of a news article.
-        
-        Article Title: ${title}
-        Article Description: ${description || "Not available"}
-        Article Content: ${content.substring(0, 2000)}
-        
-        ${styleInstruction}
-        
-        Important: Make the summary specific to this article's content and context. Avoid generic summaries.
-        Focus on: What happened, who it affects, and why it matters.
-      `
-
-      const { text: summaryText } = await generateText({
-        model: groq("llama3-70b-8192"),
-        prompt: prompt,
-        temperature: 0.7,
-        maxTokens: 300,
-      })
-
-      console.log("Successfully generated summary")
-
-      // Generate 2-3 variations for future requests
+      // Generate variations
       const variations = [summaryText]
       if (articleId) {
         try {
-          const variationPrompt = `
-            You are an expert news summarizer. Create an alternative summary of the same article with a different perspective or emphasis.
-            
-            Article Title: ${title}
-            Article Content: ${content.substring(0, 2000)}
-            
-            ${styleInstruction}
-            
-            Important: This should be a different summary than the previous one, but covering the same key facts.
-          `
-
-          const { text: variation1 } = await generateText({
-            model: groq("llama3-70b-8192"),
-            prompt: variationPrompt,
-            temperature: 0.8,
-            maxTokens: 300,
-          })
-
+          const altStyle = style === "concise" ? "detailed" : "concise"
+          const variation1 = await summarizeArticle(title, content, altStyle)
           if (variation1) variations.push(variation1)
         } catch (error) {
           console.error("Error generating variation:", error)
@@ -105,7 +59,7 @@ export async function POST(request: Request) {
 
       if (!summaryText || summaryText.trim() === "") {
         return NextResponse.json({
-          summary: `This article titled "${title}" covers important news. The main points include information about ${description?.substring(0, 50) || "current events"}. For more details, please read the full article.`,
+          summary: `This article titled "${title}" covers important news.`,
           articleId,
         })
       }
@@ -117,19 +71,18 @@ export async function POST(request: Request) {
         variations: variations.length > 1 ? variations.slice(1) : [],
       })
     } catch (error) {
-      console.error("AI generation error:", error)
-
+      console.error("Gemini generation error:", error)
       return NextResponse.json({
-        summary: `This article titled "${title}" discusses ${description?.substring(0, 50) || "current events"}. Please read the full article for complete information.`,
+        summary: `This article titled "${title}" discusses ${description?.substring(0, 50) || "current events"}.`,
         articleId,
-        error: "Failed to generate optimal summary",
+        error: "Failed to generate summary",
       })
     }
   } catch (error) {
     console.error("General error in summarize API route:", error)
     return NextResponse.json(
       {
-        summary: "We encountered a technical issue while summarizing this article. Please try again in a few moments.",
+        summary: "We encountered a technical issue while summarizing this article. Please try again.",
       },
       { status: 500 },
     )

@@ -1,51 +1,28 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { askGemini } from "@/lib/gemini-client"
 
 export async function POST(request: NextRequest) {
   try {
     const { topCategories, recommendationCount, userInterests, timeOfDay } = await request.json()
 
-    // Try to use OpenAI for message generation if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const prompt = `
-Create a personalized greeting message for a news feed user with these characteristics:
+    try {
+      const prompt = `Create a personalized greeting message for a news feed user with these characteristics:
 - Top interests: ${topCategories?.join(", ") || "general news"}
 - Number of recommendations: ${recommendationCount || 0}
 - Time of day: ${timeOfDay || 12} (24-hour format)
 - Other interests: ${userInterests?.join(", ") || "current events"}
 
-Create a warm, engaging message that acknowledges their interests and the time of day. Keep it concise (1-2 sentences).
-`
+Create a warm, engaging message that acknowledges their interests and the time of day. Keep it concise (1-2 sentences). Return only the message.`
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 100,
-            temperature: 0.7,
-          }),
-        })
+      const message = await askGemini(prompt, 0.7, 100)
+      return NextResponse.json({ message: message.trim() })
+    } catch (error) {
+      console.error("Gemini API error:", error)
 
-        if (response.ok) {
-          const data = await response.json()
-          const message = data.choices[0].message.content.trim()
-
-          return NextResponse.json({ message })
-        }
-      } catch (error) {
-        console.error("OpenAI API error:", error)
-      }
+      // Fallback to simple message generation
+      const message = generateSimpleMessage(topCategories, recommendationCount, timeOfDay)
+      return NextResponse.json({ message })
     }
-
-    // Fallback to simple message generation
-    const message = generateSimpleMessage(topCategories, recommendationCount, timeOfDay)
-
-    return NextResponse.json({ message })
   } catch (error) {
     console.error("Message generation error:", error)
     return NextResponse.json({ message: "Here are your personalized news recommendations!" })

@@ -1,6 +1,7 @@
 import { xai } from "@ai-sdk/xai"
 import { openai } from "@ai-sdk/openai"
 import { generateText } from "ai"
+import { analyzeFactCheck } from "@/lib/gemini-client"
 
 interface GrokFactCheckResult {
   credibilityScore: number
@@ -18,107 +19,16 @@ export async function analyzeArticleWithGrok(
   content: string,
   description?: string,
 ): Promise<GrokFactCheckResult> {
-  console.log("🤖 Starting AI fact-check analysis...")
-
-  // Prepare the article content
-  const articleText = `
-TITLE: ${title}
-
-DESCRIPTION: ${description || "No description available"}
-
-CONTENT: ${content || "No content available"}
-  `.trim()
-
-  // Use the exact prompt format you specified
-  const prompt = `You are a news verification assistant.
-
-Given the following news article, perform a credibility assessment and return:
-1. Credibility Score (0–100%)
-2. Summary of the article (2–3 lines)
-3. Reasons for credibility score
-
-Article:
-"${articleText}"
-
-Please respond in this exact format:
-Credibility Score: [number]%
-
-Summary: [2-3 line summary of the article]
-
-Reasons: [brief explanation of factors that influenced the credibility score]`
-
-  // Try Grok first, then fallback to OpenAI
-  let result: any
-  let aiProvider = "Unknown"
+  console.log("🤖 Starting Gemini fact-check analysis...")
 
   try {
-    console.log("🚀 Attempting Grok AI analysis...")
-
-    const grokModels = ["grok-beta", "grok-2"]
-    let grokSuccess = false
-
-    for (const model of grokModels) {
-      try {
-        console.log(`🧪 Trying Grok model: ${model}`)
-        result = await generateText({
-          model: xai(model),
-          prompt,
-          temperature: 0.3,
-          maxTokens: 500,
-        })
-        aiProvider = `Grok AI (${model})`
-        grokSuccess = true
-        console.log(`✅ Grok AI successful with model: ${model}`)
-        break
-      } catch (grokError) {
-        console.log(`❌ Grok model ${model} failed:`, grokError instanceof Error ? grokError.message : "Unknown error")
-        continue
-      }
-    }
-
-    if (!grokSuccess) {
-      throw new Error("All Grok models failed")
-    }
-  } catch (grokError) {
-    console.log("❌ Grok AI failed, trying OpenAI...")
-
-    try {
-      const openaiKey = process.env.OPENAI_API_KEY
-      if (!openaiKey) {
-        throw new Error("OPENAI_API_KEY not configured")
-      }
-
-      console.log("🚀 Using OpenAI as fallback...")
-      result = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-        temperature: 0.3,
-        maxTokens: 500,
-      })
-      aiProvider = "OpenAI GPT-4"
-      console.log("✅ OpenAI analysis successful")
-    } catch (openaiError) {
-      console.log("❌ OpenAI also failed, using enhanced fallback...")
-
-      // Use enhanced fallback analysis
-      return createEnhancedFallbackAnalysis(title, content || description || "")
-    }
+    const analysisText = await analyzeFactCheck(title, content, description)
+    const parsedResult = parseAIResponse(analysisText, title, "Gemini AI")
+    return parsedResult
+  } catch (error) {
+    console.error("Gemini analysis failed:", error)
+    return createEnhancedFallbackAnalysis(title, content || description || "")
   }
-
-  console.log("✅ Received response from", aiProvider)
-  console.log("📄 Raw response:", result.text)
-
-  // Parse the response
-  const parsedResult = parseAIResponse(result.text, title, aiProvider)
-
-  console.log("🎯 Final parsed result:", {
-    score: parsedResult.credibilityScore,
-    summary: parsedResult.summary.substring(0, 100) + "...",
-    factorsCount: parsedResult.analysisFactors.length,
-    provider: aiProvider,
-  })
-
-  return parsedResult
 }
 
 function parseAIResponse(responseText: string, title: string, aiProvider: string): GrokFactCheckResult {
@@ -304,6 +214,7 @@ export async function testGrokConnection(): Promise<{ success: boolean; message:
   const results = {
     grok: { success: false, message: "", model: "" },
     openai: { success: false, message: "", model: "" },
+    gemini: { success: false, message: "", model: "" },
   }
 
   // Test Grok AI with multiple models
@@ -364,18 +275,44 @@ export async function testGrokConnection(): Promise<{ success: boolean; message:
     results.openai.message = error instanceof Error ? error.message : "Unknown error"
   }
 
+  // Test Gemini AI
+  try {
+    console.log("🧪 Testing Gemini AI...")
+
+    const result = await analyzeFactCheck("Test", "Test content", "Test description")
+    if (result.toLowerCase().includes("connection successful")) {
+      results.gemini = {
+        success: true,
+        message: "Gemini AI working properly",
+        model: "gemini",
+      }
+      console.log("✅ Gemini AI connection successful")
+    }
+  } catch (error) {
+    console.log("❌ Gemini AI failed:", error instanceof Error ? error.message : "Unknown error")
+    results.gemini.message = error instanceof Error ? error.message : "Unknown error"
+  }
+
   // Determine overall success
-  const overallSuccess = results.grok.success || results.openai.success
+  const overallSuccess = results.grok.success || results.openai.success || results.gemini.success
   let message = ""
 
-  if (results.grok.success && results.openai.success) {
-    message = "Both Grok AI and OpenAI are working properly"
+  if (results.grok.success && results.openai.success && results.gemini.success) {
+    message = "All AI providers (Grok, OpenAI, Gemini) are working properly"
+  } else if (results.grok.success && results.openai.success) {
+    message = `Grok AI working (${results.grok.model}), OpenAI working (${results.openai.model}), Gemini AI unavailable`
+  } else if (results.grok.success && results.gemini.success) {
+    message = `Grok AI working (${results.grok.model}), Gemini AI working (${results.gemini.model}), OpenAI unavailable`
+  } else if (results.openai.success && results.gemini.success) {
+    message = `OpenAI working (${results.openai.model}), Gemini AI working (${results.gemini.model}), Grok AI unavailable`
   } else if (results.grok.success) {
-    message = `Grok AI working (${results.grok.model}), OpenAI unavailable`
+    message = `Grok AI working (${results.grok.model}), OpenAI and Gemini AI unavailable`
   } else if (results.openai.success) {
-    message = `OpenAI working (${results.openai.model}), Grok AI unavailable`
+    message = `OpenAI working (${results.openai.model}), Grok AI and Gemini AI unavailable`
+  } else if (results.gemini.success) {
+    message = `Gemini AI working (${results.gemini.model}), Grok AI and OpenAI unavailable`
   } else {
-    message = "Both Grok AI and OpenAI are unavailable"
+    message = "All AI providers (Grok, OpenAI, Gemini) are unavailable"
   }
 
   return {
@@ -528,6 +465,18 @@ Respond with ONLY the number (0-100), nothing else.`
       }
     } catch (error) {
       console.log("❌ OpenAI also failed for quick check")
+    }
+
+    // Fallback to Gemini AI
+    try {
+      const result = await analyzeFactCheck(headline, "", "")
+      const score = Number.parseInt(result.trim())
+      if (!isNaN(score) && score >= 0 && score <= 100) {
+        console.log("✅ Quick check score from Gemini AI:", score)
+        return score
+      }
+    } catch (error) {
+      console.log("❌ Gemini AI also failed for quick check")
     }
 
     // Final fallback - basic content analysis

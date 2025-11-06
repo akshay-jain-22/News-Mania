@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { askGemini } from "@/lib/gemini-client"
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,51 +9,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Original title is required" }, { status: 400 })
     }
 
-    // Try to use OpenAI for personalization if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const prompt = `
-Personalize this news headline for a user with these interests:
+    try {
+      const prompt = `Personalize this news headline for a user with these interests:
 - Categories: ${preferredCategories?.join(", ") || "general"}
 - Interests: ${userInterests?.join(", ") || "current events"}
 
 Original headline: "${originalTitle}"
 
-Create a personalized version that would appeal to this user while keeping the core information. Make it engaging and relevant to their interests. Return only the personalized headline.
-`
+Create a personalized version that would appeal to this user while keeping the core information. Make it engaging and relevant to their interests. Return only the personalized headline, nothing else.`
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 100,
-            temperature: 0.7,
-          }),
-        })
+      const personalizedHeadline = await askGemini(prompt, 0.7, 100)
 
-        if (response.ok) {
-          const data = await response.json()
-          const personalizedHeadline = data.choices[0].message.content.trim()
+      return NextResponse.json({ personalizedHeadline: personalizedHeadline.trim() })
+    } catch (error) {
+      console.error("Gemini API error:", error)
 
-          return NextResponse.json({ personalizedHeadline })
-        }
-      } catch (error) {
-        console.error("OpenAI API error:", error)
-      }
+      // Fallback to simple personalization
+      const personalizedHeadline = simplePersonalization(originalTitle, preferredCategories, userInterests)
+      return NextResponse.json({ personalizedHeadline })
     }
-
-    // Fallback to simple personalization
-    const personalizedHeadline = simplePersonalization(originalTitle, preferredCategories, userInterests)
-
-    return NextResponse.json({ personalizedHeadline })
   } catch (error) {
     console.error("Headline personalization error:", error)
-    return NextResponse.json({ personalizedHeadline: "Default Title" }) // Updated to provide a default title
+    return NextResponse.json({ personalizedHeadline: "Default Title" }) // Updated to handle the case where originalTitle is not available
   }
 }
 
