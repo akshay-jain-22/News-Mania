@@ -10,37 +10,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY
 export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 500): Promise<string | null> {
   const errors: string[] = []
 
-  // Try Gemini first if key is available
-  if (GEMINI_API_KEY) {
-    try {
-      const { text } = await generateText({
-        model: google("gemini-1.5-flash"),
-        prompt,
-        temperature,
-        maxTokens,
-      })
-      return text
-    } catch (error) {
-      errors.push("Gemini failed")
-    }
-  }
-
-  // Try OpenAI as second option
-  if (OPENAI_API_KEY) {
-    try {
-      const { text } = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-        temperature,
-        maxTokens,
-      })
-      return text
-    } catch (error) {
-      errors.push("OpenAI failed")
-    }
-  }
-
-  // Try Groq as third option
+  // Try Groq FIRST (most reliable currently)
   if (GROQ_API_KEY) {
     try {
       const { text } = await generateText({
@@ -51,13 +21,40 @@ export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 5
       })
       return text
     } catch (error) {
-      errors.push("Groq failed")
+      // Silently continue to next provider
     }
   }
 
-  if (errors.length > 0) {
-    console.warn("AI providers unavailable, using fallback responses")
+  // Try Gemini second (if key becomes valid)
+  if (GEMINI_API_KEY) {
+    try {
+      const { text } = await generateText({
+        model: google("gemini-1.5-flash"),
+        prompt,
+        temperature,
+        maxTokens,
+      })
+      return text
+    } catch (error) {
+      // Silently continue to next provider
+    }
   }
+
+  // Try OpenAI last (has quota issues)
+  if (OPENAI_API_KEY) {
+    try {
+      const { text } = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt,
+        temperature,
+        maxTokens,
+      })
+      return text
+    } catch (error) {
+      // All providers failed
+    }
+  }
+
   return null
 }
 
