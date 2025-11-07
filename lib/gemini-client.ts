@@ -1,63 +1,75 @@
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+import { google } from "@ai-sdk/google"
+import { openai } from "@ai-sdk/openai"
+import { groq } from "@ai-sdk/groq"
+import { generateText } from "ai"
 
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string
-      }>
-    }
-  }>
-}
+const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const GROQ_API_KEY = process.env.GROQ_API_KEY
 
 export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 500): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured")
+  // Try Gemini first if key is available
+  if (GEMINI_API_KEY) {
+    try {
+      console.log("[v0] Calling Gemini API...")
+      const { text } = await generateText({
+        model: google("gemini-1.5-flash"),
+        prompt,
+        temperature,
+        maxTokens,
+      })
+      console.log("[v0] Gemini response received")
+      return text
+    } catch (error) {
+      console.warn(
+        "[v0] Gemini API failed (invalid key or error). Falling back to alternative provider...",
+        error instanceof Error ? error.message : error,
+      )
+      // Continue to fallback providers below
+    }
   }
 
-  try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-          topP: 0.9,
-          topK: 40,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Gemini API error: ${response.status} - ${error}`)
+  // Fallback to OpenAI
+  if (OPENAI_API_KEY) {
+    try {
+      if (!GEMINI_API_KEY) {
+        console.warn("[v0] GOOGLE_GENERATIVE_AI_API_KEY not set. Using OpenAI as fallback.")
+      }
+      console.log("[v0] Calling OpenAI API...")
+      const { text } = await generateText({
+        model: openai("gpt-4o-mini"),
+        prompt,
+        temperature,
+        maxTokens,
+      })
+      console.log("[v0] OpenAI response received")
+      return text
+    } catch (error) {
+      console.error("[v0] OpenAI API error:", error)
+      // Continue to next fallback
     }
-
-    const data = (await response.json()) as GeminiResponse
-
-    if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-      throw new Error("No response from Gemini API")
-    }
-
-    return data.candidates[0].content.parts[0].text
-  } catch (error) {
-    console.error("Gemini API error:", error)
-    throw error
   }
+
+  // Fallback to Groq
+  if (GROQ_API_KEY) {
+    try {
+      console.log("[v0] Calling Groq API...")
+      const { text } = await generateText({
+        model: groq("llama-3.3-70b-versatile"),
+        prompt,
+        temperature,
+        maxTokens,
+      })
+      console.log("[v0] Groq response received")
+      return text
+    } catch (error) {
+      console.error("[v0] Groq API error:", error)
+    }
+  }
+
+  throw new Error(
+    "All AI providers failed. Please check your API keys: GOOGLE_GENERATIVE_AI_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY",
+  )
 }
 
 export async function summarizeArticle(title: string, content: string, style = "concise"): Promise<string> {
