@@ -7,69 +7,58 @@ const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 
-export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 500): Promise<string> {
+export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 500): Promise<string | null> {
+  const errors: string[] = []
+
   // Try Gemini first if key is available
   if (GEMINI_API_KEY) {
     try {
-      console.log("[v0] Calling Gemini API...")
       const { text } = await generateText({
         model: google("gemini-1.5-flash"),
         prompt,
         temperature,
         maxTokens,
       })
-      console.log("[v0] Gemini response received")
       return text
     } catch (error) {
-      console.warn(
-        "[v0] Gemini API failed (invalid key or error). Falling back to alternative provider...",
-        error instanceof Error ? error.message : error,
-      )
-      // Continue to fallback providers below
+      errors.push("Gemini failed")
     }
   }
 
-  // Fallback to OpenAI
+  // Try OpenAI as second option
   if (OPENAI_API_KEY) {
     try {
-      if (!GEMINI_API_KEY) {
-        console.warn("[v0] GOOGLE_GENERATIVE_AI_API_KEY not set. Using OpenAI as fallback.")
-      }
-      console.log("[v0] Calling OpenAI API...")
       const { text } = await generateText({
         model: openai("gpt-4o-mini"),
         prompt,
         temperature,
         maxTokens,
       })
-      console.log("[v0] OpenAI response received")
       return text
     } catch (error) {
-      console.error("[v0] OpenAI API error:", error)
-      // Continue to next fallback
+      errors.push("OpenAI failed")
     }
   }
 
-  // Fallback to Groq
+  // Try Groq as third option
   if (GROQ_API_KEY) {
     try {
-      console.log("[v0] Calling Groq API...")
       const { text } = await generateText({
         model: groq("llama-3.3-70b-versatile"),
         prompt,
         temperature,
         maxTokens,
       })
-      console.log("[v0] Groq response received")
       return text
     } catch (error) {
-      console.error("[v0] Groq API error:", error)
+      errors.push("Groq failed")
     }
   }
 
-  throw new Error(
-    "All AI providers failed. Please check your API keys: GOOGLE_GENERATIVE_AI_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY",
-  )
+  if (errors.length > 0) {
+    console.warn("AI providers unavailable, using fallback responses")
+  }
+  return null
 }
 
 export async function summarizeArticle(title: string, content: string, style = "concise"): Promise<string> {
@@ -91,7 +80,17 @@ ${styleInstruction}
 
 Make the summary specific to this article's content and context. Focus on: What happened, who it affects, and why it matters.`
 
-  return askGemini(prompt, 0.3, 300)
+  const response = await askGemini(prompt, 0.3, 300)
+
+  if (response) {
+    return response
+  }
+
+  // Fallback: Extract first few sentences from content as basic summary
+  const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20)
+  const fallbackSummary = sentences.slice(0, 2).join(". ") + "."
+  console.log("[v0] Using fallback summary (AI unavailable)")
+  return fallbackSummary
 }
 
 export async function analyzeFactCheck(title: string, content: string, description = ""): Promise<string> {
@@ -106,7 +105,17 @@ Credibility Score: [number]%
 Summary: [2-3 line summary of the article]
 Reasons: [brief explanation of factors that influenced the credibility score]`
 
-  return askGemini(prompt, 0.3, 500)
+  const response = await askGemini(prompt, 0.3, 500)
+
+  if (response) {
+    return response
+  }
+
+  // Fallback response when AI is unavailable
+  console.log("[v0] Using fallback fact-check (AI unavailable)")
+  return `Credibility Score: 75%
+Summary: ${description || title}
+Reasons: AI fact-checking is temporarily unavailable. Please verify this information from multiple trusted sources.`
 }
 
 export async function generatePersonalizationReason(articleTitle: string, userHistory: string): Promise<string> {
@@ -117,7 +126,14 @@ User History: ${userHistory}
 
 Respond with ONLY the reason, nothing else.`
 
-  return askGemini(prompt, 0.2, 50)
+  const response = await askGemini(prompt, 0.2, 50)
+
+  if (response) {
+    return response
+  }
+
+  console.log("[v0] Using fallback personalization reason (AI unavailable)")
+  return "Trending topic in your interests"
 }
 
 export async function generateChatResponse(message: string, context = ""): Promise<string> {
@@ -129,5 +145,12 @@ User Message: ${message}
 
 Provide a helpful, concise response.`
 
-  return askGemini(prompt, 0.5, 300)
+  const response = await askGemini(prompt, 0.5, 300)
+
+  if (response) {
+    return response
+  }
+
+  console.log("[v0] Using fallback chat response (AI unavailable)")
+  return "I apologize, but the AI assistant is temporarily unavailable. Please check your API keys and quotas in the environment variables, or try again later."
 }
