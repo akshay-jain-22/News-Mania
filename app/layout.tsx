@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 //import { SplashScreen } from "@/components/splash-screen"
 import { AuthProvider } from "@/components/auth-provider"
+import { VoiceAgentTrigger } from "@/components/voice-agent-trigger"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,10 +27,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
-
-          
             {children}
             <Toaster />
+            <VoiceAgentTrigger />
           </AuthProvider>
         </ThemeProvider>
       </body>
