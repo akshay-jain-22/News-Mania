@@ -1,16 +1,23 @@
-import { google } from "@ai-sdk/google"
-import { openai } from "@ai-sdk/openai"
 import { groq } from "@ai-sdk/groq"
 import { generateText } from "ai"
+import {
+  generateWithGemini,
+  summarizeWithGemini,
+  factCheckWithGemini,
+  chatWithGemini,
+  generatePersonalizationReasonWithGemini,
+} from "./google-cloud-client"
 
 const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 
 export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 500): Promise<string | null> {
-  const errors: string[] = []
+  const geminiResponse = await generateWithGemini(prompt, temperature, maxTokens)
+  if (geminiResponse) {
+    return geminiResponse
+  }
 
-  // Try Groq FIRST (most reliable currently)
   if (GROQ_API_KEY) {
     try {
       const { text } = await generateText({
@@ -21,37 +28,7 @@ export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 5
       })
       return text
     } catch (error) {
-      // Silently continue to next provider
-    }
-  }
-
-  // Try Gemini second (if key becomes valid)
-  if (GEMINI_API_KEY) {
-    try {
-      const { text } = await generateText({
-        model: google("gemini-1.5-flash"),
-        prompt,
-        temperature,
-        maxTokens,
-      })
-      return text
-    } catch (error) {
-      // Silently continue to next provider
-    }
-  }
-
-  // Try OpenAI last (has quota issues)
-  if (OPENAI_API_KEY) {
-    try {
-      const { text } = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-        temperature,
-        maxTokens,
-      })
-      return text
-    } catch (error) {
-      // All providers failed
+      // Groq failed too
     }
   }
 
@@ -59,6 +36,11 @@ export async function askGemini(prompt: string, temperature = 0.3, maxTokens = 5
 }
 
 export async function summarizeArticle(title: string, content: string, style = "concise"): Promise<string> {
+  const geminiSummary = await summarizeWithGemini(title, content, style)
+  if (geminiSummary) {
+    return geminiSummary
+  }
+
   const stylePrompts = {
     concise: "Provide a 2-3 sentence summary focusing on the main facts and key takeaways.",
     detailed: "Provide a 4-5 sentence summary with important details and context.",
@@ -83,7 +65,6 @@ Make the summary specific to this article's content and context. Focus on: What 
     return response
   }
 
-  // Fallback: Extract first few sentences from content as basic summary
   const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20)
   const fallbackSummary = sentences.slice(0, 2).join(". ") + "."
   console.log("[v0] Using fallback summary (AI unavailable)")
@@ -91,6 +72,11 @@ Make the summary specific to this article's content and context. Focus on: What 
 }
 
 export async function analyzeFactCheck(title: string, content: string, description = ""): Promise<string> {
+  const geminiFactCheck = await factCheckWithGemini(title, content, description)
+  if (geminiFactCheck) {
+    return geminiFactCheck
+  }
+
   const prompt = `You are a news verification assistant. Perform a credibility assessment of this news article.
 
 TITLE: ${title}
@@ -108,7 +94,6 @@ Reasons: [brief explanation of factors that influenced the credibility score]`
     return response
   }
 
-  // Fallback response when AI is unavailable
   console.log("[v0] Using fallback fact-check (AI unavailable)")
   return `Credibility Score: 75%
 Summary: ${description || title}
@@ -116,6 +101,11 @@ Reasons: AI fact-checking is temporarily unavailable. Please verify this informa
 }
 
 export async function generatePersonalizationReason(articleTitle: string, userHistory: string): Promise<string> {
+  const geminiReason = await generatePersonalizationReasonWithGemini(articleTitle, userHistory)
+  if (geminiReason) {
+    return geminiReason
+  }
+
   const prompt = `Write one short reason (under 15 words) why the user would like this article based on their reading habits.
 
 Article: "${articleTitle}"
@@ -134,6 +124,11 @@ Respond with ONLY the reason, nothing else.`
 }
 
 export async function generateChatResponse(message: string, context = ""): Promise<string> {
+  const geminiChat = await chatWithGemini(message, context)
+  if (geminiChat) {
+    return geminiChat
+  }
+
   const prompt = `You are a helpful news assistant. Answer the user's question about news topics.
 
 ${context ? `Context: ${context}` : ""}

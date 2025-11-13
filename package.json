@@ -1,9 +1,10 @@
 {
   "dependencies": {
-    "@ai-sdk/google": "latest",
+    "@ai-sdk/google": "2.0.29",
     "@ai-sdk/groq": "latest",
     "@ai-sdk/openai": "latest",
-    "@ai-sdk/xai": "2.0.27",
+    "@ai-sdk/xai": "2.0.31",
+    "@google/generative-ai": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "latest",
@@ -45,6 +46,7 @@
     "date-fns": "latest",
     "embla-carousel-react": "8.5.1",
     "framer-motion": "^11.0.0",
+    "google-auth-library": "latest",
     "immer": "latest",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
@@ -73,6 +75,7 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/ws": "^8.5.13",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
