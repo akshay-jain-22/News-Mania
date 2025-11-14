@@ -1,8 +1,8 @@
 // Google Cloud Text-to-Speech API endpoint
 import { NextResponse } from "next/server"
 
-const GOOGLE_CREDENTIALS = process.env.GOOGLE_CLOUD_CREDENTIALS
-  ? JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS)
+const GOOGLE_CREDENTIALS = process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT)
   : null
 
 const GOOGLE_TTS_ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"

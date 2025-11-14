@@ -2,8 +2,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // Get credentials from environment variables
-const GOOGLE_CREDENTIALS = process.env.GOOGLE_CLOUD_CREDENTIALS
-  ? JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS)
+const GOOGLE_CREDENTIALS = process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT)
   : null
 
 const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY

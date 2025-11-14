@@ -49,6 +49,14 @@ This should be the entire JSON service account key file, minified into a single 
 
 **Security Note:** Never commit service account credentials to Git. Always use environment variables.
 
+### 1. Google Cloud Service Account (Required for STT/TTS)
+
+\`\`\`bash
+GOOGLE_CLOUD_SERVICE_ACCOUNT='{"type":"service_account","project_id":"voiceassistantapp-477819","private_key_id":"49da5a5ab0660aa5c55023a84a50cd71eb23b38b","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDkw8bVAWmDAXZU\n...","client_email":"voice-assistant-sa@voiceassistantapp-477819.iam.gserviceaccount.com",...}'
+\`\`\`
+
+**Your credentials are already configured!** The service account for project `voiceassistantapp-477819` has been provided. Just add it to your environment variables.
+
 ## Configuration Format
 
 The service account JSON should look like this (minified):
