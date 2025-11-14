@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { X, Volume2, VolumeX, Loader2, Bot, User, Minimize2, Send } from 'lucide-react'
+import { X, Volume2, VolumeX, Loader2, Bot, User, Minimize2, Send, Mic, MicOff } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from 'next/navigation'
 
@@ -29,9 +29,13 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
   const [isMinimized, setIsMinimized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [textInput, setTextInput] = useState("")
+  const [isListening, setIsListening] = useState(false)
+  const [voiceAvailable, setVoiceAvailable] = useState(false)
+  const [voiceErrorCount, setVoiceErrorCount] = useState(0)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const recognitionRef = useRef<any>(null)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -62,6 +66,86 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
       speak(welcomeMessage.content)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      
+      if (SpeechRecognition) {
+        setVoiceAvailable(true)
+        const recognition = new SpeechRecognition()
+        recognition.continuous = false
+        recognition.interimResults = false
+        recognition.lang = 'en-US'
+        recognition.maxAlternatives = 1
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          setIsListening(false)
+          setVoiceErrorCount(0) // Reset error count on success
+          handleUserMessage(transcript)
+        }
+
+        recognition.onerror = (event: any) => {
+          setIsListening(false)
+          
+          // Only handle specific errors, ignore others silently
+          if (event.error === 'no-speech') {
+            toast({
+              title: "No speech detected",
+              description: "Please try speaking again.",
+              variant: "default",
+            })
+          } else if (event.error === 'audio-capture') {
+            setVoiceAvailable(false)
+            toast({
+              title: "Microphone access denied",
+              description: "Please enable microphone access to use voice input.",
+              variant: "destructive",
+            })
+          } else if (event.error === 'not-allowed') {
+            setVoiceAvailable(false)
+            toast({
+              title: "Microphone permission required",
+              description: "Please allow microphone access in your browser settings.",
+              variant: "destructive",
+            })
+          } else if (event.error === 'network') {
+            setVoiceErrorCount(prev => prev + 1)
+            
+            // After 2 network errors, disable voice input
+            if (voiceErrorCount >= 1) {
+              setVoiceAvailable(false)
+              toast({
+                title: "Voice input unavailable",
+                description: "Please use text input instead.",
+                variant: "default",
+              })
+            }
+          }
+        }
+
+        recognition.onend = () => {
+          setIsListening(false)
+        }
+
+        recognitionRef.current = recognition
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch (e) {
+          // Ignore errors on cleanup
+        }
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [voiceErrorCount])
 
   const speak = useCallback(
     (text: string) => {
@@ -180,6 +264,34 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
     setTextInput("")
   }
 
+  const toggleListening = () => {
+    if (!voiceAvailable) {
+      toast({
+        title: "Voice input unavailable",
+        description: "Please use text input instead.",
+        variant: "default",
+      })
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+    } else {
+      try {
+        recognitionRef.current?.start()
+        setIsListening(true)
+      } catch (error) {
+        console.error('[Voice Agent] Failed to start recognition:', error)
+        toast({
+          title: "Voice input failed",
+          description: "Please try again or use text input.",
+          variant: "default",
+        })
+      }
+    }
+  }
+
   if (isMinimized) {
     return (
       <Card className="fixed bottom-4 right-4 w-16 h-16 shadow-2xl border-2 border-primary z-50">
@@ -264,15 +376,28 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
       <CardContent className="border-t pt-4 pb-4">
         <div className="space-y-2">
           <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
+            {voiceAvailable && (
+              <Button
+                type="button"
+                size="icon"
+                variant={isListening ? "destructive" : "outline"}
+                onClick={toggleListening}
+                disabled={isProcessing}
+                title={isListening ? "Stop listening" : "Start voice input"}
+              >
+                {isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            )}
+            
             <Input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Type your message..."
-              disabled={isProcessing}
+              placeholder={isListening ? "Listening..." : "Type or speak your message..."}
+              disabled={isProcessing || isListening}
               className="flex-1"
               autoFocus
             />
-            <Button type="submit" size="icon" disabled={isProcessing || !textInput.trim()}>
+            <Button type="submit" size="icon" disabled={isProcessing || !textInput.trim() || isListening}>
               <Send className="h-4 w-4" />
             </Button>
           </form>
@@ -290,7 +415,9 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            Type your message above. Responses will be read aloud.
+            {voiceAvailable 
+              ? "Click the mic to speak or type your message. Responses will be read aloud."
+              : "Type your message. Responses will be read aloud."}
           </p>
         </div>
       </CardContent>
