@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { X, Volume2, VolumeX, Loader2, Bot, User, Minimize2, Send, Mic, MicOff } from 'lucide-react'
+import { X, Volume2, VolumeX, Loader2, Bot, User, Minimize2, Send } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from 'next/navigation'
 
@@ -29,13 +29,9 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
   const [isMinimized, setIsMinimized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [textInput, setTextInput] = useState("")
-  const [isListening, setIsListening] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
-
   const { toast } = useToast()
   const router = useRouter()
 
@@ -55,7 +51,7 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
     const welcomeMessage: Message = {
       role: "assistant",
       content:
-        "Hi! I'm your Newsurf assistant. Ask me anything or click the mic to speak with me!",
+        "Hi! I'm your Newsurf assistant. Type your questions and I'll speak my responses to you!",
       timestamp: Date.now(),
       intent: "greeting",
     }
@@ -91,90 +87,6 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
     if (typeof window !== "undefined") {
       window.speechSynthesis.cancel()
       setIsSpeaking(false)
-    }
-  }
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      })
-      
-      audioChunksRef.current = []
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-        }
-      }
-      
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        await processAudio(audioBlob)
-        stream.getTracks().forEach(track => track.stop())
-      }
-      
-      mediaRecorderRef.current = mediaRecorder
-      mediaRecorder.start()
-      setIsListening(true)
-    } catch (error) {
-      console.error('[Voice Agent] Microphone access error:', error)
-      toast({
-        title: "Microphone access denied",
-        description: "Please allow microphone access to use voice input.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const processAudio = async (audioBlob: Blob) => {
-    setIsListening(false)
-    setIsProcessing(true)
-    
-    try {
-      const reader = new FileReader()
-      reader.readAsDataURL(audioBlob)
-      
-      reader.onloadend = async () => {
-        const base64Audio = (reader.result as string).split(',')[1]
-        
-        const response = await fetch('/api/google-stt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audioContent: base64Audio })
-        })
-        
-        const data = await response.json()
-        
-        if (data.transcript) {
-          await handleUserMessage(data.transcript)
-        } else {
-          toast({
-            title: "No speech detected",
-            description: "Please try speaking again.",
-            variant: "default",
-          })
-          setIsProcessing(false)
-        }
-      }
-    } catch (error) {
-      console.error('[Voice Agent] Audio processing error:', error)
-      toast({
-        title: "Voice recognition failed",
-        description: "Please try again or use text input.",
-        variant: "destructive",
-      })
-      setIsProcessing(false)
-    }
-  }
-
-  const toggleListening = () => {
-    if (isListening) {
-      mediaRecorderRef.current?.stop()
-      setIsListening(false)
-    } else {
-      startRecording()
     }
   }
 
@@ -284,7 +196,6 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
             <Bot className="h-5 w-5 text-primary" />
             <CardTitle className="text-base">Newsurf Assistant</CardTitle>
             {isSpeaking && <Badge className="bg-blue-600 animate-pulse">Speaking</Badge>}
-            {isListening && <Badge className="bg-red-600 animate-pulse">Listening</Badge>}
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -351,26 +262,15 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
       <CardContent className="border-t pt-4 pb-4">
         <div className="space-y-2">
           <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
-            <Button
-              type="button"
-              size="icon"
-              variant={isListening ? "destructive" : "outline"}
-              onClick={toggleListening}
-              disabled={isProcessing}
-              title={isListening ? "Stop listening" : "Start voice input"}
-            >
-              {isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
-            </Button>
-            
             <Input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder={isListening ? "Listening..." : "Type or speak your message..."}
-              disabled={isProcessing || isListening}
+              placeholder="Type your message..."
+              disabled={isProcessing}
               className="flex-1"
               autoFocus
             />
-            <Button type="submit" size="icon" disabled={isProcessing || !textInput.trim() || isListening}>
+            <Button type="submit" size="icon" disabled={isProcessing || !textInput.trim()}>
               <Send className="h-4 w-4" />
             </Button>
           </form>
@@ -388,7 +288,7 @@ export function VoiceAgent({ onClose }: VoiceAgentProps) {
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            Click the mic to speak or type your message. I'll speak my responses back to you.
+            Type your message and I'll speak my response to you!
           </p>
         </div>
       </CardContent>
