@@ -140,29 +140,36 @@ curl -X POST http://localhost:3000/api/ml/credibility \
 ### Voice Assistant
 
 \`\`\`bash
-# Send message to voice agent
-curl -X POST http://localhost:3000/api/voice-agent \
+# Send message to assistant (supports both voice and text input)
+curl -X POST http://localhost:3000/api/assistant \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Search for latest technology news",
+    "sessionId": "session_123",
+    "anonId": "anon_456",
     "conversationHistory": []
   }'
 
-# Google Cloud Text-to-Speech
-curl -X POST http://localhost:3000/api/google-tts \
+# Create voice assistant session
+curl -X POST http://localhost:3000/api/assistant/session \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Hello, this is a test",
-    "languageCode": "en-US",
-    "voiceName": "en-US-Neural2-F"
+    "sessionId": "session_123",
+    "anonId": "anon_456",
+    "mode": "push_to_talk",
+    "contextType": "article",
+    "contextId": "article-123"
   }'
 
-# Google Cloud Speech-to-Text
-curl -X POST http://localhost:3000/api/google-stt \
+# Log conversation turn
+curl -X POST http://localhost:3000/api/assistant/log \
   -H "Content-Type: application/json" \
   -d '{
-    "audioContent": "base64_encoded_audio",
-    "languageCode": "en-US"
+    "sessionId": "session_123",
+    "anonId": "anon_456",
+    "direction": "user",
+    "text": "What are today\'s top stories?",
+    "latency": 850
   }'
 \`\`\`
 
@@ -383,6 +390,39 @@ CREATE TABLE ml_requests (
   tokens_used INT,
   created_at TIMESTAMP
 );
+
+-- Voice Assistant Tables
+CREATE TABLE assistant_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT UNIQUE NOT NULL,
+  user_id UUID REFERENCES auth.users(id),
+  anon_id TEXT,
+  context_type TEXT,
+  context_id TEXT,
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  active BOOLEAN DEFAULT TRUE,
+  mode TEXT DEFAULT 'push_to_talk',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE assistant_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT NOT NULL,
+  user_id UUID REFERENCES auth.users(id),
+  anon_id TEXT,
+  direction TEXT NOT NULL,
+  text TEXT NOT NULL,
+  provider TEXT DEFAULT 'gemini',
+  intent TEXT,
+  latency_ms INTEGER,
+  is_anonymous BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_assistant_sessions_session_id ON assistant_sessions(session_id);
+CREATE INDEX idx_assistant_logs_session_id ON assistant_logs(session_id);
 \`\`\`
 
 ## Google Cloud Integration
@@ -436,19 +476,46 @@ This ensures continuous operation even if Google Cloud credentials are not confi
 
 ## Voice Assistant Features
 
-The voice assistant provides:
-- **Voice Input**: Speak naturally or type questions
-- **Intent Detection**: Automatically understands search, navigation, summarization requests
-- **Context Awareness**: Remembers conversation history
-- **Voice Output**: Natural-sounding responses
-- **Graceful Fallback**: Switches to text mode if voice recognition fails
-- **Multi-modal**: Supports both voice and text input simultaneously
+The Newsurf voice assistant provides comprehensive two-way conversational interactions with three distinct modes:
 
-Access the voice assistant via the floating microphone button on any page.
+### Three Conversation Modes
+
+1. **Push-to-Talk** (Default)
+   - Press and hold the microphone button to speak
+   - Release to process your speech
+   - Best for controlled, intentional interactions
+
+2. **Continuous Conversation**
+   - Always listening mode with automatic turn-taking
+   - Uses silence detection (1.2s timeout) to detect turn ends
+   - Natural back-and-forth conversation without button presses
+
+3. **Assistant-Initiated "Talk to Me"**
+   - Assistant proactively speaks a starter prompt
+   - Automatically switches to listening after speaking
+   - Great for getting daily briefings or starting conversations
+
+### Capabilities
+
+- **Voice Input**: Speak naturally using browser Web Speech API
+- **Intent Detection**: Automatically understands search, navigation, summarization, fact-checking requests
+- **Context Awareness**: Understands current article, topic, or personalized feed context
+- **Voice Output**: Natural-sounding responses using Speech Synthesis API
+- **Interruption Handling**: Speak during assistant response to interrupt and take control
+- **Conversation Logging**: All turns stored in Supabase with session tracking
+- **Graceful Fallback**: Automatically switches to text input if voice recognition fails
+
+### Usage
+
+1. Click the floating microphone button in the bottom-right corner
+2. Choose your preferred mode from the tabs
+3. Speak your request (or type if voice is unavailable)
+4. Listen to the assistant's spoken response
 
 ## Support
 
 For issues or questions:
+- **Voice Assistant**: See [VOICE_ASSISTANT_README.md](./VOICE_ASSISTANT_README.md) for detailed documentation
 - **Google Cloud Setup**: See [GOOGLE_CLOUD_SETUP.md](./GOOGLE_CLOUD_SETUP.md)
 - **General Issues**: Open a GitHub issue
 - **Voice Features**: Check browser console for "[Google Cloud]" or "[Voice Agent]" logs

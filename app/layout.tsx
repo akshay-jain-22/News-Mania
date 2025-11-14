@@ -1,12 +1,12 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter } from 'next/font/google'
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 //import { SplashScreen } from "@/components/splash-screen"
 import { AuthProvider } from "@/components/auth-provider"
-import { VoiceAgentTrigger } from "@/components/voice-agent-trigger"
+import { VoiceAssistantTrigger } from "@/components/voice-assistant/voice-assistant-trigger"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -29,7 +29,7 @@ export default function RootLayout({
           <AuthProvider>
             {children}
             <Toaster />
-            <VoiceAgentTrigger />
+            <VoiceAssistantTrigger />
           </AuthProvider>
         </ThemeProvider>
       </body>
