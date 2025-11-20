@@ -17,36 +17,57 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined)
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en")
   const [translations, setTranslations] = useState<Record<string, any>>({})
+  const [mounted, setMounted] = useState(false)
 
   // Load translations
   useEffect(() => {
     const loadTranslations = async () => {
       try {
         const response = await fetch(`/locales/${locale}/common.json`)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch translations: ${response.statusText}`)
+        }
         const data = await response.json()
         setTranslations(data)
+        console.log(`[v0] Loaded ${locale} translations successfully`)
       } catch (error) {
-        console.error(`Failed to load translations for ${locale}:`, error)
+        console.error(`[v0] Failed to load translations for ${locale}:`, error)
+        // Set default English translations as fallback
+        if (locale !== "en") {
+          try {
+            const fallbackResponse = await fetch(`/locales/en/common.json`)
+            const fallbackData = await fallbackResponse.json()
+            setTranslations(fallbackData)
+          } catch (fallbackError) {
+            console.error("[v0] Failed to load fallback translations:", fallbackError)
+          }
+        }
       }
     }
 
-    loadTranslations()
-  }, [locale])
+    if (mounted) {
+      loadTranslations()
+    }
+  }, [locale, mounted])
 
-  // Load saved language preference on mount
   useEffect(() => {
-    const savedLocale = localStorage.getItem("locale") as Locale | null
+    setMounted(true)
+    const savedLocale = localStorage.getItem("appLanguage") as Locale | null
     if (savedLocale && ["en", "kn", "hi"].includes(savedLocale)) {
       setLocaleState(savedLocale)
+      console.log(`[v0] Restored language preference: ${savedLocale}`)
     }
   }, [])
 
   const setLocale = (newLocale: Locale) => {
+    console.log(`[v0] Changing language to: ${newLocale}`)
     setLocaleState(newLocale)
-    localStorage.setItem("locale", newLocale)
+    localStorage.setItem("appLanguage", newLocale)
 
     // Update HTML lang attribute
-    document.documentElement.lang = newLocale
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = newLocale
+    }
   }
 
   // Translation function with nested key support
@@ -58,7 +79,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       if (value && typeof value === "object" && k in value) {
         value = value[k]
       } else {
-        return key // Return key if translation not found
+        // Return key if translation not found
+        return key
       }
     }
 
