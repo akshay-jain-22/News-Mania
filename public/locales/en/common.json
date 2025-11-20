@@ -1,0 +1,79 @@
+{
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "personalized": "Personalized",
+    "topics": "Topics",
+    "factCheck": "Fact Check",
+    "myNotes": "My Notes",
+    "extract": "Extract",
+    "research": "Research",
+    "saved": "Saved"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "share": "Share",
+    "readMore": "Read more",
+    "viewMore": "View more",
+    "showLess": "Show less"
+  },
+  "article": {
+    "summarize": "Summarize",
+    "talkToAI": "Talk to AI",
+    "factCheck": "Fact Check",
+    "bookmark": "Bookmark",
+    "share": "Share",
+    "relatedNews": "Related News",
+    "trending": "Trending",
+    "latest": "Latest",
+    "popular": "Popular"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "articlesRead": "Articles Read",
+    "timeSpent": "Time Spent",
+    "bookmarks": "Bookmarks",
+    "readingStreak": "Reading Streak",
+    "days": "days",
+    "hours": "hours",
+    "minutes": "minutes"
+  },
+  "personalized": {
+    "title": "Personalized News",
+    "forYou": "For You",
+    "recommendations": "Recommendations",
+    "basedOnInterests": "Based on your interests"
+  },
+  "categories": {
+    "technology": "Technology",
+    "business": "Business",
+    "sports": "Sports",
+    "entertainment": "Entertainment",
+    "health": "Health",
+    "science": "Science",
+    "politics": "Politics",
+    "world": "World"
+  },
+  "ai": {
+    "generating": "Generating...",
+    "analyzing": "Analyzing...",
+    "processing": "Processing...",
+    "summary": "Summary",
+    "insights": "Insights",
+    "credibility": "Credibility",
+    "factChecking": "Fact Checking..."
+  }
+}

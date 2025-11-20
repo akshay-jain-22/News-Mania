@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { useI18n } from "@/lib/i18n"
 
 interface MainNavProps {
   className?: string
@@ -11,6 +12,7 @@ interface MainNavProps {
 
 export function MainNav({ className }: MainNavProps) {
   const pathname = usePathname()
+  const { t } = useI18n()
 
   return (
     <nav className={cn("hidden md:flex items-center gap-6", className)}>
@@ -22,7 +24,7 @@ export function MainNav({ className }: MainNavProps) {
           "h-auto px-3 py-2 text-sm font-medium",
         )}
       >
-        Dashboard
+        {t("nav.dashboard")}
       </Link>
       <Link
         href="/topics"
@@ -34,7 +36,7 @@ export function MainNav({ className }: MainNavProps) {
           "h-auto px-3 py-2 text-sm font-medium",
         )}
       >
-        Topics
+        {t("nav.topics")}
       </Link>
       <Link
         href="/fact-check"
@@ -44,7 +46,7 @@ export function MainNav({ className }: MainNavProps) {
           "h-auto px-3 py-2 text-sm font-medium",
         )}
       >
-        Fact Check
+        {t("nav.factCheck")}
       </Link>
       <Link
         href="/notes"
@@ -54,7 +56,7 @@ export function MainNav({ className }: MainNavProps) {
           "h-auto px-3 py-2 text-sm font-medium",
         )}
       >
-        My Notes
+        {t("nav.myNotes")}
       </Link>
       <Link
         href="/extract"
@@ -64,7 +66,7 @@ export function MainNav({ className }: MainNavProps) {
           "h-auto px-3 py-2 text-sm font-medium",
         )}
       >
-        Extract
+        {t("nav.extract")}
       </Link>
     </nav>
   )

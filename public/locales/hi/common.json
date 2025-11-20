@@ -1,0 +1,79 @@
+{
+  "nav": {
+    "home": "होम",
+    "dashboard": "डैशबोर्ड",
+    "personalized": "वैयक्तिकृत",
+    "topics": "विषय",
+    "factCheck": "तथ्य जांच",
+    "myNotes": "मेरे नोट्स",
+    "extract": "निकालें",
+    "research": "शोध",
+    "saved": "सहेजा गया"
+  },
+  "auth": {
+    "signIn": "साइन इन",
+    "signOut": "साइन आउट",
+    "profile": "प्रोफ़ाइल",
+    "settings": "सेटिंग्स",
+    "logout": "लॉग आउट"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "share": "साझा करें",
+    "readMore": "और पढ़ें",
+    "viewMore": "और देखें",
+    "showLess": "कम दिखाएं"
+  },
+  "article": {
+    "summarize": "सारांश",
+    "talkToAI": "AI से बात करें",
+    "factCheck": "तथ्य जांच",
+    "bookmark": "बुकमार्क",
+    "share": "साझा करें",
+    "relatedNews": "संबंधित समाचार",
+    "trending": "ट्रेंडिंग",
+    "latest": "नवीनतम",
+    "popular": "लोकप्रिय"
+  },
+  "dashboard": {
+    "title": "डैशबोर्ड",
+    "articlesRead": "पढ़े गए लेख",
+    "timeSpent": "बिताया गया समय",
+    "bookmarks": "बुकमार्क्स",
+    "readingStreak": "पढ़ने की लकीर",
+    "days": "दिन",
+    "hours": "घंटे",
+    "minutes": "मिनट"
+  },
+  "personalized": {
+    "title": "वैयक्तिकृत समाचार",
+    "forYou": "आपके लिए",
+    "recommendations": "सिफारिशें",
+    "basedOnInterests": "आपकी रुचियों के आधार पर"
+  },
+  "categories": {
+    "technology": "प्रौद्योगिकी",
+    "business": "व्यापार",
+    "sports": "खेल",
+    "entertainment": "मनोरंजन",
+    "health": "स्वास्थ्य",
+    "science": "विज्ञान",
+    "politics": "राजनीति",
+    "world": "विश्व"
+  },
+  "ai": {
+    "generating": "उत्पन्न हो रहा है...",
+    "analyzing": "विश्लेषण कर रहा है...",
+    "processing": "प्रसंस्करण कर रहा है...",
+    "summary": "सारांश",
+    "insights": "अंतर्दृष्टि",
+    "credibility": "विश्वसनीयता",
+    "factChecking": "तथ्य जांच कर रहा है..."
+  }
+}

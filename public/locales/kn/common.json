@@ -1,0 +1,79 @@
+{
+  "nav": {
+    "home": "ಮುಖಪುಟ",
+    "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    "personalized": "ವೈಯಕ್ತಿಕಗೊಳಿಸಿದ",
+    "topics": "ವಿಷಯಗಳು",
+    "factCheck": "ಸತ್ಯ ಪರಿಶೀಲನೆ",
+    "myNotes": "ನನ್ನ ಟಿಪ್ಪಣಿಗಳು",
+    "extract": "ಹೊರತೆಗೆಯಿರಿ",
+    "research": "ಸಂಶೋಧನೆ",
+    "saved": "ಉಳಿಸಲಾಗಿದೆ"
+  },
+  "auth": {
+    "signIn": "ಸೈನ್ ಇನ್",
+    "signOut": "ಸೈನ್ ಔಟ್",
+    "profile": "ಪ್ರೊಫೈಲ್",
+    "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    "logout": "ಲಾಗ್ ಔಟ್"
+  },
+  "common": {
+    "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ...",
+    "error": "ದೋಷ",
+    "success": "ಯಶಸ್ಸು",
+    "save": "ಉಳಿಸಿ",
+    "cancel": "ರದ್ದುಮಾಡಿ",
+    "delete": "ಅಳಿಸಿ",
+    "edit": "ಸಂಪಾದಿಸಿ",
+    "share": "ಹಂಚಿಕೊಳ್ಳಿ",
+    "readMore": "ಇನ್ನಷ್ಟು ಓದಿ",
+    "viewMore": "ಇನ್ನಷ್ಟು ನೋಡಿ",
+    "showLess": "ಕಡಿಮೆ ತೋರಿಸಿ"
+  },
+  "article": {
+    "summarize": "ಸಾರಾಂಶ",
+    "talkToAI": "AI ಜೊತೆ ಮಾತನಾಡಿ",
+    "factCheck": "ಸತ್ಯ ಪರಿಶೀಲನೆ",
+    "bookmark": "ಬುಕ್‌ಮಾರ್ಕ್",
+    "share": "ಹಂಚಿಕೊಳ್ಳಿ",
+    "relatedNews": "ಸಂಬಂಧಿತ ಸುದ್ದಿ",
+    "trending": "ಟ್ರೆಂಡಿಂಗ್",
+    "latest": "ಇತ್ತೀಚಿನ",
+    "popular": "ಜನಪ್ರಿಯ"
+  },
+  "dashboard": {
+    "title": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    "articlesRead": "ಓದಿದ ಲೇಖನಗಳು",
+    "timeSpent": "ಕಳೆದ ಸಮಯ",
+    "bookmarks": "ಬುಕ್‌ಮಾರ್ಕ್‌ಗಳು",
+    "readingStreak": "ಓದುವ ಸರಣಿ",
+    "days": "ದಿನಗಳು",
+    "hours": "ಗಂಟೆಗಳು",
+    "minutes": "ನಿಮಿಷಗಳು"
+  },
+  "personalized": {
+    "title": "ವೈಯಕ್ತಿಕಗೊಳಿಸಿದ ಸುದ್ದಿ",
+    "forYou": "ನಿಮಗಾಗಿ",
+    "recommendations": "ಶಿಫಾರಸುಗಳು",
+    "basedOnInterests": "ನಿಮ್ಮ ಆಸಕ್ತಿಗಳ ಆಧಾರದ ಮೇಲೆ"
+  },
+  "categories": {
+    "technology": "ತಂತ್ರಜ್ಞಾನ",
+    "business": "ವ್ಯಾಪಾರ",
+    "sports": "ಕ್ರೀಡೆ",
+    "entertainment": "ಮನರಂಜನೆ",
+    "health": "ಆರೋಗ್ಯ",
+    "science": "ವಿಜ್ಞಾನ",
+    "politics": "ರಾಜಕೀಯ",
+    "world": "ವಿಶ್ವ"
+  },
+  "ai": {
+    "generating": "ಉತ್ಪಾದಿಸುತ್ತಿದೆ...",
+    "analyzing": "ವಿಶ್ಲೇಷಿಸುತ್ತಿದೆ...",
+    "processing": "ಪ್ರಕ್ರಿಯೆಗೊಳಿಸುತ್ತಿದೆ...",
+    "summary": "ಸಾರಾಂಶ",
+    "insights": "ಒಳನೋಟಗಳು",
+    "credibility": "ವಿಶ್ವಾಸಾರ್ಹತೆ",
+    "factChecking": "ಸತ್ಯ ಪರಿಶೀಲಿಸುತ್ತಿದೆ..."
+  }
+}

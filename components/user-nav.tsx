@@ -14,9 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { User, Settings, LogOut } from "lucide-react"
 import Link from "next/link"
+import { useI18n } from "@/lib/i18n"
 
 export function UserNav() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
+  const { t } = useI18n()
 
   // Show loading state
   if (isLoading) {
@@ -33,7 +35,7 @@ export function UserNav() {
   if (!isAuthenticated || !user) {
     return (
       <Button asChild variant="outline" size="sm">
-        <Link href="/auth/login">Sign In</Link>
+        <Link href="/auth/login">{t("auth.signIn")}</Link>
       </Button>
     )
   }
@@ -69,20 +71,20 @@ export function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/profile">
               <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
+              <span>{t("auth.profile")}</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/settings">
               <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
+              <span>{t("auth.settings")}</span>
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <span>{t("auth.logout")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

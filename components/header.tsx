@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useI18n } from "@/lib/i18n"
 
 export function Header() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const { t } = useI18n()
 
   useEffect(() => {
     const getUser = async () => {
@@ -42,19 +45,20 @@ export function Header() {
           <span className="text-xl font-bold">NewsMania</span>
         </Link>
         <nav className="flex items-center gap-4">
+          <LanguageSwitcher />
           <ThemeToggle />
           {!loading && user ? (
             <>
               <Link href="/notes">
-                <Button variant="ghost">My Notes</Button>
+                <Button variant="ghost">{t("nav.myNotes")}</Button>
               </Link>
               <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
+                {t("auth.signOut")}
               </Button>
             </>
           ) : (
             <Link href="/auth">
-              <Button>Sign In</Button>
+              <Button>{t("auth.signIn")}</Button>
             </Link>
           )}
         </nav>
