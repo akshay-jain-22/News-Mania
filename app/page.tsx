@@ -28,6 +28,8 @@ import {
   Sparkles,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useI18n } from "@/lib/i18n"
 
 export default function Home() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([])
@@ -37,14 +39,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const { t } = useI18n()
 
   const categories = [
-    { id: "business", name: "BUSINESS" },
-    { id: "technology", name: "TECH" },
-    { id: "health", name: "HEALTH" },
-    { id: "sports", name: "SPORTS" },
-    { id: "science", name: "SCIENCE" },
-    { id: "entertainment", name: "ENTERTAINMENT" },
+    { id: "business", name: t("categories.business") || "BUSINESS" },
+    { id: "technology", name: t("categories.technology") || "TECH" },
+    { id: "health", name: t("categories.health") || "HEALTH" },
+    { id: "sports", name: t("categories.sports") || "SPORTS" },
+    { id: "science", name: t("categories.science") || "SCIENCE" },
+    { id: "entertainment", name: t("categories.entertainment") || "ENTERTAINMENT" },
   ]
 
   // Load mixed news from all categories
@@ -160,10 +163,10 @@ export default function Home() {
           </div>
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/research">RESEARCH</Link>
+              <Link href="/research">{t("nav.research") || "RESEARCH"}</Link>
             </Button>
             <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/dashboard">DASHBOARD</Link>
+              <Link href="/dashboard">{t("nav.dashboard") || "DASHBOARD"}</Link>
             </Button>
           </div>
         </div>
@@ -175,35 +178,36 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center space-x-2">
               <Sparkles className="h-6 w-6 text-primary" />
-              <span className="text-2xl font-bold">NewsMania</span>
+              <span className="text-2xl font-bold">{t("app.name") || "NewsMania"}</span>
             </Link>
             <div className="hidden md:flex items-center space-x-6">
               <Link href="/" className="text-primary font-medium">
-                Latest
+                {t("nav.latest") || "Latest"}
               </Link>
               <Link href="/personalized" className="hover:text-primary transition-colors">
-                Personalized
+                {t("nav.personalized") || "Personalized"}
               </Link>
               <Link href="/topics" className="hover:text-primary transition-colors">
-                Topics
+                {t("nav.topics") || "Topics"}
               </Link>
               <Link href="/fact-check" className="hover:text-primary transition-colors">
-                Fact Check
+                {t("nav.factCheck") || "Fact Check"}
               </Link>
               <Link href="/extract" className="hover:text-primary transition-colors">
-                Extract News
+                {t("nav.extract") || "Extract News"}
               </Link>
               <Link href="/notes" className="hover:text-primary transition-colors">
-                My Notes
+                {t("nav.myNotes") || "My Notes"}
               </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageSwitcher />
             <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/dashboard">{t("nav.dashboard") || "Dashboard"}</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link href="/auth">Sign In</Link>
+              <Link href="/auth">{t("auth.signIn") || "Sign In"}</Link>
             </Button>
           </div>
         </div>
@@ -221,7 +225,7 @@ export default function Home() {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <span className="ml-2 text-xl">Loading latest news...</span>
+            <span className="ml-2 text-xl">{t("common.loading") || "Loading latest news..."}</span>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -229,8 +233,10 @@ export default function Home() {
             <div className="lg:col-span-3">
               {/* Hero Section */}
               <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2">Latest News</h1>
-                <p className="text-gray-400">Breaking news and stories from around the world</p>
+                <h1 className="text-4xl font-bold mb-2">{t("home.latestNews") || "Latest News"}</h1>
+                <p className="text-gray-400">
+                  {t("home.latestNewsDesc") || "Breaking news and stories from around the world"}
+                </p>
               </div>
 
               {/* Featured Article */}
@@ -372,11 +378,13 @@ export default function Home() {
                 <CardHeader>
                   <div className="flex items-center">
                     <Wifi className="h-5 w-5 mr-2 text-green-500" />
-                    <h3 className="font-bold">Live Feed</h3>
+                    <h3 className="font-bold">{t("sidebar.liveFeed") || "Live Feed"}</h3>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xs text-gray-400">Connected to global news sources</p>
+                  <p className="text-xs text-gray-400">
+                    {t("sidebar.connectedToSources") || "Connected to global news sources"}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -385,7 +393,7 @@ export default function Home() {
                 <CardHeader>
                   <div className="flex items-center">
                     <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                    <h3 className="font-bold">Trending Now</h3>
+                    <h3 className="font-bold">{t("sidebar.trendingNow") || "Trending Now"}</h3>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -412,31 +420,31 @@ export default function Home() {
               {/* Quick Actions */}
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
-                  <h3 className="font-bold">Quick Actions</h3>
+                  <h3 className="font-bold">{t("sidebar.quickActions") || "Quick Actions"}</h3>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button asChild className="w-full justify-start" variant="ghost">
                     <Link href="/fact-check">
                       <Shield className="h-4 w-4 mr-2" />
-                      Fact Check News
+                      {t("nav.factCheck") || "Fact Check News"}
                     </Link>
                   </Button>
                   <Button asChild className="w-full justify-start" variant="ghost">
                     <Link href="/extract">
                       <Zap className="h-4 w-4 mr-2" />
-                      Extract Article
+                      {t("nav.extract") || "Extract Article"}
                     </Link>
                   </Button>
                   <Button asChild className="w-full justify-start" variant="ghost">
                     <Link href="/notes">
                       <Bookmark className="h-4 w-4 mr-2" />
-                      My Saved Notes
+                      {t("nav.myNotes") || "My Saved Notes"}
                     </Link>
                   </Button>
                   <Button asChild className="w-full justify-start" variant="ghost">
                     <Link href="/search">
                       <Globe className="h-4 w-4 mr-2" />
-                      Search News
+                      {t("nav.search") || "Search News"}
                     </Link>
                   </Button>
                 </CardContent>
@@ -445,14 +453,14 @@ export default function Home() {
               {/* Categories Quick Access */}
               <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
                 <CardHeader>
-                  <h3 className="font-bold">Browse Categories</h3>
+                  <h3 className="font-bold">{t("sidebar.browseCategories") || "Browse Categories"}</h3>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {[
-                    { id: "business", name: "Business", icon: Briefcase },
-                    { id: "technology", name: "Technology", icon: Monitor },
-                    { id: "health", name: "Health", icon: Heart },
-                    { id: "sports", name: "Sports", icon: Trophy },
+                    { id: "business", name: t("categories.business") || "Business", icon: Briefcase },
+                    { id: "technology", name: t("categories.technology") || "Technology", icon: Monitor },
+                    { id: "health", name: t("categories.health") || "Health", icon: Heart },
+                    { id: "sports", name: t("categories.sports") || "Sports", icon: Trophy },
                   ].map((category) => {
                     const Icon = category.icon
                     return (
@@ -470,16 +478,18 @@ export default function Home() {
               {/* Newsletter Signup */}
               <Card className="bg-[#1a1a1a] border-gray-800">
                 <CardHeader>
-                  <h3 className="font-bold">Stay Updated</h3>
-                  <p className="text-sm text-gray-400">Get the latest news delivered to your inbox</p>
+                  <h3 className="font-bold">{t("sidebar.stayUpdated") || "Stay Updated"}</h3>
+                  <p className="text-sm text-gray-400">
+                    {t("sidebar.newsletter") || "Get the latest news delivered to your inbox"}
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <input
                     type="email"
-                    placeholder="Your email address"
+                    placeholder={t("common.yourEmail") || "Your email address"}
                     className="w-full px-3 py-2 bg-[#2e2e2e] border border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-sm"
                   />
-                  <Button className="w-full">Subscribe</Button>
+                  <Button className="w-full">{t("common.subscribe") || "Subscribe"}</Button>
                 </CardContent>
               </Card>
             </div>
@@ -491,38 +501,39 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <h3 className="text-lg font-bold mb-4">NewsMania</h3>
+              <h3 className="text-lg font-bold mb-4">{t("app.name") || "NewsMania"}</h3>
               <p className="text-sm text-gray-400 mb-4">
-                Your trusted source for breaking news, in-depth reporting, and fact-checked journalism powered by AI.
+                {t("footer.trustedSource") ||
+                  "Your trusted source for breaking news, in-depth reporting, and fact-checked journalism powered by AI."}
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-bold mb-4">Quick Links</h3>
+              <h3 className="text-lg font-bold mb-4">{t("footer.quickLinks") || "Quick Links"}</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link href="/topics" className="text-gray-400 hover:text-primary transition-colors">
-                    Topics
+                    {t("nav.topics") || "Topics"}
                   </Link>
                 </li>
                 <li>
                   <Link href="/fact-check" className="text-gray-400 hover:text-primary transition-colors">
-                    Fact Check
+                    {t("nav.factCheck") || "Fact Check"}
                   </Link>
                 </li>
                 <li>
                   <Link href="/research" className="text-gray-400 hover:text-primary transition-colors">
-                    Research
+                    {t("nav.research") || "Research"}
                   </Link>
                 </li>
                 <li>
                   <Link href="/dashboard" className="text-gray-400 hover:text-primary transition-colors">
-                    Dashboard
+                    {t("nav.dashboard") || "Dashboard"}
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-bold mb-4">Categories</h3>
+              <h3 className="text-lg font-bold mb-4">{t("footer.categories") || "Categories"}</h3>
               <ul className="space-y-2 text-sm">
                 {categories.map((category) => (
                   <li key={category.id}>
@@ -538,7 +549,9 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
-            <p>© 2025 NewsMania. All rights reserved. Powered by AI-driven news curation.</p>
+            <p>
+              {t("footer.copyright") || "© 2025 NewsMania. All rights reserved. Powered by AI-driven news curation."}
+            </p>
           </div>
         </div>
       </footer>
