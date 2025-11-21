@@ -1,21 +1,41 @@
 {
+  "app": {
+    "name": "ನ್ಯೂಸ್‌ಮೇನಿಯಾ"
+  },
   "nav": {
     "home": "ಮುಖಪುಟ",
+    "latest": "ಇತ್ತೀಚಿನ",
     "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
     "personalized": "ವೈಯಕ್ತಿಕಗೊಳಿಸಿದ",
     "topics": "ವಿಷಯಗಳು",
     "factCheck": "ಸತ್ಯ ಪರಿಶೀಲನೆ",
     "myNotes": "ನನ್ನ ಟಿಪ್ಪಣಿಗಳು",
     "extract": "ಹೊರತೆಗೆಯಿರಿ",
+    "extractNews": "ಸುದ್ದಿ ಹೊರತೆಗೆಯಿರಿ",
     "research": "ಸಂಶೋಧನೆ",
     "saved": "ಉಳಿಸಲಾಗಿದೆ"
+  },
+  "home": {
+    "latestNews": "ಇತ್ತೀಚಿನ ಸುದ್ದಿ",
+    "breakingNews": "ಪ್ರಪಂಚದಾದ್ಯಂತದ ಬ್ರೇಕಿಂಗ್ ನ್ಯೂಸ್ ಮತ್ತು ಕಥೆಗಳು",
+    "liveFeed": "ಲೈವ್ ಫೀಡ್",
+    "connectedToSources": "ಜಾಗತಿಕ ಸುದ್ದಿ ಮೂಲಗಳಿಗೆ ಸಂಪರ್ಕಗೊಂಡಿದೆ",
+    "trendingNow": "ಈಗ ಟ್ರೆಂಡಿಂಗ್",
+    "quickActions": "ತ್ವರಿತ ಕ್ರಿಯೆಗಳು"
   },
   "auth": {
     "signIn": "ಸೈನ್ ಇನ್",
     "signOut": "ಸೈನ್ ಔಟ್",
     "profile": "ಪ್ರೊಫೈಲ್",
     "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
-    "logout": "ಲಾಗ್ ಔಟ್"
+    "logout": "ಲಾಗ್ ಔಟ್",
+    "login": "ಲಾಗಿನ್",
+    "register": "ನೋಂದಾಯಿಸಿ",
+    "email": "ಇಮೇಲ್",
+    "password": "ಪಾಸ್‌ವರ್ಡ್",
+    "confirmPassword": "ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ",
+    "forgotPassword": "ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿರುವಿರಾ?",
+    "rememberMe": "ನನ್ನನ್ನು ನೆನಪಿಡಿ"
   },
   "common": {
     "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ...",
@@ -28,7 +48,13 @@
     "share": "ಹಂಚಿಕೊಳ್ಳಿ",
     "readMore": "ಇನ್ನಷ್ಟು ಓದಿ",
     "viewMore": "ಇನ್ನಷ್ಟು ನೋಡಿ",
-    "showLess": "ಕಡಿಮೆ ತೋರಿಸಿ"
+    "showLess": "ಕಡಿಮೆ ತೋರಿಸಿ",
+    "search": "ಹುಡುಕಿ",
+    "filter": "ಫಿಲ್ಟರ್",
+    "sort": "ವಿಂಗಡಿಸಿ",
+    "close": "ಮುಚ್ಚಿ",
+    "open": "ತೆರೆಯಿರಿ",
+    "submit": "ಸಲ್ಲಿಸಿ"
   },
   "article": {
     "summarize": "ಸಾರಾಂಶ",
@@ -39,7 +65,11 @@
     "relatedNews": "ಸಂಬಂಧಿತ ಸುದ್ದಿ",
     "trending": "ಟ್ರೆಂಡಿಂಗ್",
     "latest": "ಇತ್ತೀಚಿನ",
-    "popular": "ಜನಪ್ರಿಯ"
+    "popular": "ಜನಪ್ರಿಯ",
+    "readingTime": "ನಿಮಿಷ ಓದಿ",
+    "publishedOn": "ಪ್ರಕಟಿಸಲಾಗಿದೆ",
+    "by": "ಮೂಲಕ",
+    "source": "ಮೂಲ"
   },
   "dashboard": {
     "title": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
@@ -49,13 +79,48 @@
     "readingStreak": "ಓದುವ ಸರಣಿ",
     "days": "ದಿನಗಳು",
     "hours": "ಗಂಟೆಗಳು",
-    "minutes": "ನಿಮಿಷಗಳು"
+    "minutes": "ನಿಮಿಷಗಳು",
+    "recentActivity": "ಇತ್ತೀಚಿನ ಚಟುವಟಿಕೆ",
+    "yourInterests": "ನಿಮ್ಮ ಆಸಕ್ತಿಗಳು"
   },
   "personalized": {
     "title": "ವೈಯಕ್ತಿಕಗೊಳಿಸಿದ ಸುದ್ದಿ",
     "forYou": "ನಿಮಗಾಗಿ",
     "recommendations": "ಶಿಫಾರಸುಗಳು",
-    "basedOnInterests": "ನಿಮ್ಮ ಆಸಕ್ತಿಗಳ ಆಧಾರದ ಮೇಲೆ"
+    "basedOnInterests": "ನಿಮ್ಮ ಆಸಕ್ತಿಗಳ ಆಧಾರದ ಮೇಲೆ",
+    "customized": "ನಿಮಗಾಗಿ ಕಸ್ಟಮೈಸ್ ಮಾಡಲಾಗಿದೆ",
+    "whyThisArticle": "ಈ ಲೇಖನ ಏಕೆ?"
+  },
+  "topics": {
+    "title": "ವಿಷಯಗಳು",
+    "browseByTopic": "ವಿಷಯದ ಮೂಲಕ ಬ್ರೌಸ್ ಮಾಡಿ",
+    "selectTopic": "ವಿಷಯವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "allTopics": "ಎಲ್ಲಾ ವಿಷಯಗಳು"
+  },
+  "factCheck": {
+    "title": "ಸತ್ಯ ಪರಿಶೀಲನೆ",
+    "verifyNews": "ಸುದ್ದಿ ಪರಿಶೀಲಿಸಿ",
+    "credibilityScore": "ವಿಶ್ವಾಸಾರ್ಹತೆ ಸ್ಕೋರ್",
+    "verified": "ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
+    "unverified": "ಪರಿಶೀಲಿಸಲಾಗಿಲ್ಲ",
+    "checkingFacts": "ಸತ್ಯಗಳನ್ನು ಪರಿಶೀಲಿಸುತ್ತಿದೆ...",
+    "sources": "ಮೂಲಗಳು"
+  },
+  "extract": {
+    "title": "ಸುದ್ದಿ ಹೊರತೆಗೆಯಿರಿ",
+    "pasteUrl": "ಲೇಖನ URL ಅಂಟಿಸಿ",
+    "extractContent": "ವಿಷಯ ಹೊರತೆಗೆಯಿರಿ",
+    "analyzing": "ವಿಶ್ಲೇಷಿಸುತ್ತಿದೆ...",
+    "extracted": "ಹೊರತೆಗೆಯಲಾಗಿದೆ"
+  },
+  "notes": {
+    "title": "ನನ್ನ ಟಿಪ್ಪಣಿಗಳು",
+    "createNote": "ಟಿಪ್ಪಣಿ ರಚಿಸಿ",
+    "editNote": "ಟಿಪ್ಪಣಿ ಸಂಪಾದಿಸಿ",
+    "deleteNote": "ಟಿಪ್ಪಣಿ ಅಳಿಸಿ",
+    "searchNotes": "ಟಿಪ್ಪಣಿಗಳನ್ನು ಹುಡುಕಿ...",
+    "noNotes": "ಇನ್ನೂ ಟಿಪ್ಪಣಿಗಳಿಲ್ಲ",
+    "saveNote": "ಟಿಪ್ಪಣಿ ಉಳಿಸಿ"
   },
   "categories": {
     "technology": "ತಂತ್ರಜ್ಞಾನ",
@@ -65,8 +130,33 @@
     "health": "ಆರೋಗ್ಯ",
     "science": "ವಿಜ್ಞಾನ",
     "politics": "ರಾಜಕೀಯ",
-    "world": "ವಿಶ್ವ"
+    "world": "ವಿಶ್ವ",
+    "tech": "ಟೆಕ್",
+    "all": "ಎಲ್ಲಾ"
   },
+  "category": {
+    "business": "ವ್ಯಾಪಾರ",
+    "entertainment": "ಮನರಂಜನೆ",
+    "environment": "ಪರಿಸರ",
+    "food": "ಆಹಾರ",
+    "health": "ಆರೋಗ್ಯ",
+    "politics": "ರಾಜಕೀಯ",
+    "science": "ವಿಜ್ಞಾನ",
+    "sports": "ಕ್ರೀಡೆ",
+    "technology": "ತಂತ್ರಜ್ಞಾನ",
+    "top": "ಪ್ರಮುಖ ಸುದ್ದಿಗಳು",
+    "tourism": "ಪ್ರವಾಸೋದ್ಯಮ",
+    "world": "ಜಗತ್ತು",
+    "crime": "ಅಪರಾಧ",
+    "domestic": "ದೇಶೀಯ",
+    "education": "ಶಿಕ್ಷಣ",
+    "lifestyle": "ಜೀವನಶೈಲಿ",
+    "other": "ಇತರೆ"
+  },
+  "categories_label": "ವರ್ಗಗಳು",
+  "selectCountry": "ದೇಶವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+  "clear": "ತೆರವುಗೊಳಿಸಿ",
+  "sourceLabel": "ಮೂಲ",
   "ai": {
     "generating": "ಉತ್ಪಾದಿಸುತ್ತಿದೆ...",
     "analyzing": "ವಿಶ್ಲೇಷಿಸುತ್ತಿದೆ...",
@@ -74,6 +164,16 @@
     "summary": "ಸಾರಾಂಶ",
     "insights": "ಒಳನೋಟಗಳು",
     "credibility": "ವಿಶ್ವಾಸಾರ್ಹತೆ",
-    "factChecking": "ಸತ್ಯ ಪರಿಶೀಲಿಸುತ್ತಿದೆ..."
+    "factChecking": "ಸತ್ಯ ಪರಿಶೀಲಿಸುತ್ತಿದೆ...",
+    "askQuestion": "ಪ್ರಶ್ನೆ ಕೇಳಿ...",
+    "chatWithAI": "AI ಜೊತೆ ಚಾಟ್ ಮಾಡಿ"
+  },
+  "time": {
+    "now": "ಈಗ",
+    "minutesAgo": "ನಿಮಿಷಗಳ ಹಿಂದೆ",
+    "hoursAgo": "ಗಂಟೆಗಳ ಹಿಂದೆ",
+    "daysAgo": "ದಿನಗಳ ಹಿಂದೆ",
+    "today": "ಇಂದು",
+    "yesterday": "ನಿನ್ನೆ"
   }
 }

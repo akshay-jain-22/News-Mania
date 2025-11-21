@@ -10,8 +10,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { extractNewsFromUrl } from "@/lib/news-extractor"
 import { Loader2, AlertCircle, CheckCircle2, LinkIcon, FileText, Newspaper } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
 
 export default function ExtractPage() {
+  const { t } = useI18n()
   const [url, setUrl] = useState("")
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(false)
@@ -30,7 +32,7 @@ export default function ExtractPage() {
       setResult(extractedData)
       setSuccess(true)
     } catch (err) {
-      setError("Failed to extract news content. Please check the URL and try again.")
+      setError(t("extract.extractionFailed") || "Failed to extract news content. Please check the URL and try again.")
     } finally {
       setLoading(false)
     }
@@ -55,7 +57,7 @@ export default function ExtractPage() {
       setResult(extractedData)
       setSuccess(true)
     } catch (err) {
-      setError("Failed to process text content.")
+      setError(t("extract.processingFailed") || "Failed to process text content.")
     } finally {
       setLoading(false)
     }
@@ -69,21 +71,23 @@ export default function ExtractPage() {
         <div className="container px-4 md:px-6">
           <div className="grid gap-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Extract News</h1>
-              <p className="text-muted-foreground">Extract news content from URLs or paste text directly</p>
+              <h1 className="text-3xl font-bold tracking-tight">{t("extract.title")}</h1>
+              <p className="text-muted-foreground">{t("extract.pasteUrl")}</p>
             </div>
 
             <Tabs defaultValue="url" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="url">Extract from URL</TabsTrigger>
-                <TabsTrigger value="text">Extract from Text</TabsTrigger>
+                <TabsTrigger value="url">{t("extract.extractFromUrl") || "Extract from URL"}</TabsTrigger>
+                <TabsTrigger value="text">{t("extract.extractFromText") || "Extract from Text"}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="url" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Extract News from URL</CardTitle>
-                    <CardDescription>Enter a URL to extract news content from online sources</CardDescription>
+                    <CardTitle>{t("extract.extractFromUrl") || "Extract News from URL"}</CardTitle>
+                    <CardDescription>
+                      {t("extract.enterUrl") || "Enter a URL to extract news content from online sources"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4">
@@ -100,12 +104,12 @@ export default function ExtractPage() {
                         {loading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Extracting...
+                            {t("extract.analyzing")}
                           </>
                         ) : (
                           <>
                             <Newspaper className="mr-2 h-4 w-4" />
-                            Extract News
+                            {t("extract.extractContent")}
                           </>
                         )}
                       </Button>
@@ -117,13 +121,15 @@ export default function ExtractPage() {
               <TabsContent value="text" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Extract from Text</CardTitle>
-                    <CardDescription>Paste news content directly to extract and analyze</CardDescription>
+                    <CardTitle>{t("extract.extractFromText") || "Extract from Text"}</CardTitle>
+                    <CardDescription>
+                      {t("extract.pasteText") || "Paste news content directly to extract and analyze"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4">
                       <Textarea
-                        placeholder="Paste news content here..."
+                        placeholder={t("extract.pasteContentHere") || "Paste news content here..."}
                         className="min-h-[200px]"
                         value={text}
                         onChange={(e) => setText(e.target.value)}
@@ -132,12 +138,12 @@ export default function ExtractPage() {
                         {loading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Processing...
+                            {t("ai.processing")}
                           </>
                         ) : (
                           <>
                             <FileText className="mr-2 h-4 w-4" />
-                            Process Text
+                            {t("extract.processText") || "Process Text"}
                           </>
                         )}
                       </Button>
@@ -150,7 +156,7 @@ export default function ExtractPage() {
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
+                <AlertTitle>{t("common.error")}</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -160,34 +166,36 @@ export default function ExtractPage() {
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <CardTitle>Extraction Successful</CardTitle>
+                    <CardTitle>{t("extract.extracted")}</CardTitle>
                   </div>
-                  <CardDescription>The news content has been successfully extracted</CardDescription>
+                  <CardDescription>
+                    {t("extract.success") || "The news content has been successfully extracted"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold">{result.title}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Source: {result.source} • {new Date(result.date).toLocaleDateString()}
+                        {t("article.source")}: {result.source} • {new Date(result.date).toLocaleDateString()}
                       </p>
                     </div>
 
                     <div className="rounded-md bg-muted p-4">
-                      <h4 className="font-medium mb-2">Summary</h4>
+                      <h4 className="font-medium mb-2">{t("ai.summary")}</h4>
                       <p>{result.summary}</p>
                     </div>
 
                     <div>
-                      <h4 className="font-medium mb-2">Content</h4>
+                      <h4 className="font-medium mb-2">{t("extract.content") || "Content"}</h4>
                       <div className="max-h-[300px] overflow-y-auto rounded-md border p-4">
                         <p>{result.content}</p>
                       </div>
                     </div>
 
                     <div className="flex gap-2">
-                      <Button>Save to Library</Button>
-                      <Button variant="outline">Share</Button>
+                      <Button>{t("extract.saveToLibrary") || "Save to Library"}</Button>
+                      <Button variant="outline">{t("common.share")}</Button>
                     </div>
                   </div>
                 </CardContent>

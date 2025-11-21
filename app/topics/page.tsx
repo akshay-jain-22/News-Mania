@@ -1,8 +1,11 @@
+"use client"
+
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { TopicCard } from "@/components/topic-card"
 import { Search } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
 
 // Define all available topics with more options
 const topics = [
@@ -29,7 +32,9 @@ const topics = [
   { id: "gaming", name: "Gaming", description: "Video game news, reviews, and industry updates" },
 ]
 
-export default async function TopicsPage() {
+export default function TopicsPage() {
+  const { t } = useI18n()
+
   // Generate random counts for each topic (in a real app, this would come from the API)
   const topicsWithCounts = topics.map((topic) => ({
     ...topic,
@@ -45,15 +50,15 @@ export default async function TopicsPage() {
           <div className="grid gap-6">
             <div className="flex flex-col md:flex-row gap-4 justify-between">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">Browse Topics</h1>
-                <p className="text-muted-foreground">Explore news by topic or search for specific content</p>
+                <h1 className="text-3xl font-bold tracking-tight">{t("topics.title")}</h1>
+                <p className="text-muted-foreground">{t("topics.browseByTopic")}</p>
               </div>
               <div className="flex w-full max-w-sm items-center space-x-2">
                 <form action="/search" className="flex w-full gap-2">
-                  <Input type="text" name="q" placeholder="Search topics..." required />
+                  <Input type="text" name="q" placeholder={t("common.search") + "..."} required />
                   <Button type="submit">
                     <Search className="h-4 w-4 mr-2" />
-                    Search
+                    {t("common.search")}
                   </Button>
                 </form>
               </div>

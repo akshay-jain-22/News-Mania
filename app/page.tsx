@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { fetchNews } from "@/lib/news-api"
 import { formatDistanceToNow } from "@/lib/utils"
 import type { NewsArticle } from "@/types/news"
+import { getNews } from "@/lib/getNews"
 import {
   Clock,
   Bookmark,
@@ -24,8 +25,8 @@ import {
   Trophy,
   Briefcase,
   Monitor,
-  Wifi,
   Sparkles,
+  Radio,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -39,7 +40,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   const categories = [
     { id: "business", name: t("categories.business") || "BUSINESS" },
@@ -50,39 +51,63 @@ export default function Home() {
     { id: "entertainment", name: t("categories.entertainment") || "ENTERTAINMENT" },
   ]
 
-  // Load mixed news from all categories
   useEffect(() => {
     const loadAllNews = async () => {
       try {
         setLoading(true)
         setError(null)
-        console.log("Loading mixed news from all categories...")
+        console.log(`[v0] Loading news for language: ${locale}`)
 
-        // Fetch news from multiple categories
-        const newsPromises = [
-          fetchNews({ category: "general", pageSize: 15, country: "us" }),
-          fetchNews({ category: "business", pageSize: 10, country: "us" }),
-          fetchNews({ category: "technology", pageSize: 10, country: "us" }),
-          fetchNews({ category: "health", pageSize: 8, country: "us" }),
-          fetchNews({ category: "sports", pageSize: 8, country: "us" }),
-        ]
+        const languageMap: Record<string, "English" | "Hindi" | "Kannada"> = {
+          en: "English",
+          hi: "Hindi",
+          kn: "Kannada",
+        }
+        const language = languageMap[locale] || "English"
 
-        const [generalNews, businessNews, techNews, healthNews, sportsNews] = await Promise.all(newsPromises)
+        console.log(`[v0] Fetching news for ${language}`)
 
-        // Mix all articles together
-        const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews, ...sportsNews]
-        const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
+        if (language === "English") {
+          const newsPromises = [
+            fetchNews({ category: "general", pageSize: 15, country: "us" }),
+            fetchNews({ category: "business", pageSize: 10, country: "us" }),
+            fetchNews({ category: "technology", pageSize: 10, country: "us" }),
+            fetchNews({ category: "health", pageSize: 8, country: "us" }),
+            fetchNews({ category: "sports", pageSize: 8, country: "us" }),
+          ]
 
-        // Use first 5 articles for trending
-        const trending = shuffledArticles.slice(0, 5)
+          const [generalNews, businessNews, techNews, healthNews, sportsNews] = await Promise.all(newsPromises)
+          const allArticles = [...generalNews, ...businessNews, ...techNews, ...healthNews, ...sportsNews]
+          const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
+          const trending = shuffledArticles.slice(0, 5)
 
-        setNewsArticles(shuffledArticles)
-        setTrendingNews(trending)
-        setPage(2)
+          setNewsArticles(shuffledArticles)
+          setTrendingNews(trending)
+          setPage(2)
 
-        console.log(`Loaded ${shuffledArticles.length} mixed articles`)
+          console.log(`[v0] Loaded ${shuffledArticles.length} English articles`)
+        } else {
+          const newsPromises = [
+            getNews({ language, country: "in", pageSize: 15 }),
+            getNews({ language, country: "in", category: "business", pageSize: 10 }),
+            getNews({ language, country: "in", category: "technology", pageSize: 10 }),
+            getNews({ language, country: "in", category: "health", pageSize: 8 }),
+            getNews({ language, country: "in", category: "sports", pageSize: 8 }),
+          ]
+
+          const results = await Promise.all(newsPromises)
+          const allArticles = results.flat()
+          const shuffledArticles = allArticles.sort(() => Math.random() - 0.5)
+          const trending = shuffledArticles.slice(0, 5)
+
+          setNewsArticles(shuffledArticles)
+          setTrendingNews(trending)
+          setPage(2)
+
+          console.log(`[v0] Loaded ${shuffledArticles.length} ${language} articles`)
+        }
       } catch (error) {
-        console.error("Failed to load news:", error)
+        console.error("[v0] Failed to load news:", error)
         setError("Unable to load news at the moment. Please check your internet connection and try again.")
       } finally {
         setLoading(false)
@@ -90,7 +115,7 @@ export default function Home() {
     }
 
     loadAllNews()
-  }, [])
+  }, [locale]) // Re-fetch when language changes
 
   // Load more mixed news
   const loadMoreNews = async () => {
@@ -149,6 +174,10 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    document.title = `${t("app.name")} - ${t("home.latestNews")}`
+  }, [t])
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Top Navigation Bar */}
@@ -157,7 +186,7 @@ export default function Home() {
           <div className="flex items-center space-x-6 text-xs">
             {categories.map((category) => (
               <Link key={category.id} href={`/topics/${category.id}`} className="hover:text-primary transition-colors">
-                {category.name}
+                {t(`categories.${category.id.toLowerCase()}`) || category.name}
               </Link>
             ))}
           </div>
@@ -232,11 +261,11 @@ export default function Home() {
             {/* Main Content Area */}
             <div className="lg:col-span-3">
               {/* Hero Section */}
-              <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2">{t("home.latestNews") || "Latest News"}</h1>
-                <p className="text-gray-400">
-                  {t("home.latestNewsDesc") || "Breaking news and stories from around the world"}
-                </p>
+              <div className="container mx-auto px-4 py-8">
+                <div className="mb-8">
+                  <h1 className="text-4xl md:text-5xl font-bold mb-2">{t("home.latestNews")}</h1>
+                  <p className="text-muted-foreground text-lg">{t("home.breakingNews")}</p>
+                </div>
               </div>
 
               {/* Featured Article */}
@@ -374,26 +403,24 @@ export default function Home() {
             {/* Sidebar */}
             <div className="lg:col-span-1">
               {/* Connection Status */}
-              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+              <Card className="bg-card border rounded-lg p-6 mb-6 sticky top-20">
                 <CardHeader>
                   <div className="flex items-center">
-                    <Wifi className="h-5 w-5 mr-2 text-green-500" />
-                    <h3 className="font-bold">{t("sidebar.liveFeed") || "Live Feed"}</h3>
+                    <Radio className="h-5 w-5 text-green-500 animate-pulse" />
+                    <h3 className="text-lg font-semibold">{t("home.liveFeed")}</h3>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xs text-gray-400">
-                    {t("sidebar.connectedToSources") || "Connected to global news sources"}
-                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">{t("home.connectedToSources")}</p>
                 </CardContent>
               </Card>
 
               {/* Trending News */}
-              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+              <Card className="bg-card border rounded-lg p-6 mb-6">
                 <CardHeader>
                   <div className="flex items-center">
-                    <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                    <h3 className="font-bold">{t("sidebar.trendingNow") || "Trending Now"}</h3>
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-semibold">{t("sidebar.trendingNow") || "Trending Now"}</h3>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -418,9 +445,9 @@ export default function Home() {
               </Card>
 
               {/* Quick Actions */}
-              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+              <Card className="bg-card border rounded-lg p-6 mb-6">
                 <CardHeader>
-                  <h3 className="font-bold">{t("sidebar.quickActions") || "Quick Actions"}</h3>
+                  <h3 className="text-lg font-semibold">{t("home.quickActions")}</h3>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button asChild className="w-full justify-start" variant="ghost">
@@ -451,9 +478,9 @@ export default function Home() {
               </Card>
 
               {/* Categories Quick Access */}
-              <Card className="bg-[#1a1a1a] border-gray-800 mb-6">
+              <Card className="bg-card border rounded-lg p-6 mb-6">
                 <CardHeader>
-                  <h3 className="font-bold">{t("sidebar.browseCategories") || "Browse Categories"}</h3>
+                  <h3 className="text-lg font-semibold">{t("sidebar.browseCategories") || "Browse Categories"}</h3>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {[
@@ -476,10 +503,10 @@ export default function Home() {
               </Card>
 
               {/* Newsletter Signup */}
-              <Card className="bg-[#1a1a1a] border-gray-800">
+              <Card className="bg-card border rounded-lg p-6">
                 <CardHeader>
-                  <h3 className="font-bold">{t("sidebar.stayUpdated") || "Stay Updated"}</h3>
-                  <p className="text-sm text-gray-400">
+                  <h3 className="text-lg font-semibold">{t("sidebar.stayUpdated") || "Stay Updated"}</h3>
+                  <p className="text-sm text-muted-foreground">
                     {t("sidebar.newsletter") || "Get the latest news delivered to your inbox"}
                   </p>
                 </CardHeader>

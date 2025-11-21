@@ -1,21 +1,41 @@
 {
+  "app": {
+    "name": "NewsMania"
+  },
   "nav": {
     "home": "Home",
+    "latest": "Latest",
     "dashboard": "Dashboard",
     "personalized": "Personalized",
     "topics": "Topics",
     "factCheck": "Fact Check",
     "myNotes": "My Notes",
     "extract": "Extract",
+    "extractNews": "Extract News",
     "research": "Research",
     "saved": "Saved"
+  },
+  "home": {
+    "latestNews": "Latest News",
+    "breakingNews": "Breaking news and stories from around the world",
+    "liveFeed": "Live Feed",
+    "connectedToSources": "Connected to global news sources",
+    "trendingNow": "Trending Now",
+    "quickActions": "Quick Actions"
   },
   "auth": {
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "profile": "Profile",
     "settings": "Settings",
-    "logout": "Log out"
+    "logout": "Log out",
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember me"
   },
   "common": {
     "loading": "Loading...",
@@ -28,7 +48,13 @@
     "share": "Share",
     "readMore": "Read more",
     "viewMore": "View more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "close": "Close",
+    "open": "Open",
+    "submit": "Submit"
   },
   "article": {
     "summarize": "Summarize",
@@ -39,7 +65,11 @@
     "relatedNews": "Related News",
     "trending": "Trending",
     "latest": "Latest",
-    "popular": "Popular"
+    "popular": "Popular",
+    "readingTime": "min read",
+    "publishedOn": "Published on",
+    "by": "by",
+    "source": "Source"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -49,13 +79,48 @@
     "readingStreak": "Reading Streak",
     "days": "days",
     "hours": "hours",
-    "minutes": "minutes"
+    "minutes": "minutes",
+    "recentActivity": "Recent Activity",
+    "yourInterests": "Your Interests"
   },
   "personalized": {
     "title": "Personalized News",
     "forYou": "For You",
     "recommendations": "Recommendations",
-    "basedOnInterests": "Based on your interests"
+    "basedOnInterests": "Based on your interests",
+    "customized": "Customized for you",
+    "whyThisArticle": "Why this article?"
+  },
+  "topics": {
+    "title": "Topics",
+    "browseByTopic": "Browse by Topic",
+    "selectTopic": "Select a topic",
+    "allTopics": "All Topics"
+  },
+  "factCheck": {
+    "title": "Fact Check",
+    "verifyNews": "Verify News",
+    "credibilityScore": "Credibility Score",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "checkingFacts": "Checking facts...",
+    "sources": "Sources"
+  },
+  "extract": {
+    "title": "Extract News",
+    "pasteUrl": "Paste article URL",
+    "extractContent": "Extract Content",
+    "analyzing": "Analyzing...",
+    "extracted": "Extracted"
+  },
+  "notes": {
+    "title": "My Notes",
+    "createNote": "Create Note",
+    "editNote": "Edit Note",
+    "deleteNote": "Delete Note",
+    "searchNotes": "Search notes...",
+    "noNotes": "No notes yet",
+    "saveNote": "Save Note"
   },
   "categories": {
     "technology": "Technology",
@@ -65,8 +130,33 @@
     "health": "Health",
     "science": "Science",
     "politics": "Politics",
-    "world": "World"
+    "world": "World",
+    "tech": "TECH",
+    "all": "All"
   },
+  "category": {
+    "business": "Business",
+    "entertainment": "Entertainment",
+    "environment": "Environment",
+    "food": "Food",
+    "health": "Health",
+    "politics": "Politics",
+    "science": "Science",
+    "sports": "Sports",
+    "technology": "Technology",
+    "top": "Top Stories",
+    "tourism": "Tourism",
+    "world": "World",
+    "crime": "Crime",
+    "domestic": "Domestic",
+    "education": "Education",
+    "lifestyle": "Lifestyle",
+    "other": "Other"
+  },
+  "categories_label": "Categories",
+  "selectCountry": "Select Country",
+  "clear": "Clear",
+  "sourceLabel": "Source",
   "ai": {
     "generating": "Generating...",
     "analyzing": "Analyzing...",
@@ -74,6 +164,16 @@
     "summary": "Summary",
     "insights": "Insights",
     "credibility": "Credibility",
-    "factChecking": "Fact Checking..."
+    "factChecking": "Fact Checking...",
+    "askQuestion": "Ask a question...",
+    "chatWithAI": "Chat with AI"
+  },
+  "time": {
+    "now": "now",
+    "minutesAgo": "minutes ago",
+    "hoursAgo": "hours ago",
+    "daysAgo": "days ago",
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

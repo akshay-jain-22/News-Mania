@@ -1,21 +1,41 @@
 {
+  "app": {
+    "name": "न्यूज़मेनिया"
+  },
   "nav": {
     "home": "होम",
+    "latest": "नवीनतम",
     "dashboard": "डैशबोर्ड",
     "personalized": "वैयक्तिकृत",
     "topics": "विषय",
     "factCheck": "तथ्य जांच",
     "myNotes": "मेरे नोट्स",
     "extract": "निकालें",
+    "extractNews": "समाचार निकालें",
     "research": "शोध",
     "saved": "सहेजा गया"
+  },
+  "home": {
+    "latestNews": "नवीनतम समाचार",
+    "breakingNews": "दुनिया भर की ब्रेकिंग न्यूज़ और कहानियां",
+    "liveFeed": "लाइव फ़ीड",
+    "connectedToSources": "वैश्विक समाचार स्रोतों से जुड़ा",
+    "trendingNow": "अभी ट्रेंडिंग",
+    "quickActions": "त्वरित क्रियाएं"
   },
   "auth": {
     "signIn": "साइन इन",
     "signOut": "साइन आउट",
     "profile": "प्रोफ़ाइल",
     "settings": "सेटिंग्स",
-    "logout": "लॉग आउट"
+    "logout": "लॉग आउट",
+    "login": "लॉगिन",
+    "register": "रजिस्टर",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "rememberMe": "मुझे याद रखें"
   },
   "common": {
     "loading": "लोड हो रहा है...",
@@ -28,7 +48,13 @@
     "share": "साझा करें",
     "readMore": "और पढ़ें",
     "viewMore": "और देखें",
-    "showLess": "कम दिखाएं"
+    "showLess": "कम दिखाएं",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "sort": "क्रमबद्ध करें",
+    "close": "बंद करें",
+    "open": "खोलें",
+    "submit": "सबमिट करें"
   },
   "article": {
     "summarize": "सारांश",
@@ -39,7 +65,11 @@
     "relatedNews": "संबंधित समाचार",
     "trending": "ट्रेंडिंग",
     "latest": "नवीनतम",
-    "popular": "लोकप्रिय"
+    "popular": "लोकप्रिय",
+    "readingTime": "मिनट पढ़ें",
+    "publishedOn": "प्रकाशित",
+    "by": "द्वारा",
+    "source": "स्रोत"
   },
   "dashboard": {
     "title": "डैशबोर्ड",
@@ -49,13 +79,48 @@
     "readingStreak": "पढ़ने की लकीर",
     "days": "दिन",
     "hours": "घंटे",
-    "minutes": "मिनट"
+    "minutes": "मिनट",
+    "recentActivity": "हाल की गतिविधि",
+    "yourInterests": "आपकी रुचियां"
   },
   "personalized": {
     "title": "वैयक्तिकृत समाचार",
     "forYou": "आपके लिए",
     "recommendations": "सिफारिशें",
-    "basedOnInterests": "आपकी रुचियों के आधार पर"
+    "basedOnInterests": "आपकी रुचियों के आधार पर",
+    "customized": "आपके लिए अनुकूलित",
+    "whyThisArticle": "यह लेख क्यों?"
+  },
+  "topics": {
+    "title": "विषय",
+    "browseByTopic": "विषय द्वारा ब्राउज़ करें",
+    "selectTopic": "एक विषय चुनें",
+    "allTopics": "सभी विषय"
+  },
+  "factCheck": {
+    "title": "तथ्य जांच",
+    "verifyNews": "समाचार सत्यापित करें",
+    "credibilityScore": "विश्वसनीयता स्कोर",
+    "verified": "सत्यापित",
+    "unverified": "असत्यापित",
+    "checkingFacts": "तथ्य जांच रहे हैं...",
+    "sources": "स्रोत"
+  },
+  "extract": {
+    "title": "समाचार निकालें",
+    "pasteUrl": "लेख URL पेस्ट करें",
+    "extractContent": "सामग्री निकालें",
+    "analyzing": "विश्लेषण कर रहे हैं...",
+    "extracted": "निकाला गया"
+  },
+  "notes": {
+    "title": "मेरे नोट्स",
+    "createNote": "नोट बनाएं",
+    "editNote": "नोट संपादित करें",
+    "deleteNote": "नोट हटाएं",
+    "searchNotes": "नोट्स खोजें...",
+    "noNotes": "अभी तक कोई नोट्स नहीं",
+    "saveNote": "नोट सहेजें"
   },
   "categories": {
     "technology": "प्रौद्योगिकी",
@@ -65,8 +130,33 @@
     "health": "स्वास्थ्य",
     "science": "विज्ञान",
     "politics": "राजनीति",
-    "world": "विश्व"
+    "world": "विश्व",
+    "tech": "टेक",
+    "all": "सभी"
   },
+  "category": {
+    "business": "व्यापार",
+    "entertainment": "मनोरंजन",
+    "environment": "पर्यावरण",
+    "food": "भोजन",
+    "health": "स्वास्थ्य",
+    "politics": "राजनीति",
+    "science": "विज्ञान",
+    "sports": "खेल",
+    "technology": "प्रौद्योगिकी",
+    "top": "शीर्ष समाचार",
+    "tourism": "पर्यटन",
+    "world": "विश्व",
+    "crime": "अपराध",
+    "domestic": "घरेलू",
+    "education": "शिक्षा",
+    "lifestyle": "जीवनशैली",
+    "other": "अन्य"
+  },
+  "categories_label": "श्रेणियाँ",
+  "selectCountry": "देश चुनें",
+  "clear": "साफ़ करें",
+  "sourceLabel": "स्रोत",
   "ai": {
     "generating": "उत्पन्न हो रहा है...",
     "analyzing": "विश्लेषण कर रहा है...",
@@ -74,6 +164,16 @@
     "summary": "सारांश",
     "insights": "अंतर्दृष्टि",
     "credibility": "विश्वसनीयता",
-    "factChecking": "तथ्य जांच कर रहा है..."
+    "factChecking": "तथ्य जांच कर रहा है...",
+    "askQuestion": "एक प्रश्न पूछें...",
+    "chatWithAI": "AI के साथ चैट करें"
+  },
+  "time": {
+    "now": "अभी",
+    "minutesAgo": "मिनट पहले",
+    "hoursAgo": "घंटे पहले",
+    "daysAgo": "दिन पहले",
+    "today": "आज",
+    "yesterday": "कल"
   }
 }

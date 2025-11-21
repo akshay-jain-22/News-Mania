@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
 import { NewsCard } from "@/components/news-card"
 import type { NewsArticle } from "@/types/news"
+import { useI18n } from "@/lib/i18n"
+import { translateText } from "@/lib/translateText"
 
 interface PersonalizedItem {
   articleId: string
@@ -45,6 +47,7 @@ function getOrCreateAnonUserId(): string {
 
 export default function PersonalizedPage() {
   const { user } = useAuth()
+  const { t, locale } = useI18n()
   const [items, setItems] = useState<PersonalizedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -78,7 +81,22 @@ export default function PersonalizedPage() {
 
         const data: PersonalizeResponse = await response.json()
 
-        setItems(data.items)
+        if (locale !== "en") {
+          const translatedItems = await Promise.all(
+            data.items.map(async (item) => ({
+              ...item,
+              title: await translateText(item.title, locale, "news headline"),
+              description: item.description
+                ? await translateText(item.description, locale, "news description")
+                : item.description,
+              reason: await translateText(item.reason, locale, "recommendation reason"),
+            })),
+          )
+          setItems(translatedItems)
+        } else {
+          setItems(data.items)
+        }
+
         setSource(data.source)
         setFallbackBuckets(data.fallbackBuckets || [])
         setPage(2)
@@ -87,14 +105,14 @@ export default function PersonalizedPage() {
         console.log(`[v0] Loaded ${data.items.length} items, source=${data.source}`)
       } catch (err) {
         console.error("[v0] Error loading personalized feed:", err)
-        setError(err instanceof Error ? err.message : "Failed to load personalized feed")
+        setError(err instanceof Error ? err.message : t("common.error"))
       } finally {
         setLoading(false)
       }
     }
 
     loadPersonalizedFeed()
-  }, [user])
+  }, [user, locale, t])
 
   const loadMoreItems = async () => {
     if (loadingMore || !hasMore) return
@@ -169,16 +187,16 @@ export default function PersonalizedPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-primary" />
-                <h1 className="text-3xl font-bold tracking-tight">Your Personalized Feed</h1>
+                <h1 className="text-3xl font-bold tracking-tight">{t("personalized.title")}</h1>
               </div>
-              <p className="text-muted-foreground">Fresh news tailored to your interests</p>
+              <p className="text-muted-foreground">{t("personalized.basedOnInterests")}</p>
             </div>
 
             {/* Articles Grid */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <span className="ml-2 text-xl">Loading articles...</span>
+                <span className="ml-2 text-xl">{t("common.loading")}</span>
               </div>
             ) : items.length > 0 ? (
               <>
@@ -200,10 +218,10 @@ export default function PersonalizedPage() {
                       {loadingMore ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Loading More...
+                          {t("common.loading")}
                         </>
                       ) : (
-                        "Load More Articles"
+                        t("common.viewMore")
                       )}
                     </Button>
                   </div>
@@ -211,16 +229,18 @@ export default function PersonalizedPage() {
 
                 {!hasMore && items.length > 0 && (
                   <div className="text-center text-muted-foreground py-8">
-                    <p>You've reached the end of the feed</p>
+                    <p>{t("personalized.endOfFeed") || "You've reached the end of the feed"}</p>
                   </div>
                 )}
               </>
             ) : (
               <Card className="text-center py-12">
                 <CardContent>
-                  <p className="text-muted-foreground mb-4">No articles available at the moment. Check back soon!</p>
+                  <p className="text-muted-foreground mb-4">
+                    {t("personalized.noArticles") || "No articles available at the moment. Check back soon!"}
+                  </p>
                   <Button asChild>
-                    <a href="/topics">Browse Topics</a>
+                    <a href="/topics">{t("topics.browseByTopic")}</a>
                   </Button>
                 </CardContent>
               </Card>
